@@ -87,12 +87,16 @@ model User {
   accountId String  @unique
   account   Account @relation(fields: [accountId], references: [id])
   name      String
+  email     String? // 連絡先開示用
+  phone     String? // 連絡先開示用
 
-  documents   Document[]
-  experiences Experience[]
-  fragments   Fragment[]
-  agent       AgentProfile?
-  sessions    Session[]
+  documents        Document[]
+  experiences      Experience[]
+  fragments        Fragment[]
+  agent            AgentProfile?
+  sessions         Session[]
+  receivedInterests Interest[]
+  receivedMessages DirectMessage[] @relation("ReceivedMessages")
 }
 
 model Recruiter {
@@ -101,12 +105,16 @@ model Recruiter {
   account     Account @relation(fields: [accountId], references: [id])
   companyName String
 
-  sessions    Session[]
-  notes       InterviewNote[]
-  evaluations InterviewEvaluation[]
-  jobPostings JobPosting[]
-  watches     CandidateWatch[]
-  pipelines   CandidatePipeline[]
+  sessions     Session[]
+  notes        InterviewNote[]
+  evaluations  InterviewEvaluation[]
+  jobPostings  JobPosting[]
+  watches      CandidateWatch[]
+  pipelines    CandidatePipeline[]
+  subscription Subscription?
+  pointTransactions PointTransaction[]
+  interests    Interest[]
+  sentMessages DirectMessage[] @relation("SentMessages")
 }
 
 model Document {
@@ -433,4 +441,112 @@ model Notification {
   createdAt DateTime         @default(now())
 
   @@index([accountId, isRead, createdAt])
+}
+
+// ==========================================
+// 課金・ポイントシステム
+// ==========================================
+
+enum PlanType {
+  LIGHT
+  STANDARD
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+}
+
+enum PointTransactionType {
+  GRANT           // 月額プランによる付与
+  CONSUME         // アクションによる消費
+  PURCHASE        // 追加購入
+  EXPIRE          // 期限切れ
+  REFUND          // 返還
+}
+
+enum PointAction {
+  CONVERSATION         // エージェント会話（1pt）
+  CONTACT_DISCLOSURE   // 連絡先開示（10pt）
+  MESSAGE_SEND         // メッセージ送信（3pt）
+}
+
+model Subscription {
+  id              String             @id @default(uuid())
+  recruiterId     String             @unique
+  recruiter       Recruiter          @relation(fields: [recruiterId], references: [id])
+  planType        PlanType
+  pointBalance    Int                @default(0)
+  pointsIncluded  Int                // プランに含まれるポイント数
+  status          SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId    String?
+  stripeSubscriptionId String?
+  billingCycleStart DateTime         @default(now())
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([recruiterId])
+}
+
+model PointTransaction {
+  id          String               @id @default(uuid())
+  recruiterId String
+  recruiter   Recruiter            @relation(fields: [recruiterId], references: [id])
+  type        PointTransactionType
+  action      PointAction?         // CONSUMEの場合のみ
+  amount      Int                  // 正: 増加, 負: 減少
+  balance     Int                  // 取引後の残高
+  relatedId   String?              // 関連するエンティティID
+  description String?
+  createdAt   DateTime             @default(now())
+
+  @@index([recruiterId, createdAt])
+}
+
+// ==========================================
+// 興味表明・連絡先開示
+// ==========================================
+
+enum InterestStatus {
+  EXPRESSED           // 興味表明済み
+  CONTACT_REQUESTED   // 連絡先開示リクエスト済み
+  CONTACT_DISCLOSED   // 連絡先開示済み
+  DECLINED            // 辞退
+}
+
+model Interest {
+  id          String         @id @default(uuid())
+  recruiterId String
+  recruiter   Recruiter      @relation(fields: [recruiterId], references: [id])
+  userId      String
+  user        User           @relation(fields: [userId], references: [id])
+  agentId     String         // 興味を持ったエージェント
+  status      InterestStatus @default(EXPRESSED)
+  message     String?        // 興味表明時のメッセージ
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  directMessages DirectMessage[]
+
+  @@unique([recruiterId, userId])
+  @@index([userId, status])
+  @@index([recruiterId, status])
+}
+
+model DirectMessage {
+  id          String    @id @default(uuid())
+  interestId  String
+  interest    Interest  @relation(fields: [interestId], references: [id])
+  senderId    String
+  senderType  SenderType
+  recruiterId String?
+  recruiter   Recruiter? @relation("SentMessages", fields: [recruiterId], references: [id])
+  userId      String?
+  user        User?      @relation("ReceivedMessages", fields: [userId], references: [id])
+  content     String
+  createdAt   DateTime  @default(now())
+
+  @@index([interestId, createdAt])
 }
