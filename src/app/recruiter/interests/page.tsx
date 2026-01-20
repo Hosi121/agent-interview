@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface Interest {
   id: string;
-  status: "INTERESTED" | "CONTACT_DISCLOSED";
+  status: "EXPRESSED" | "CONTACT_REQUESTED" | "CONTACT_DISCLOSED" | "DECLINED";
   createdAt: string;
   user: {
     id: string;
@@ -47,10 +47,15 @@ interface DirectMessage {
 
 const statusLabels: Record<
   string,
-  { label: string; variant: "default" | "secondary" | "outline" }
+  {
+    label: string;
+    variant: "default" | "secondary" | "outline" | "destructive";
+  }
 > = {
-  INTERESTED: { label: "興味表明済み", variant: "secondary" },
+  EXPRESSED: { label: "興味表明済み", variant: "secondary" },
+  CONTACT_REQUESTED: { label: "連絡先リクエスト中", variant: "outline" },
   CONTACT_DISCLOSED: { label: "連絡先開示済み", variant: "default" },
+  DECLINED: { label: "辞退", variant: "destructive" },
 };
 
 export default function InterestsPage() {
@@ -275,7 +280,7 @@ export default function InterestsPage() {
                 )}
 
                 <div className="flex gap-2">
-                  {interest.status === "INTERESTED" && (
+                  {interest.status === "EXPRESSED" && (
                     <Button
                       onClick={() => handleDiscloseContact(interest)}
                       disabled={isDisclosing}
