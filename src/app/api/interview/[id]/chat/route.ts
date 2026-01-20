@@ -2,6 +2,12 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { generateChatResponse } from "@/lib/openai";
+import {
+  checkPointBalance,
+  consumePoints,
+  InsufficientPointsError,
+  NoSubscriptionError,
+} from "@/lib/points";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -49,7 +55,25 @@ export async function POST(
       },
     });
 
-    if (!chatSession) {
+    const isNewSession = !chatSession;
+
+    // 新規セッション作成時はポイントをチェック・消費
+    if (isNewSession) {
+      const pointCheck = await checkPointBalance(
+        session.user.recruiterId,
+        "CONVERSATION",
+      );
+      if (!pointCheck.canProceed) {
+        return NextResponse.json(
+          {
+            error: "ポイントが不足しています",
+            required: pointCheck.required,
+            available: pointCheck.available,
+          },
+          { status: 402 },
+        );
+      }
+
       chatSession = await prisma.session.create({
         data: {
           sessionType: "RECRUITER_AGENT_CHAT",
@@ -60,6 +84,19 @@ export async function POST(
           messages: true,
         },
       });
+
+      // ポイント消費
+      await consumePoints(
+        session.user.recruiterId,
+        "CONVERSATION",
+        chatSession.id,
+        `エージェント会話: ${agent.user.name}`,
+      );
+    }
+
+    // TypeScript型絞り込み（既存セッション取得または新規作成のどちらかで必ず存在）
+    if (!chatSession) {
+      throw new Error("Failed to create or find chat session");
     }
 
     await prisma.message.create({
@@ -111,6 +148,22 @@ ${fragmentsContext || "（詳細な情報はまだ収集されていません）
     return NextResponse.json({ message: responseMessage });
   } catch (error) {
     console.error("Interview chat error:", error);
+
+    if (error instanceof NoSubscriptionError) {
+      return NextResponse.json({ error: error.message }, { status: 402 });
+    }
+
+    if (error instanceof InsufficientPointsError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          required: error.required,
+          available: error.available,
+        },
+        { status: 402 },
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
