@@ -27,6 +27,7 @@ interface InterviewSession {
 export default function RecruiterDashboard() {
   const { data: session } = useSession();
   const [recentSessions, setRecentSessions] = useState<InterviewSession[]>([]);
+  const [totalSessionCount, setTotalSessionCount] = useState(0);
   const [agentCount, setAgentCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,6 +40,7 @@ export default function RecruiterDashboard() {
 
       if (sessionsRes.ok) {
         const data = await sessionsRes.json();
+        setTotalSessionCount(data.sessions.length);
         setRecentSessions(data.sessions.slice(0, 5));
       }
 
@@ -121,7 +123,7 @@ export default function RecruiterDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-4xl font-bold text-primary">
-              {isLoading ? "-" : recentSessions.length}
+              {isLoading ? "-" : totalSessionCount}
             </p>
           </CardContent>
         </Card>
