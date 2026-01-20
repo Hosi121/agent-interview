@@ -14,11 +14,24 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id: agentId } = await params;
+
+    // agentIdからセッションを検索
+    const chatSession = await prisma.session.findFirst({
+      where: {
+        agentId,
+        recruiterId: session.user.recruiterId,
+        sessionType: "RECRUITER_AGENT_CHAT",
+      },
+    });
+
+    if (!chatSession) {
+      return NextResponse.json({ notes: [] });
+    }
 
     const notes = await prisma.interviewNote.findMany({
       where: {
-        sessionId: id,
+        sessionId: chatSession.id,
         recruiterId: session.user.recruiterId,
       },
       orderBy: { createdAt: "desc" },
@@ -45,7 +58,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id: agentId } = await params;
     const { content } = await req.json();
 
     if (!content?.trim()) {
@@ -55,20 +68,25 @@ export async function POST(
       );
     }
 
-    const interviewSession = await prisma.session.findFirst({
+    // agentIdからセッションを検索
+    const chatSession = await prisma.session.findFirst({
       where: {
-        id,
+        agentId,
         recruiterId: session.user.recruiterId,
+        sessionType: "RECRUITER_AGENT_CHAT",
       },
     });
 
-    if (!interviewSession) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    if (!chatSession) {
+      return NextResponse.json(
+        { error: "まず面接チャットを開始してください" },
+        { status: 404 },
+      );
     }
 
     const note = await prisma.interviewNote.create({
       data: {
-        sessionId: id,
+        sessionId: chatSession.id,
         recruiterId: session.user.recruiterId,
         content: content.trim(),
       },

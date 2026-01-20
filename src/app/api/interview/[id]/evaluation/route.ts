@@ -15,10 +15,23 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id: agentId } = await params;
+
+    // agentIdからセッションを検索
+    const chatSession = await prisma.session.findFirst({
+      where: {
+        agentId,
+        recruiterId: session.user.recruiterId,
+        sessionType: "RECRUITER_AGENT_CHAT",
+      },
+    });
+
+    if (!chatSession) {
+      return NextResponse.json({ evaluation: null });
+    }
 
     const evaluation = await prisma.interviewEvaluation.findUnique({
-      where: { sessionId: id },
+      where: { sessionId: chatSession.id },
     });
 
     return NextResponse.json({ evaluation });
@@ -42,7 +55,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id: agentId } = await params;
     const body = await req.json();
     const {
       overallRating,
@@ -64,10 +77,12 @@ export async function POST(
       );
     }
 
+    // agentIdからセッションを検索
     const interviewSession = await prisma.session.findFirst({
       where: {
-        id,
+        agentId,
         recruiterId: session.user.recruiterId,
+        sessionType: "RECRUITER_AGENT_CHAT",
       },
       include: {
         messages: true,
@@ -80,7 +95,10 @@ export async function POST(
     });
 
     if (!interviewSession) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "まず面接チャットを開始してください" },
+        { status: 404 },
+      );
     }
 
     let matchScore: number | null = null;
@@ -127,7 +145,7 @@ JSONで{"score": 数値, "reason": "理由"}の形式で回答してください
     }
 
     const evaluation = await prisma.interviewEvaluation.upsert({
-      where: { sessionId: id },
+      where: { sessionId: interviewSession.id },
       update: {
         overallRating,
         technicalRating,
@@ -137,7 +155,7 @@ JSONで{"score": 数値, "reason": "理由"}の形式で回答してください
         comment: comment || null,
       },
       create: {
-        sessionId: id,
+        sessionId: interviewSession.id,
         recruiterId: session.user.recruiterId,
         overallRating,
         technicalRating,
