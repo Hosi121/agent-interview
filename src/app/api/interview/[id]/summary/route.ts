@@ -36,7 +36,7 @@ export async function GET(request: Request, context: RouteContext) {
       where: {
         sessionType: "RECRUITER_AGENT_CHAT",
         recruiterId: session.user.recruiterId,
-        id,
+        agentId: id,
       },
       include: {
         messages: {
