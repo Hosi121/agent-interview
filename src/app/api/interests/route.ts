@@ -21,6 +21,8 @@ export async function GET() {
           select: {
             id: true,
             name: true,
+            email: true,
+            phone: true,
             agent: {
               select: {
                 id: true,
@@ -33,7 +35,19 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ interests });
+    // 連絡先は開示済みの場合のみ返す
+    const sanitizedInterests = interests.map((interest) => ({
+      ...interest,
+      user: {
+        ...interest.user,
+        email:
+          interest.status === "CONTACT_DISCLOSED" ? interest.user.email : null,
+        phone:
+          interest.status === "CONTACT_DISCLOSED" ? interest.user.phone : null,
+      },
+    }));
+
+    return NextResponse.json({ interests: sanitizedInterests });
   } catch (error) {
     console.error("Get interests error:", error);
     return NextResponse.json(
