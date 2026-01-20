@@ -10,8 +10,9 @@ const ALLOWED_MIME_TYPES = [
   "application/pdf",
   "text/plain",
   "text/markdown",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // Word形式は現在サポート外（バイナリ形式の解析が必要）
+  // "application/msword",
+  // "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
 // ファイル名のサニタイズ（パストラバーサル対策）
