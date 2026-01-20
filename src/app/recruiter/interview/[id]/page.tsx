@@ -46,6 +46,11 @@ interface Evaluation {
   comment: string | null;
 }
 
+interface Interest {
+  id: string;
+  status: string;
+}
+
 export default function InterviewPage({
   params,
 }: {
@@ -60,6 +65,8 @@ export default function InterviewPage({
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [interest, setInterest] = useState<Interest | null>(null);
+  const [isExpressingInterest, setIsExpressingInterest] = useState(false);
   const [evalForm, setEvalForm] = useState({
     overallRating: 3,
     technicalRating: 3,
@@ -139,12 +146,60 @@ export default function InterviewPage({
     }
   }, [resolvedParams.id]);
 
+  const fetchInterest = useCallback(async () => {
+    try {
+      const response = await fetch("/api/interests");
+      if (response.ok) {
+        const data = await response.json();
+        const found = data.interests.find(
+          (i: { agentId: string }) => i.agentId === resolvedParams.id,
+        );
+        if (found) {
+          setInterest(found);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch interest:", error);
+    }
+  }, [resolvedParams.id]);
+
   useEffect(() => {
     fetchAgentInfo();
     fetchMessages();
     fetchNotes();
     fetchEvaluation();
-  }, [fetchAgentInfo, fetchMessages, fetchNotes, fetchEvaluation]);
+    fetchInterest();
+  }, [
+    fetchAgentInfo,
+    fetchMessages,
+    fetchNotes,
+    fetchEvaluation,
+    fetchInterest,
+  ]);
+
+  const handleExpressInterest = async () => {
+    setIsExpressingInterest(true);
+    try {
+      const response = await fetch("/api/interests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId: resolvedParams.id }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setInterest(data.interest);
+      } else {
+        const data = await response.json();
+        alert(data.error || "エラーが発生しました");
+      }
+    } catch (error) {
+      console.error("Failed to express interest:", error);
+      alert("エラーが発生しました");
+    } finally {
+      setIsExpressingInterest(false);
+    }
+  };
 
   const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
@@ -272,6 +327,41 @@ export default function InterviewPage({
               AIエージェントとの面接
             </p>
           </div>
+        </div>
+        <div className="ml-auto">
+          {interest ? (
+            <Badge variant="outline" className="py-1.5 px-3">
+              <svg
+                className="w-4 h-4 mr-1.5 text-red-500"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+              興味表明済み
+            </Badge>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={handleExpressInterest}
+              disabled={isExpressingInterest}
+            >
+              <svg
+                className="w-4 h-4 mr-1.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                />
+              </svg>
+              興味あり
+            </Button>
+          )}
         </div>
       </div>
 

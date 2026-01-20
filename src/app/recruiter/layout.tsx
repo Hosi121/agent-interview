@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,8 +19,14 @@ const navigation = [
   { name: "求人管理", href: "/recruiter/jobs" },
   { name: "パイプライン", href: "/recruiter/pipeline" },
   { name: "エージェント一覧", href: "/recruiter/agents" },
+  { name: "興味リスト", href: "/recruiter/interests" },
   { name: "ウォッチリスト", href: "/recruiter/watches" },
 ];
+
+interface Subscription {
+  pointBalance: number;
+  planName: string;
+}
 
 export default function RecruiterLayout({
   children,
@@ -28,12 +35,36 @@ export default function RecruiterLayout({
 }) {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  const fetchSubscription = useCallback(async () => {
+    try {
+      const response = await fetch("/api/subscription");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.subscription) {
+          setSubscription({
+            pointBalance: data.subscription.pointBalance,
+            planName: data.subscription.planName,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch subscription:", error);
+    }
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login");
     }
   }, [status, router]);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchSubscription();
+    }
+  }, [status, fetchSubscription]);
 
   if (status === "loading") {
     return (
@@ -72,6 +103,30 @@ export default function RecruiterLayout({
               </nav>
             </div>
             <div className="flex items-center gap-4">
+              {subscription && (
+                <Badge
+                  variant="outline"
+                  className="hidden md:flex gap-1.5 py-1"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span className="font-semibold">
+                    {subscription.pointBalance}
+                  </span>
+                  <span className="text-muted-foreground">pt</span>
+                </Badge>
+              )}
               <span className="text-sm text-muted-foreground hidden md:block">
                 {session.user?.companyName}
               </span>
