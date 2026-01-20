@@ -12,6 +12,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ChatWindow } from "@/components/chat/ChatWindow";
+
+interface PreviewMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
 
 interface AgentProfile {
   id: string;
@@ -35,6 +49,9 @@ export default function AgentPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewMessages, setPreviewMessages] = useState<PreviewMessage[]>([]);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   const fetchAgent = useCallback(async () => {
     try {
@@ -112,6 +129,66 @@ export default function AgentPage() {
       }
     } catch (error) {
       console.error("Failed to update prompt:", error);
+    }
+  };
+
+  const handleOpenPreview = () => {
+    setPreviewMessages([
+      {
+        id: "initial",
+        role: "assistant",
+        content: "こんにちは！私はあなたのAIエージェントです。採用担当者からの質問を想定して、何でも聞いてみてください。",
+      },
+    ]);
+    setIsPreviewOpen(true);
+  };
+
+  const handlePreviewMessage = async (content: string) => {
+    const userMessage: PreviewMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      content,
+    };
+
+    setPreviewMessages((prev) => [...prev, userMessage]);
+    setIsPreviewLoading(true);
+
+    try {
+      const response = await fetch("/api/agents/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [...previewMessages, userMessage]
+            .filter((m) => m.id !== "initial")
+            .map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get response");
+      }
+
+      const data = await response.json();
+      const assistantMessage: PreviewMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: data.message,
+      };
+
+      setPreviewMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error("Preview error:", error);
+      const errorMessage: PreviewMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "エラーが発生しました。もう一度お試しください。",
+      };
+      setPreviewMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsPreviewLoading(false);
     }
   };
 
@@ -195,27 +272,43 @@ export default function AgentPage() {
           </Card>
 
           {agent && (
-            <Card>
-              <CardHeader>
-                <CardTitle>公開設定</CardTitle>
-                <CardDescription>
-                  エージェントを公開すると、採用担当者が面接できるようになります
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  onClick={handleToggleStatus}
-                  disabled={isUpdating}
-                  variant={agent.status === "PUBLIC" ? "destructive" : "default"}
-                >
-                  {isUpdating
-                    ? "更新中..."
-                    : agent.status === "PUBLIC"
-                    ? "非公開にする"
-                    : "公開する"}
-                </Button>
-              </CardContent>
-            </Card>
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>プレビュー</CardTitle>
+                  <CardDescription>
+                    エージェントの動作を確認できます
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button onClick={handleOpenPreview} variant="outline">
+                    エージェントをテスト
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>公開設定</CardTitle>
+                  <CardDescription>
+                    エージェントを公開すると、採用担当者が面接できるようになります
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={handleToggleStatus}
+                    disabled={isUpdating}
+                    variant={agent.status === "PUBLIC" ? "destructive" : "default"}
+                  >
+                    {isUpdating
+                      ? "更新中..."
+                      : agent.status === "PUBLIC"
+                      ? "非公開にする"
+                      : "公開する"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
 
@@ -282,6 +375,25 @@ export default function AgentPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-2xl h-[600px] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>エージェントプレビュー</DialogTitle>
+            <DialogDescription>
+              採用担当者の視点でエージェントをテストできます
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            <ChatWindow
+              messages={previewMessages}
+              onSendMessage={handlePreviewMessage}
+              isLoading={isPreviewLoading}
+              placeholder="採用担当者として質問してみてください..."
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
