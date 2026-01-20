@@ -131,7 +131,7 @@ export default function ChatPage() {
             <div className="text-center py-4">
               <p className="text-4xl font-bold text-primary">{fragmentCount}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                フラグメント
+                記憶のかけら
               </p>
             </div>
           </CardContent>

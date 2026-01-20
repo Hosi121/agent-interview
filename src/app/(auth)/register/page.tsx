@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,21 +13,31 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Link from "next/link";
 
-function RegisterForm() {
+export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const email = searchParams.get("email") || "";
-  const defaultName = searchParams.get("name") || "";
-
-  const [name, setName] = useState(defaultName);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [name, setName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleUserRegister = async () => {
-    if (!name.trim()) {
-      setError("名前を入力してください");
+    if (!email.trim() || !password.trim() || !name.trim()) {
+      setError("すべての項目を入力してください");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("パスワードが一致しません");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("パスワードは6文字以上で入力してください");
       return;
     }
 
@@ -39,6 +50,7 @@ function RegisterForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
+          password,
           name,
           accountType: "USER",
         }),
@@ -49,7 +61,18 @@ function RegisterForm() {
         throw new Error(data.error || "登録に失敗しました");
       }
 
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        throw new Error("ログインに失敗しました");
+      }
+
       router.push("/dashboard");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
     } finally {
@@ -58,8 +81,18 @@ function RegisterForm() {
   };
 
   const handleRecruiterRegister = async () => {
-    if (!name.trim() || !companyName.trim()) {
-      setError("名前と会社名を入力してください");
+    if (!email.trim() || !password.trim() || !name.trim() || !companyName.trim()) {
+      setError("すべての項目を入力してください");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("パスワードが一致しません");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("パスワードは6文字以上で入力してください");
       return;
     }
 
@@ -72,6 +105,7 @@ function RegisterForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
+          password,
           name,
           companyName,
           accountType: "RECRUITER",
@@ -83,7 +117,18 @@ function RegisterForm() {
         throw new Error(data.error || "登録に失敗しました");
       }
 
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        throw new Error("ログインに失敗しました");
+      }
+
       router.push("/recruiter/dashboard");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
     } finally {
@@ -99,7 +144,7 @@ function RegisterForm() {
             アカウント登録
           </CardTitle>
           <CardDescription>
-            {email ? `${email} で登録します` : "アカウントタイプを選択してください"}
+            アカウントタイプを選択してください
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -109,6 +154,33 @@ function RegisterForm() {
               <TabsTrigger value="recruiter">採用担当者</TabsTrigger>
             </TabsList>
             <TabsContent value="user" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">メールアドレス</label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">パスワード</label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="6文字以上"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">パスワード確認</label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="パスワードを再入力"
+                />
+              </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">お名前</label>
                 <Input
@@ -133,6 +205,33 @@ function RegisterForm() {
               </p>
             </TabsContent>
             <TabsContent value="recruiter" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">メールアドレス</label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">パスワード</label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="6文字以上"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">パスワード確認</label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="パスワードを再入力"
+                />
+              </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">お名前</label>
                 <Input
@@ -164,16 +263,14 @@ function RegisterForm() {
               </p>
             </TabsContent>
           </Tabs>
+          <div className="mt-4 text-center text-sm text-muted-foreground">
+            既にアカウントをお持ちの場合は
+            <Link href="/login" className="text-primary hover:underline ml-1">
+              ログイン
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-export default function RegisterPage() {
-  return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
-      <RegisterForm />
-    </Suspense>
   );
 }

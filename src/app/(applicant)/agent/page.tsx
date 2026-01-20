@@ -222,7 +222,7 @@ export default function AgentPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">収集されたフラグメント</CardTitle>
+              <CardTitle className="text-lg">収集された記憶のかけら</CardTitle>
               <CardDescription>
                 AIチャットから抽出された情報
               </CardDescription>
@@ -230,7 +230,7 @@ export default function AgentPage() {
             <CardContent>
               {fragments.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  フラグメントがありません。
+                  記憶のかけらがありません。
                   <br />
                   AIとチャットして情報を追加してください。
                 </p>
@@ -267,7 +267,7 @@ export default function AgentPage() {
             <CardContent>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">フラグメント数</span>
+                  <span className="text-muted-foreground">記憶のかけら</span>
                   <span className="font-medium">{fragments.length}</span>
                 </div>
                 <Separator />

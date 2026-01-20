@@ -72,10 +72,11 @@ enum TaggableType {
 }
 
 model Account {
-  id          String      @id @default(uuid())
-  email       String      @unique
-  accountType AccountType
-  createdAt   DateTime    @default(now())
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String
+  accountType  AccountType
+  createdAt    DateTime    @default(now())
 
   user      User?
   recruiter Recruiter?

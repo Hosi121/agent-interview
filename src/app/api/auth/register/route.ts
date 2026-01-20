@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { AccountType } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, name, companyName, accountType } = body;
+    const { email, password, name, companyName, accountType } = body;
 
-    if (!email || !name || !accountType) {
+    if (!email || !password || !name || !accountType) {
       return NextResponse.json(
         { error: "必須項目が不足しています" },
+        { status: 400 }
+      );
+    }
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: "パスワードは6文字以上で入力してください" },
         { status: 400 }
       );
     }
@@ -32,9 +40,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const passwordHash = await hash(password, 12);
+
     const account = await prisma.account.create({
       data: {
         email,
+        passwordHash,
         accountType: accountType as AccountType,
         ...(accountType === "USER"
           ? {
