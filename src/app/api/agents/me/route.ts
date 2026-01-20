@@ -95,6 +95,12 @@ async function performAutoMatching(agentId: string, userId: string) {
       );
 
       if (scoreDetails.totalScore >= MATCH_THRESHOLD) {
+        // UIが期待するキー形式に変換
+        const normalizedScoreDetails = {
+          skill: scoreDetails.skillScore,
+          keyword: scoreDetails.keywordScore,
+          experience: scoreDetails.experienceScore,
+        };
         await prisma.candidateMatch.upsert({
           where: {
             jobId_agentId: {
@@ -106,11 +112,11 @@ async function performAutoMatching(agentId: string, userId: string) {
             jobId: job.id,
             agentId,
             score: scoreDetails.totalScore,
-            scoreDetails: scoreDetails,
+            scoreDetails: normalizedScoreDetails,
           },
           update: {
             score: scoreDetails.totalScore,
-            scoreDetails: scoreDetails,
+            scoreDetails: normalizedScoreDetails,
             calculatedAt: new Date(),
           },
         });
