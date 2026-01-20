@@ -25,6 +25,9 @@ export async function GET(
       include: {
         messages: {
           orderBy: { createdAt: "asc" },
+          include: {
+            references: true,
+          },
         },
       },
     });
@@ -33,7 +36,59 @@ export async function GET(
       return NextResponse.json({ messages: [] });
     }
 
-    return NextResponse.json({ messages: chatSession.messages });
+    // 参照されているフラグメントIDを収集
+    const fragmentIds = chatSession.messages
+      .flatMap((m) => m.references)
+      .filter((ref) => ref.refType === "FRAGMENT")
+      .map((ref) => ref.refId);
+
+    // フラグメントを取得
+    const fragments =
+      fragmentIds.length > 0
+        ? await prisma.fragment.findMany({
+            where: { id: { in: fragmentIds } },
+            select: {
+              id: true,
+              type: true,
+              content: true,
+              skills: true,
+            },
+          })
+        : [];
+
+    const fragmentMap = new Map(fragments.map((f) => [f.id, f]));
+
+    // メッセージにreferencesを追加
+    const messagesWithReferences = chatSession.messages.map((message) => {
+      const references = message.references
+        .filter((ref) => ref.refType === "FRAGMENT")
+        .map((ref) => {
+          const fragment = fragmentMap.get(ref.refId);
+          if (!fragment) return null;
+          return {
+            id: fragment.id,
+            type: fragment.type,
+            content:
+              fragment.content.length > 100
+                ? fragment.content.substring(0, 100) + "..."
+                : fragment.content,
+            skills: fragment.skills,
+          };
+        })
+        .filter(Boolean);
+
+      return {
+        id: message.id,
+        sessionId: message.sessionId,
+        senderType: message.senderType,
+        senderId: message.senderId,
+        content: message.content,
+        createdAt: message.createdAt,
+        references: references.length > 0 ? references : undefined,
+      };
+    });
+
+    return NextResponse.json({ messages: messagesWithReferences });
   } catch (error) {
     console.error("Get messages error:", error);
     return NextResponse.json(
