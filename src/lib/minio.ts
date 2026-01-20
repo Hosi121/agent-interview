@@ -38,4 +38,14 @@ export async function deleteFile(objectName: string): Promise<void> {
   await minioClient.removeObject(BUCKET_NAME, objectName);
 }
 
+export async function getFileBuffer(objectName: string): Promise<Buffer> {
+  const stream = await minioClient.getObject(BUCKET_NAME, objectName);
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    stream.on("data", (chunk) => chunks.push(chunk));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+
 export { minioClient, BUCKET_NAME };

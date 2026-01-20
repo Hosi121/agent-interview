@@ -27,11 +27,14 @@ interface Document {
   createdAt: string;
 }
 
+type AnalyzingState = { [key: string]: boolean };
+
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState<AnalyzingState>({});
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -93,6 +96,30 @@ export default function DocumentsPage() {
       }
     } catch (error) {
       console.error("Delete error:", error);
+    }
+  };
+
+  const handleAnalyze = async (id: string) => {
+    setAnalyzing((prev) => ({ ...prev, [id]: true }));
+
+    try {
+      const response = await fetch(`/api/documents/${id}/analyze`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "解析に失敗しました");
+      }
+
+      const data = await response.json();
+      alert(`${data.fragmentsCount}件の記憶のかけらを抽出しました`);
+      await fetchDocuments();
+    } catch (error) {
+      console.error("Analyze error:", error);
+      alert(error instanceof Error ? error.message : "解析に失敗しました");
+    } finally {
+      setAnalyzing((prev) => ({ ...prev, [id]: false }));
     }
   };
 
@@ -205,9 +232,16 @@ export default function DocumentsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {doc.summary ? (
-                      <Badge variant="secondary">処理済み</Badge>
+                      <Badge variant="secondary">解析済み</Badge>
                     ) : (
-                      <Badge variant="outline">処理中</Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAnalyze(doc.id)}
+                        disabled={analyzing[doc.id]}
+                      >
+                        {analyzing[doc.id] ? "解析中..." : "解析する"}
+                      </Button>
                     )}
                     <Button
                       variant="ghost"
