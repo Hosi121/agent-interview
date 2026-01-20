@@ -71,7 +71,7 @@ export function EvaluationForm({
       <Button onClick={handleSave} disabled={isSaving} className="w-full">
         {isSaving ? "保存中..." : "評価を保存"}
       </Button>
-      {matchScore && (
+      {typeof matchScore === "number" && (
         <div className="p-3 bg-primary/10 rounded-lg">
           <p className="text-sm font-medium">AIマッチ度スコア</p>
           <p className="text-2xl font-bold text-primary">{matchScore}%</p>
