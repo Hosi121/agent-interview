@@ -104,6 +104,9 @@ model Recruiter {
   sessions    Session[]
   notes       InterviewNote[]
   evaluations InterviewEvaluation[]
+  jobPostings JobPosting[]
+  watches     CandidateWatch[]
+  pipelines   CandidatePipeline[]
 }
 
 model Document {
@@ -162,7 +165,10 @@ model AgentProfile {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  sessions Session[]
+  sessions           Session[]
+  matches            CandidateMatch[]
+  watchNotifications WatchNotification[]
+  pipelines          CandidatePipeline[]
 }
 
 model Session {
@@ -251,4 +257,180 @@ model InterviewEvaluation {
   comment         String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+// ==========================================
+// 求人管理
+// ==========================================
+
+enum JobStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  CONTRACT
+  PART_TIME
+  INTERNSHIP
+  FREELANCE
+}
+
+enum ExperienceLevel {
+  ENTRY
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+}
+
+model JobPosting {
+  id              String          @id @default(uuid())
+  recruiterId     String
+  recruiter       Recruiter       @relation(fields: [recruiterId], references: [id])
+  title           String
+  description     String
+  requirements    String?
+  preferredSkills String?
+  skills          String[]
+  keywords        String[]
+  employmentType  EmploymentType
+  experienceLevel ExperienceLevel
+  location        String?
+  salaryMin       Int?
+  salaryMax       Int?
+  isRemote        Boolean         @default(false)
+  status          JobStatus       @default(DRAFT)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  matches   CandidateMatch[]
+  pipelines CandidatePipeline[]
+  watches   CandidateWatch[]
+}
+
+// ==========================================
+// マッチング
+// ==========================================
+
+model CandidateMatch {
+  id           String       @id @default(uuid())
+  jobId        String
+  job          JobPosting   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  agentId      String
+  agent        AgentProfile @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  score        Float
+  scoreDetails Json?
+  calculatedAt DateTime     @default(now())
+
+  @@unique([jobId, agentId])
+  @@index([jobId, score(sort: Desc)])
+}
+
+// ==========================================
+// ウォッチリスト
+// ==========================================
+
+model CandidateWatch {
+  id              String           @id @default(uuid())
+  recruiterId     String
+  recruiter       Recruiter        @relation(fields: [recruiterId], references: [id])
+  jobId           String?
+  job             JobPosting?      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name            String
+  skills          String[]
+  keywords        String[]
+  experienceLevel ExperienceLevel?
+  locationPref    String?
+  salaryMin       Int?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  notifications WatchNotification[]
+
+  @@index([recruiterId, isActive])
+}
+
+model WatchNotification {
+  id         String         @id @default(uuid())
+  watchId    String
+  watch      CandidateWatch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+  agentId    String
+  agent      AgentProfile   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  matchScore Float
+  isRead     Boolean        @default(false)
+  createdAt  DateTime       @default(now())
+
+  @@unique([watchId, agentId])
+  @@index([watchId, isRead, createdAt])
+}
+
+// ==========================================
+// 採用パイプライン
+// ==========================================
+
+enum PipelineStage {
+  INTERESTED
+  CONTACTED
+  SCREENING
+  INTERVIEWING
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+model CandidatePipeline {
+  id          String        @id @default(uuid())
+  recruiterId String
+  recruiter   Recruiter     @relation(fields: [recruiterId], references: [id])
+  agentId     String
+  agent       AgentProfile  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  jobId       String?
+  job         JobPosting?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  stage       PipelineStage @default(INTERESTED)
+  note        String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  history PipelineHistory[]
+
+  @@unique([recruiterId, agentId, jobId])
+  @@index([recruiterId, stage])
+}
+
+model PipelineHistory {
+  id         String            @id @default(uuid())
+  pipelineId String
+  pipeline   CandidatePipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  fromStage  PipelineStage?
+  toStage    PipelineStage
+  note       String?
+  createdAt  DateTime          @default(now())
+}
+
+// ==========================================
+// 通知
+// ==========================================
+
+enum NotificationType {
+  NEW_CANDIDATE_MATCH
+  PIPELINE_UPDATE
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  accountId String
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([accountId, isRead, createdAt])
 }
