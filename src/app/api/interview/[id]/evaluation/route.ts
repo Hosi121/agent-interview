@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isCompanyAccessDenied } from "@/lib/access-control";
 import { openai } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
@@ -16,6 +17,26 @@ export async function GET(
     }
 
     const { id: agentId } = await params;
+
+    const agent = await prisma.agentProfile.findUnique({
+      where: { id: agentId },
+      select: { userId: true, status: true },
+    });
+
+    if (!agent) {
+      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    if (agent.status !== "PUBLIC") {
+      return NextResponse.json(
+        { error: "Agent is not public" },
+        { status: 403 },
+      );
+    }
+
+    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
 
     // agentIdからセッションを検索
     const chatSession = await prisma.session.findFirst({
@@ -75,6 +96,26 @@ export async function POST(
         { error: "すべての評価項目を入力してください" },
         { status: 400 },
       );
+    }
+
+    const agent = await prisma.agentProfile.findUnique({
+      where: { id: agentId },
+      select: { userId: true, status: true },
+    });
+
+    if (!agent) {
+      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    if (agent.status !== "PUBLIC") {
+      return NextResponse.json(
+        { error: "Agent is not public" },
+        { status: 403 },
+      );
+    }
+
+    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     // agentIdからセッションを検索

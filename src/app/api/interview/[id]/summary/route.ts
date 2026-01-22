@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isCompanyAccessDenied } from "@/lib/access-control";
 import { openai } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
@@ -29,6 +30,10 @@ export async function GET(request: Request, context: RouteContext) {
 
     if (!agent) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     // このリクルーターとエージェントのセッションを取得

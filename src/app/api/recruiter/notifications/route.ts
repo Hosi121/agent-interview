@@ -21,6 +21,16 @@ export async function GET(request: NextRequest) {
         watch: {
           recruiterId: session.user.recruiterId,
         },
+        agent: {
+          user: {
+            companyAccesses: {
+              none: {
+                recruiterId: session.user.recruiterId,
+                status: "DENY",
+              },
+            },
+          },
+        },
         ...(unreadOnly && { isRead: false }),
       },
       include: {

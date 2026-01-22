@@ -2,6 +2,7 @@ import type { PipelineStage } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isCompanyAccessDenied } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 
 const VALID_STAGES: PipelineStage[] = [
@@ -59,6 +60,15 @@ export async function GET(
       );
     }
 
+    if (
+      await isCompanyAccessDenied(
+        session.user.recruiterId,
+        pipeline.agent.userId,
+      )
+    ) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
     // 関連する面接セッションも取得
     const sessions = await prisma.session.findMany({
       where: {
@@ -110,6 +120,11 @@ export async function PATCH(
         id,
         recruiterId: session.user.recruiterId,
       },
+      include: {
+        agent: {
+          select: { userId: true },
+        },
+      },
     });
 
     if (!existingPipeline) {
@@ -117,6 +132,15 @@ export async function PATCH(
         { error: "Pipeline not found" },
         { status: 404 },
       );
+    }
+
+    if (
+      await isCompanyAccessDenied(
+        session.user.recruiterId,
+        existingPipeline.agent.userId,
+      )
+    ) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     if (stage && !VALID_STAGES.includes(stage)) {
@@ -191,6 +215,11 @@ export async function DELETE(
         id,
         recruiterId: session.user.recruiterId,
       },
+      include: {
+        agent: {
+          select: { userId: true },
+        },
+      },
     });
 
     if (!existingPipeline) {
@@ -198,6 +227,15 @@ export async function DELETE(
         { error: "Pipeline not found" },
         { status: 404 },
       );
+    }
+
+    if (
+      await isCompanyAccessDenied(
+        session.user.recruiterId,
+        existingPipeline.agent.userId,
+      )
+    ) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     await prisma.candidatePipeline.delete({

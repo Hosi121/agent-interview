@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isCompanyAccessDenied } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -37,6 +38,10 @@ export async function GET(
         { error: "Agent is not public" },
         { status: 403 },
       );
+    }
+
+    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const fragments = await prisma.fragment.findMany({

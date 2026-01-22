@@ -2,6 +2,7 @@ import type { PipelineStage } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isCompanyAccessDenied } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 
 const PIPELINE_STAGES: PipelineStage[] = [
@@ -33,6 +34,16 @@ export async function GET(request: NextRequest) {
         recruiterId: session.user.recruiterId,
         ...(jobId && { jobId }),
         ...(stage && { stage }),
+        agent: {
+          user: {
+            companyAccesses: {
+              none: {
+                recruiterId: session.user.recruiterId,
+                status: "DENY",
+              },
+            },
+          },
+        },
       },
       include: {
         agent: {
@@ -119,6 +130,10 @@ export async function POST(request: NextRequest) {
         { error: "Agent not found or not public" },
         { status: 404 },
       );
+    }
+
+    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     if (jobId) {

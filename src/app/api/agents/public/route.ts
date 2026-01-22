@@ -16,7 +16,17 @@ export async function GET(request: NextRequest) {
     const jobId = searchParams.get("jobId");
 
     const agents = await prisma.agentProfile.findMany({
-      where: { status: "PUBLIC" },
+      where: {
+        status: "PUBLIC",
+        user: {
+          companyAccesses: {
+            none: {
+              recruiterId: session.user.recruiterId,
+              status: "DENY",
+            },
+          },
+        },
+      },
       include: {
         user: {
           select: {

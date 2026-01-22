@@ -124,7 +124,17 @@ async function checkExistingAgentsForWatch(watchId: string) {
   if (!watch || !watch.isActive) return;
 
   const agents = await prisma.agentProfile.findMany({
-    where: { status: "PUBLIC" },
+    where: {
+      status: "PUBLIC",
+      user: {
+        companyAccesses: {
+          none: {
+            recruiterId: watch.recruiterId,
+            status: "DENY",
+          },
+        },
+      },
+    },
     include: {
       user: {
         include: {

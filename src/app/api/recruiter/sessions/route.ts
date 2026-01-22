@@ -15,6 +15,16 @@ export async function GET() {
       where: {
         recruiterId: session.user.recruiterId,
         sessionType: "RECRUITER_AGENT_CHAT",
+        agent: {
+          user: {
+            companyAccesses: {
+              none: {
+                recruiterId: session.user.recruiterId,
+                status: "DENY",
+              },
+            },
+          },
+        },
       },
       include: {
         agent: {

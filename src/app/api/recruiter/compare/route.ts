@@ -35,6 +35,14 @@ export async function POST(request: NextRequest) {
       where: {
         id: { in: agentIds },
         status: "PUBLIC",
+        user: {
+          companyAccesses: {
+            none: {
+              recruiterId: session.user.recruiterId,
+              status: "DENY",
+            },
+          },
+        },
       },
       include: {
         user: {

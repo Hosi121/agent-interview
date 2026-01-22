@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isCompanyAccessDenied } from "@/lib/access-control";
 import { generateChatResponse, generateFollowUpQuestions } from "@/lib/openai";
 import {
   checkPointBalance,
@@ -40,6 +41,10 @@ export async function POST(
         { error: "Agent is not public" },
         { status: 403 },
       );
+    }
+
+    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     let job = null;

@@ -112,7 +112,17 @@ export async function POST(
     }
 
     const agents = await prisma.agentProfile.findMany({
-      where: { status: "PUBLIC" },
+      where: {
+        status: "PUBLIC",
+        user: {
+          companyAccesses: {
+            none: {
+              recruiterId: session.user.recruiterId,
+              status: "DENY",
+            },
+          },
+        },
+      },
       include: {
         user: {
           include: {
@@ -185,7 +195,19 @@ export async function POST(
     );
 
     const topCandidates = await prisma.candidateMatch.findMany({
-      where: { jobId },
+      where: {
+        jobId,
+        agent: {
+          user: {
+            companyAccesses: {
+              none: {
+                recruiterId: session.user.recruiterId,
+                status: "DENY",
+              },
+            },
+          },
+        },
+      },
       include: {
         agent: {
           include: {
@@ -249,6 +271,16 @@ export async function GET(
       where: {
         jobId,
         score: { gte: minScore },
+        agent: {
+          user: {
+            companyAccesses: {
+              none: {
+                recruiterId: session.user.recruiterId,
+                status: "DENY",
+              },
+            },
+          },
+        },
       },
       include: {
         agent: {

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isCompanyAccessDenied } from "@/lib/access-control";
 import { generateInterviewGuide } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
@@ -47,6 +48,10 @@ export async function GET(
 
     if (!agent || agent.status !== "PUBLIC") {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    if (await isCompanyAccessDenied(session.user.recruiterId, agent.user.id)) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const job = await prisma.jobPosting.findFirst({

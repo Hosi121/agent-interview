@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isCompanyAccessDenied } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 
 // 興味表明一覧取得
@@ -91,6 +92,13 @@ export async function POST(req: NextRequest) {
     if (agent.status !== "PUBLIC") {
       return NextResponse.json(
         { error: "このエージェントは非公開です" },
+        { status: 403 },
+      );
+    }
+
+    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+      return NextResponse.json(
+        { error: "この候補者へのアクセスが制限されています" },
         { status: 403 },
       );
     }
