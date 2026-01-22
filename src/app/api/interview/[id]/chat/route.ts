@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { generateChatResponse } from "@/lib/openai";
+import { generateChatResponse, generateFollowUpQuestions } from "@/lib/openai";
 import {
   checkPointBalance,
   consumePoints,
@@ -22,7 +22,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { message } = await req.json();
+    const { message, jobId, missingInfo } = await req.json();
 
     const agent = await prisma.agentProfile.findUnique({
       where: { id },
@@ -40,6 +40,20 @@ export async function POST(
         { error: "Agent is not public" },
         { status: 403 },
       );
+    }
+
+    let job = null;
+    if (jobId) {
+      job = await prisma.jobPosting.findFirst({
+        where: {
+          id: jobId,
+          recruiterId: session.user.recruiterId,
+        },
+      });
+
+      if (!job) {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      }
     }
 
     let chatSession = await prisma.session.findFirst({
@@ -159,6 +173,10 @@ export async function POST(
       .map((f, i) => `[REF${i + 1}] [${f.type}]: ${f.content}`)
       .join("\n");
 
+    const jobContext = job
+      ? `\nこの面接は以下の求人に関するものです。\n求人タイトル: ${job.title}\n業務内容: ${job.description}\n必須スキル: ${job.skills.join(", ") || "なし"}\n経験レベル: ${job.experienceLevel}\n`
+      : "";
+
     const enhancedSystemPrompt = `${agent.systemPrompt}
 
 以下は${agent.user.name}さんに関する情報です。この情報を参考にして回答してください：
@@ -168,7 +186,9 @@ ${fragmentsContext || "（詳細な情報はまだ収集されていません）
 採用担当者からの質問に対して、${agent.user.name}さんの代理として丁寧かつ専門的に回答してください。
 わからないことは正直に「その点についてはまだ情報を持っていません」と答えてください。`;
 
-    const responseMessage = await generateChatResponse(enhancedSystemPrompt, [
+    const fullSystemPrompt = `${enhancedSystemPrompt}${jobContext}`;
+
+    const responseMessage = await generateChatResponse(fullSystemPrompt, [
       ...previousMessages,
       { role: "user", content: message },
     ]);
@@ -203,9 +223,30 @@ ${fragmentsContext || "（詳細な情報はまだ収集されていません）
       skills: f.skills,
     }));
 
+    let followUps: string[] = [];
+    if (job) {
+      try {
+        const info = Array.isArray(missingInfo) ? missingInfo : [];
+        followUps = await generateFollowUpQuestions({
+          job: {
+            title: job.title,
+            description: job.description,
+            skills: job.skills,
+            experienceLevel: job.experienceLevel,
+          },
+          question: message,
+          answer: responseMessage,
+          missingInfo: info,
+        });
+      } catch (followError) {
+        console.error("Follow-up generation error:", followError);
+      }
+    }
+
     return NextResponse.json({
       message: responseMessage,
       references,
+      followUps,
     });
   } catch (error) {
     console.error("Interview chat error:", error);

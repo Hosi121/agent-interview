@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { use, useCallback, useEffect, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
@@ -9,6 +10,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface FragmentReference {
@@ -63,6 +71,28 @@ interface Summary {
   summary: string | null;
   messageCount: number;
   lastMessageAt: string | null;
+  evidence?: EvidenceFragment[];
+}
+
+interface EvidenceFragment {
+  id: string;
+  type: string;
+  content: string;
+  skills: string[];
+  keywords: string[];
+  count: number;
+}
+
+interface JobPosting {
+  id: string;
+  title: string;
+  status: string;
+}
+
+interface InterviewGuide {
+  questions: string[];
+  missingInfo: string[];
+  focusAreas?: string[];
 }
 
 export default function InterviewPage({
@@ -71,6 +101,7 @@ export default function InterviewPage({
   params: Promise<{ id: string }>;
 }) {
   const resolvedParams = use(params);
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
@@ -83,6 +114,12 @@ export default function InterviewPage({
   const [summary, setSummary] = useState<Summary | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [isExpressingInterest, setIsExpressingInterest] = useState(false);
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [guide, setGuide] = useState<InterviewGuide | null>(null);
+  const [isGuideLoading, setIsGuideLoading] = useState(false);
+  const [followUps, setFollowUps] = useState<string[]>([]);
+  const [draftMessage, setDraftMessage] = useState("");
   const [evalForm, setEvalForm] = useState({
     overallRating: 3,
     technicalRating: 3,
@@ -196,19 +233,74 @@ export default function InterviewPage({
     }
   }, [resolvedParams.id]);
 
+  const fetchJobs = useCallback(async () => {
+    try {
+      const response = await fetch("/api/recruiter/jobs");
+      if (response.ok) {
+        const data = await response.json();
+        setJobs(data.jobs);
+      }
+    } catch (error) {
+      console.error("Failed to fetch jobs:", error);
+    }
+  }, []);
+
+  const fetchGuide = useCallback(
+    async (jobId: string) => {
+      if (!jobId) {
+        setGuide(null);
+        return;
+      }
+
+      setIsGuideLoading(true);
+      try {
+        const response = await fetch(
+          `/api/interview/${resolvedParams.id}/guide?jobId=${jobId}`,
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setGuide(data.guide);
+        }
+      } catch (error) {
+        console.error("Failed to fetch interview guide:", error);
+      } finally {
+        setIsGuideLoading(false);
+      }
+    },
+    [resolvedParams.id],
+  );
+
   useEffect(() => {
     fetchAgentInfo();
     fetchMessages();
     fetchNotes();
     fetchEvaluation();
     fetchInterest();
+    fetchJobs();
   }, [
     fetchAgentInfo,
     fetchMessages,
     fetchNotes,
     fetchEvaluation,
     fetchInterest,
+    fetchJobs,
   ]);
+
+  useEffect(() => {
+    const jobIdParam = searchParams.get("jobId");
+    if (jobIdParam && jobIdParam !== selectedJobId) {
+      setSelectedJobId(jobIdParam);
+    }
+  }, [searchParams, selectedJobId]);
+
+  useEffect(() => {
+    if (selectedJobId) {
+      fetchGuide(selectedJobId);
+    } else {
+      setGuide(null);
+    }
+    setFollowUps([]);
+  }, [selectedJobId, fetchGuide]);
 
   const handleExpressInterest = async () => {
     setIsExpressingInterest(true);
@@ -242,13 +334,18 @@ export default function InterviewPage({
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    setFollowUps([]);
     setIsLoading(true);
 
     try {
       const response = await fetch(`/api/interview/${resolvedParams.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify({
+          message: content,
+          jobId: selectedJobId || null,
+          missingInfo: guide?.missingInfo || [],
+        }),
       });
 
       if (!response.ok) {
@@ -265,6 +362,7 @@ export default function InterviewPage({
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      setFollowUps(data.followUps || []);
     } catch (error) {
       console.error("Chat error:", error);
       const errorMessage: Message = {
@@ -362,7 +460,27 @@ export default function InterviewPage({
             </p>
           </div>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <div className="w-56">
+            <Select
+              value={selectedJobId || "none"}
+              onValueChange={(value: string) =>
+                setSelectedJobId(value === "none" ? "" : value)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="求人を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">求人を選択</SelectItem>
+                {jobs.map((job) => (
+                  <SelectItem key={job.id} value={job.id}>
+                    {job.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {interest ? (
             <Badge variant="outline" className="py-1.5 px-3">
               <svg
@@ -409,6 +527,8 @@ export default function InterviewPage({
                 isLoading={isLoading}
                 userName={session?.user?.companyName || undefined}
                 placeholder={`${agentInfo.user.name}さんのエージェントに質問...`}
+                draftMessage={draftMessage}
+                onDraftChange={setDraftMessage}
               />
             </CardContent>
           </Card>
@@ -446,7 +566,7 @@ export default function InterviewPage({
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="notes">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="notes">メモ</TabsTrigger>
                   <TabsTrigger value="evaluation">評価</TabsTrigger>
                   <TabsTrigger
@@ -455,6 +575,7 @@ export default function InterviewPage({
                   >
                     要約
                   </TabsTrigger>
+                  <TabsTrigger value="guide">面接設計</TabsTrigger>
                 </TabsList>
                 <TabsContent value="notes" className="mt-3">
                   <InterviewNotes notes={notes} onAddNote={handleAddNote} />
@@ -483,6 +604,31 @@ export default function InterviewPage({
                           {summary.summary}
                         </div>
                       </div>
+                      {summary.evidence && summary.evidence.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium">
+                            根拠パック（参照 {summary.evidence.length}件）
+                          </p>
+                          <div className="space-y-2">
+                            {summary.evidence.map((item) => (
+                              <div
+                                key={item.id}
+                                className="rounded-md border border-muted p-2"
+                              >
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <span className="font-medium text-foreground">
+                                    {item.type}
+                                  </span>
+                                  <span>参照 {item.count}回</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {item.content}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -508,6 +654,94 @@ export default function InterviewPage({
                           要約を生成
                         </Button>
                       )}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="guide" className="mt-3">
+                  {!selectedJobId ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground">
+                        求人を選択すると面接設計を表示します
+                      </p>
+                    </div>
+                  ) : isGuideLoading ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground">
+                        面接設計を生成中...
+                      </p>
+                    </div>
+                  ) : guide ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">質問テンプレ</p>
+                        <div className="space-y-2">
+                          {guide.questions.map((question, index) => (
+                            <div
+                              key={`${question}-${index}`}
+                              className="rounded-md border border-muted p-2"
+                            >
+                              <p className="text-sm">{question}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="mt-2"
+                                onClick={() => setDraftMessage(question)}
+                              >
+                                入力に挿入
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {guide.missingInfo.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">不足情報の指摘</p>
+                          <ul className="space-y-1 text-sm text-muted-foreground">
+                            {guide.missingInfo.map((item) => (
+                              <li key={item}>・{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {guide.focusAreas && guide.focusAreas.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">重点観点</p>
+                          <ul className="space-y-1 text-sm text-muted-foreground">
+                            {guide.focusAreas.map((item) => (
+                              <li key={item}>・{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {followUps.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">
+                            直近回答の深掘り候補
+                          </p>
+                          <div className="space-y-2">
+                            {followUps.map((item, index) => (
+                              <Button
+                                key={`${item}-${index}`}
+                                size="sm"
+                                variant="secondary"
+                                className="w-full justify-start"
+                                onClick={() => setDraftMessage(item)}
+                              >
+                                {item}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground">
+                        面接設計を取得できませんでした
+                      </p>
                     </div>
                   )}
                 </TabsContent>

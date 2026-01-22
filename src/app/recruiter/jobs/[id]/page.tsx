@@ -288,7 +288,9 @@ export default function JobDetailPage() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Link href={`/recruiter/interview/${match.agent.id}`}>
+                        <Link
+                          href={`/recruiter/interview/${match.agent.id}?jobId=${jobId}`}
+                        >
                           <Button variant="outline" size="sm">
                             面接
                           </Button>

@@ -309,7 +309,13 @@ export default function AgentsListPage() {
                         </Button>
                       );
                     })()}
-                    <Link href={`/recruiter/interview/${agent.id}`}>
+                    <Link
+                      href={
+                        selectedJobId
+                          ? `/recruiter/interview/${agent.id}?jobId=${selectedJobId}`
+                          : `/recruiter/interview/${agent.id}`
+                      }
+                    >
                       <Button>面接を始める</Button>
                     </Link>
                   </div>

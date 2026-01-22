@@ -49,6 +49,8 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({
         summary: null,
         messageCount: 0,
+        lastMessageAt: null,
+        evidence: [],
       });
     }
 
@@ -89,11 +91,49 @@ ${conversationText}`,
 
     const summary = response.choices[0]?.message?.content || "";
 
+    const references = await prisma.messageReference.findMany({
+      where: {
+        refType: "FRAGMENT",
+        message: {
+          sessionId: existingSession.id,
+        },
+      },
+    });
+
+    const referenceCounts = new Map<string, number>();
+    for (const ref of references) {
+      referenceCounts.set(ref.refId, (referenceCounts.get(ref.refId) || 0) + 1);
+    }
+
+    const fragmentIds = Array.from(referenceCounts.keys());
+    const fragments =
+      fragmentIds.length > 0
+        ? await prisma.fragment.findMany({
+            where: { id: { in: fragmentIds } },
+          })
+        : [];
+
+    const evidence = fragments
+      .map((fragment) => ({
+        id: fragment.id,
+        type: fragment.type,
+        content:
+          fragment.content.length > 160
+            ? fragment.content.slice(0, 160) + "..."
+            : fragment.content,
+        skills: fragment.skills,
+        keywords: fragment.keywords,
+        count: referenceCounts.get(fragment.id) || 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
     return NextResponse.json({
       summary,
       messageCount: existingSession.messages.length,
       lastMessageAt:
         existingSession.messages[existingSession.messages.length - 1].createdAt,
+      evidence,
     });
   } catch (error) {
     console.error("Generate summary error:", error);

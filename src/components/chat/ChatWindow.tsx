@@ -26,6 +26,8 @@ interface ChatWindowProps {
   isLoading?: boolean;
   userName?: string;
   placeholder?: string;
+  draftMessage?: string;
+  onDraftChange?: (value: string) => void;
 }
 
 export function ChatWindow({
@@ -34,9 +36,13 @@ export function ChatWindow({
   isLoading = false,
   userName,
   placeholder = "メッセージを入力...",
+  draftMessage,
+  onDraftChange,
 }: ChatWindowProps) {
-  const [input, setInput] = useState("");
+  const [internalInput, setInternalInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputValue = draftMessage ?? internalInput;
+  const setInputValue = onDraftChange ?? setInternalInput;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -44,9 +50,9 @@ export function ChatWindow({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    onSendMessage(input.trim());
-    setInput("");
+    if (!inputValue.trim() || isLoading) return;
+    onSendMessage(inputValue.trim());
+    setInputValue("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -95,14 +101,14 @@ export function ChatWindow({
       <form onSubmit={handleSubmit} className="border-t p-4">
         <div className="flex gap-2">
           <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             className="min-h-[60px] resize-none"
             disabled={isLoading}
           />
-          <Button type="submit" disabled={!input.trim() || isLoading}>
+          <Button type="submit" disabled={!inputValue.trim() || isLoading}>
             送信
           </Button>
         </div>

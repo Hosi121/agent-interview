@@ -243,7 +243,11 @@ export default function PipelinePage() {
                       </Select>
                       <div className="flex gap-1">
                         <Link
-                          href={`/recruiter/interview/${pipeline.agent.id}`}
+                          href={
+                            pipeline.job
+                              ? `/recruiter/interview/${pipeline.agent.id}?jobId=${pipeline.job.id}`
+                              : `/recruiter/interview/${pipeline.agent.id}`
+                          }
                           className="flex-1"
                         >
                           <Button
