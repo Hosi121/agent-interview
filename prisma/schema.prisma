@@ -97,6 +97,7 @@ model User {
   sessions         Session[]
   receivedInterests Interest[]
   receivedMessages DirectMessage[] @relation("ReceivedMessages")
+  companyAccesses  CompanyAccess[]
 }
 
 model Recruiter {
@@ -115,6 +116,7 @@ model Recruiter {
   pointTransactions PointTransaction[]
   interests    Interest[]
   sentMessages DirectMessage[] @relation("SentMessages")
+  candidateAccesses CompanyAccess[]
 }
 
 model Document {
@@ -459,6 +461,11 @@ enum SubscriptionStatus {
   PAST_DUE
 }
 
+enum CompanyAccessStatus {
+  ALLOW
+  DENY
+}
+
 enum PointTransactionType {
   GRANT           // 月額プランによる付与
   CONSUME         // アクションによる消費
@@ -533,6 +540,21 @@ model Interest {
   @@unique([recruiterId, userId])
   @@index([userId, status])
   @@index([recruiterId, status])
+}
+
+model CompanyAccess {
+  id          String              @id @default(uuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id])
+  recruiterId String
+  recruiter   Recruiter           @relation(fields: [recruiterId], references: [id])
+  status      CompanyAccessStatus
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([userId, recruiterId])
+  @@index([userId])
+  @@index([recruiterId])
 }
 
 model DirectMessage {

@@ -67,7 +67,7 @@ export default function InterestsPage() {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [messageContent, setMessageContent] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [isDisclosing, setIsDisclosing] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
 
   const fetchInterests = useCallback(async () => {
     try {
@@ -105,14 +105,14 @@ export default function InterestsPage() {
     }
   }, [selectedInterest, fetchMessages]);
 
-  const handleDiscloseContact = async (interest: Interest) => {
-    if (!confirm("連絡先を開示しますか？（10pt消費）")) {
+  const handleRequestContact = async (interest: Interest) => {
+    if (!confirm("連絡先開示をリクエストしますか？")) {
       return;
     }
 
-    setIsDisclosing(true);
+    setIsRequesting(true);
     try {
-      const response = await fetch(`/api/interests/${interest.id}/disclose`, {
+      const response = await fetch(`/api/interests/${interest.id}/request`, {
         method: "POST",
       });
 
@@ -123,26 +123,34 @@ export default function InterestsPage() {
             i.id === interest.id
               ? {
                   ...i,
-                  status: "CONTACT_DISCLOSED" as const,
-                  user: {
-                    ...i.user,
-                    email: data.contact.email,
-                    phone: data.contact.phone,
-                  },
+                  status: data.status as Interest["status"],
+                  user: data.contact
+                    ? {
+                        ...i.user,
+                        email: data.contact.email,
+                        phone: data.contact.phone,
+                      }
+                    : i.user,
                 }
               : i,
           ),
         );
-        alert("連絡先が開示されました");
+        if (data.status === "CONTACT_DISCLOSED") {
+          alert("連絡先が開示されました");
+        } else if (data.status === "CONTACT_REQUESTED") {
+          alert("連絡先開示をリクエストしました");
+        } else if (data.status === "DECLINED") {
+          alert("候補者が辞退しました");
+        }
       } else {
         const data = await response.json();
         alert(data.error || "エラーが発生しました");
       }
     } catch (error) {
-      console.error("Failed to disclose contact:", error);
+      console.error("Failed to request contact:", error);
       alert("エラーが発生しました");
     } finally {
-      setIsDisclosing(false);
+      setIsRequesting(false);
     }
   };
 
@@ -282,11 +290,16 @@ export default function InterestsPage() {
                 <div className="flex gap-2">
                   {interest.status === "EXPRESSED" && (
                     <Button
-                      onClick={() => handleDiscloseContact(interest)}
-                      disabled={isDisclosing}
+                      onClick={() => handleRequestContact(interest)}
+                      disabled={isRequesting}
                       className="flex-1"
                     >
-                      連絡先を開示 (10pt)
+                      連絡先をリクエスト
+                    </Button>
+                  )}
+                  {interest.status === "CONTACT_REQUESTED" && (
+                    <Button variant="outline" className="flex-1" disabled>
+                      承認待ち
                     </Button>
                   )}
                   {interest.status === "CONTACT_DISCLOSED" && (
@@ -296,6 +309,11 @@ export default function InterestsPage() {
                       className="flex-1"
                     >
                       メッセージを送る
+                    </Button>
+                  )}
+                  {interest.status === "DECLINED" && (
+                    <Button variant="outline" className="flex-1" disabled>
+                      辞退
                     </Button>
                   )}
                 </div>

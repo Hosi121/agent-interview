@@ -70,6 +70,10 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [messageContent, setMessageContent] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [accessPreference, setAccessPreference] = useState<
+    Record<string, "NONE" | "ALLOW" | "DENY">
+  >({});
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
   const fetchInterests = useCallback(async () => {
     try {
@@ -143,6 +147,70 @@ export default function InboxPage() {
     setSelectedInterest(interest);
     setMessages([]);
     setMessageContent("");
+  };
+
+  const handleApproveDisclosure = async (interestId: string) => {
+    const preference =
+      accessPreference[interestId] === "ALLOW" ? "ALLOW" : "NONE";
+
+    setIsUpdating(interestId);
+    try {
+      const response = await fetch(
+        `/api/applicant/inbox/${interestId}/approve`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preference }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || "エラーが発生しました");
+        return;
+      }
+
+      await fetchInterests();
+      alert("連絡先を開示しました");
+    } catch (error) {
+      console.error("Failed to approve disclosure:", error);
+      alert("エラーが発生しました");
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleDeclineDisclosure = async (interestId: string) => {
+    const preference =
+      accessPreference[interestId] === "DENY" ? "DENY" : "NONE";
+
+    if (!confirm("連絡先開示を辞退しますか？")) return;
+
+    setIsUpdating(interestId);
+    try {
+      const response = await fetch(
+        `/api/applicant/inbox/${interestId}/decline`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preference }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        alert(data.error || "エラーが発生しました");
+        return;
+      }
+
+      await fetchInterests();
+      alert("辞退しました");
+    } catch (error) {
+      console.error("Failed to decline disclosure:", error);
+      alert("エラーが発生しました");
+    } finally {
+      setIsUpdating(null);
+    }
   };
 
   const disclosedCount = interests.filter(
@@ -281,9 +349,52 @@ export default function InboxPage() {
                         メッセージ
                       </Button>
                     )}
+                    {interest.status === "CONTACT_REQUESTED" && (
+                      <>
+                        <select
+                          value={accessPreference[interest.id] || "NONE"}
+                          onChange={(e) =>
+                            setAccessPreference((prev) => ({
+                              ...prev,
+                              [interest.id]: e.target.value as
+                                | "NONE"
+                                | "ALLOW"
+                                | "DENY",
+                            }))
+                          }
+                          className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                        >
+                          <option value="NONE">今回のみ</option>
+                          <option value="ALLOW">
+                            今後この企業は自動許可
+                          </option>
+                          <option value="DENY">今後この企業は自動拒否</option>
+                        </select>
+                        <Button
+                          size="sm"
+                          onClick={() => handleApproveDisclosure(interest.id)}
+                          disabled={isUpdating === interest.id}
+                        >
+                          開示する
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeclineDisclosure(interest.id)}
+                          disabled={isUpdating === interest.id}
+                        >
+                          辞退
+                        </Button>
+                      </>
+                    )}
                     {interest.status === "EXPRESSED" && (
                       <Button size="sm" variant="outline" disabled>
-                        承認待ち
+                        リクエスト待ち
+                      </Button>
+                    )}
+                    {interest.status === "DECLINED" && (
+                      <Button size="sm" variant="outline" disabled>
+                        辞退
                       </Button>
                     )}
                   </div>
