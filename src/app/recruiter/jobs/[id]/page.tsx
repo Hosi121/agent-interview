@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -346,7 +346,7 @@ export default function JobDetailPage() {
 
       <AlertDialog
         open={deleteDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           setDeleteDialogOpen(open);
           if (!open) {
             setDeleteError(null);
@@ -363,7 +363,7 @@ export default function JobDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
             <AlertDialogAction
-              onClick={(event) => {
+              onClick={(event: MouseEvent<HTMLButtonElement>) => {
                 event.preventDefault();
                 handleDelete();
               }}

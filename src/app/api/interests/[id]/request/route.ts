@@ -83,12 +83,10 @@ export async function POST(
     });
 
     if (accessPreference?.status === "DENY") {
-      if (interest.status !== "DECLINED") {
-        await prisma.interest.update({
-          where: { id: interestId },
-          data: { status: "DECLINED" },
-        });
-      }
+      await prisma.interest.update({
+        where: { id: interestId },
+        data: { status: "DECLINED" },
+      });
 
       await prisma.notification.create({
         data: {

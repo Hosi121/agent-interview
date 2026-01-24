@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -181,7 +181,7 @@ export default function DocumentsPage() {
         </div>
         <Dialog
           open={isDialogOpen}
-          onOpenChange={(open) => {
+          onOpenChange={(open: boolean) => {
             setIsDialogOpen(open);
             if (!open) {
               setUploadError(null);
@@ -362,7 +362,7 @@ export default function DocumentsPage() {
 
       <AlertDialog
         open={!!deleteTarget}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!open) {
             setDeleteTarget(null);
             setDeleteError(null);
@@ -379,7 +379,7 @@ export default function DocumentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
             <AlertDialogAction
-              onClick={(event) => {
+              onClick={(event: MouseEvent<HTMLButtonElement>) => {
                 event.preventDefault();
                 if (deleteTarget) {
                   handleDelete(deleteTarget.id);
