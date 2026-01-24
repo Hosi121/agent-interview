@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 interface Settings {
   name: string;
@@ -79,7 +80,7 @@ export default function SettingsPage() {
   if (isLoading) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">読み込み中...</p>
+        <p className="text-muted-foreground text-pretty">読み込み中...</p>
       </div>
     );
   }
@@ -87,17 +88,21 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">設定</h1>
-        <p className="text-muted-foreground mt-2">プロフィールと連絡先の設定</p>
+        <h1 className="text-3xl font-bold text-balance">設定</h1>
+        <p className="text-muted-foreground mt-2 text-pretty">
+          プロフィールと連絡先の設定
+        </p>
       </div>
 
       {message && (
         <div
-          className={`p-4 rounded-lg ${
+          className={cn(
+            "p-4 rounded-lg text-pretty",
             message.type === "success"
               ? "bg-green-50 text-green-800 border border-green-200"
-              : "bg-red-50 text-red-800 border border-red-200"
-          }`}
+              : "bg-red-50 text-red-800 border border-red-200",
+          )}
+          role={message.type === "error" ? "alert" : "status"}
         >
           {message.text}
         </div>
@@ -145,7 +150,7 @@ export default function SettingsPage() {
               }
               placeholder="example@email.com"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground text-pretty">
               企業に開示するメールアドレスです。ログイン用のメールアドレスとは別に設定できます。
             </p>
           </div>
@@ -161,7 +166,7 @@ export default function SettingsPage() {
               }
               placeholder="090-1234-5678"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground text-pretty">
               企業に開示する電話番号です。設定は任意です。
             </p>
           </div>
@@ -169,7 +174,7 @@ export default function SettingsPage() {
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <div className="flex gap-2">
               <svg
-                className="w-5 h-5 text-amber-600 shrink-0 mt-0.5"
+                className="size-5 text-amber-600 shrink-0 mt-0.5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -182,10 +187,10 @@ export default function SettingsPage() {
                 />
               </svg>
               <div>
-                <p className="text-sm font-medium text-amber-800">
+                <p className="text-sm font-medium text-amber-800 text-balance">
                   連絡先開示について
                 </p>
-                <p className="text-xs text-amber-700 mt-1">
+                <p className="text-xs text-amber-700 mt-1 text-pretty">
                   企業があなたに興味を持ち、連絡先開示をリクエストした場合、
                   ここで設定した連絡先情報が企業に開示されます。
                   個人情報の取り扱いにご注意ください。

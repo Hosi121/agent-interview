@@ -18,7 +18,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 interface Document {
   id: string;
@@ -32,9 +43,16 @@ type AnalyzingState = { [key: string]: boolean };
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState<AnalyzingState>({});
+  const [analysisStatus, setAnalysisStatus] = useState<
+    Record<string, { type: "success" | "error"; message: string }>
+  >({});
+  const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -59,6 +77,7 @@ export default function DocumentsPage() {
     if (!file) return;
 
     setIsUploading(true);
+    setUploadError(null);
 
     try {
       const formData = new FormData();
@@ -77,14 +96,15 @@ export default function DocumentsPage() {
       setIsDialogOpen(false);
     } catch (error) {
       console.error("Upload error:", error);
-      alert("アップロードに失敗しました");
+      setUploadError("アップロードに失敗しました");
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("このドキュメントを削除しますか？")) return;
+    setDeleteError(null);
+    setIsDeleting(true);
 
     try {
       const response = await fetch(`/api/documents/${id}`, {
@@ -93,14 +113,26 @@ export default function DocumentsPage() {
 
       if (response.ok) {
         setDocuments((prev) => prev.filter((doc) => doc.id !== id));
+        setDeleteTarget(null);
+      } else {
+        const data = await response.json();
+        setDeleteError(data.error || "削除に失敗しました");
       }
     } catch (error) {
       console.error("Delete error:", error);
+      setDeleteError("削除に失敗しました");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const handleAnalyze = async (id: string) => {
     setAnalyzing((prev) => ({ ...prev, [id]: true }));
+    setAnalysisStatus((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
 
     try {
       const response = await fetch(`/api/documents/${id}/analyze`, {
@@ -113,11 +145,24 @@ export default function DocumentsPage() {
       }
 
       const data = await response.json();
-      alert(`${data.fragmentsCount}件の記憶のかけらを抽出しました`);
+      setAnalysisStatus((prev) => ({
+        ...prev,
+        [id]: {
+          type: "success",
+          message: `${data.fragmentsCount}件の記憶のかけらを抽出しました`,
+        },
+      }));
       await fetchDocuments();
     } catch (error) {
       console.error("Analyze error:", error);
-      alert(error instanceof Error ? error.message : "解析に失敗しました");
+      setAnalysisStatus((prev) => ({
+        ...prev,
+        [id]: {
+          type: "error",
+          message:
+            error instanceof Error ? error.message : "解析に失敗しました",
+        },
+      }));
     } finally {
       setAnalyzing((prev) => ({ ...prev, [id]: false }));
     }
@@ -127,16 +172,26 @@ export default function DocumentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">ドキュメント管理</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-3xl font-bold text-balance">
+            ドキュメント管理
+          </h1>
+          <p className="text-muted-foreground mt-2 text-pretty">
             履歴書やポートフォリオをアップロードして、エージェントに統合しましょう
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setUploadError(null);
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <svg
-                className="w-4 h-4 mr-2"
+                className="size-4 mr-2"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -166,8 +221,13 @@ export default function DocumentsPage() {
                 disabled={isUploading}
               />
               {isUploading && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground text-pretty">
                   アップロード中...
+                </p>
+              )}
+              {uploadError && (
+                <p className="text-sm text-destructive text-pretty" role="alert">
+                  {uploadError}
                 </p>
               )}
             </div>
@@ -177,13 +237,13 @@ export default function DocumentsPage() {
 
       {isLoading ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">読み込み中...</p>
+          <p className="text-muted-foreground text-pretty">読み込み中...</p>
         </div>
       ) : documents.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <svg
-              className="w-12 h-12 mx-auto text-muted-foreground mb-4"
+              className="size-12 mx-auto text-muted-foreground mb-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -195,7 +255,7 @@ export default function DocumentsPage() {
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
-            <p className="text-muted-foreground mb-4">
+            <p className="text-muted-foreground mb-4 text-pretty">
               まだドキュメントがありません
             </p>
             <Button onClick={() => setIsDialogOpen(true)}>
@@ -212,7 +272,7 @@ export default function DocumentsPage() {
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <svg
-                        className="w-5 h-5 text-primary"
+                        className="size-5 text-primary"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -226,54 +286,117 @@ export default function DocumentsPage() {
                       </svg>
                       {doc.fileName}
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="tabular-nums">
                       {new Date(doc.createdAt).toLocaleDateString("ja-JP")}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {doc.summary ? (
-                      <Badge variant="secondary">解析済み</Badge>
-                    ) : (
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-2">
+                      {doc.summary ? (
+                        <Badge variant="secondary">解析済み</Badge>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAnalyze(doc.id)}
+                          disabled={analyzing[doc.id]}
+                        >
+                          {analyzing[doc.id] ? "解析中..." : "解析する"}
+                        </Button>
+                      )}
                       <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleAnalyze(doc.id)}
-                        disabled={analyzing[doc.id]}
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="ドキュメントを削除"
+                        onClick={() => {
+                          setDeleteTarget(doc);
+                          setDeleteError(null);
+                        }}
                       >
-                        {analyzing[doc.id] ? "解析中..." : "解析する"}
+                        <svg
+                          className="size-4 text-destructive"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
                       </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(doc.id)}
-                    >
-                      <svg
-                        className="w-4 h-4 text-destructive"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                    </div>
+                    {analysisStatus[doc.id] && (
+                      <p
+                        className={cn(
+                          "text-xs text-pretty tabular-nums",
+                          analysisStatus[doc.id].type === "error"
+                            ? "text-destructive"
+                            : "text-primary",
+                        )}
+                        role={
+                          analysisStatus[doc.id].type === "error"
+                            ? "alert"
+                            : undefined
+                        }
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </Button>
+                        {analysisStatus[doc.id].message}
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardHeader>
               {doc.summary && (
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">{doc.summary}</p>
+                  <p className="text-sm text-muted-foreground text-pretty">
+                    {doc.summary}
+                  </p>
                 </CardContent>
               )}
             </Card>
           ))}
         </div>
       )}
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ドキュメントを削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              削除したドキュメントは元に戻せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteTarget) {
+                  handleDelete(deleteTarget.id);
+                }
+              }}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "削除中..." : "削除する"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          {deleteError && (
+            <p className="text-xs text-destructive text-pretty" role="alert">
+              {deleteError}
+            </p>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

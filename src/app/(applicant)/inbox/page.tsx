@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +19,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 interface Interest {
   id: string;
@@ -70,10 +82,14 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [messageContent, setMessageContent] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
   const [accessPreference, setAccessPreference] = useState<
     Record<string, "NONE" | "ALLOW" | "DENY">
   >({});
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
+  const [declineTarget, setDeclineTarget] = useState<Interest | null>(null);
+  const [declineError, setDeclineError] = useState<string | null>(null);
 
   const fetchInterests = useCallback(async () => {
     try {
@@ -117,6 +133,7 @@ export default function InboxPage() {
     if (!selectedInterest || !messageContent.trim()) return;
 
     setIsSending(true);
+    setMessageError(null);
     try {
       const response = await fetch(
         `/api/applicant/inbox/${selectedInterest.id}/messages`,
@@ -133,11 +150,11 @@ export default function InboxPage() {
         fetchInterests(); // 最終メッセージを更新
       } else {
         const data = await response.json();
-        alert(data.error || "エラーが発生しました");
+        setMessageError(data.error || "エラーが発生しました");
       }
     } catch (error) {
       console.error("Failed to send message:", error);
-      alert("エラーが発生しました");
+      setMessageError("エラーが発生しました");
     } finally {
       setIsSending(false);
     }
@@ -147,6 +164,7 @@ export default function InboxPage() {
     setSelectedInterest(interest);
     setMessages([]);
     setMessageContent("");
+    setMessageError(null);
   };
 
   const handleApproveDisclosure = async (interestId: string) => {
@@ -154,6 +172,7 @@ export default function InboxPage() {
       accessPreference[interestId] === "ALLOW" ? "ALLOW" : "NONE";
 
     setIsUpdating(interestId);
+    setActionErrors((prev) => ({ ...prev, [interestId]: "" }));
     try {
       const response = await fetch(
         `/api/applicant/inbox/${interestId}/approve`,
@@ -166,15 +185,20 @@ export default function InboxPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        alert(data.error || "エラーが発生しました");
+        setActionErrors((prev) => ({
+          ...prev,
+          [interestId]: data.error || "エラーが発生しました",
+        }));
         return;
       }
 
       await fetchInterests();
-      alert("連絡先を開示しました");
     } catch (error) {
       console.error("Failed to approve disclosure:", error);
-      alert("エラーが発生しました");
+      setActionErrors((prev) => ({
+        ...prev,
+        [interestId]: "エラーが発生しました",
+      }));
     } finally {
       setIsUpdating(null);
     }
@@ -184,8 +208,7 @@ export default function InboxPage() {
     const preference =
       accessPreference[interestId] === "DENY" ? "DENY" : "NONE";
 
-    if (!confirm("連絡先開示を辞退しますか？")) return;
-
+    setDeclineError(null);
     setIsUpdating(interestId);
     try {
       const response = await fetch(
@@ -199,15 +222,15 @@ export default function InboxPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        alert(data.error || "エラーが発生しました");
+        setDeclineError(data.error || "エラーが発生しました");
         return;
       }
 
       await fetchInterests();
-      alert("辞退しました");
+      setDeclineTarget(null);
     } catch (error) {
       console.error("Failed to decline disclosure:", error);
-      alert("エラーが発生しました");
+      setDeclineError("エラーが発生しました");
     } finally {
       setIsUpdating(null);
     }
@@ -220,8 +243,8 @@ export default function InboxPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">受信箱</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-3xl font-bold text-balance">受信箱</h1>
+        <p className="text-muted-foreground mt-2 text-pretty">
           企業からの興味表明やメッセージを確認できます
         </p>
       </div>
@@ -230,19 +253,23 @@ export default function InboxPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>全体</CardDescription>
-            <CardTitle className="text-2xl">{interests.length}</CardTitle>
+            <CardTitle className="text-2xl tabular-nums">
+              {interests.length}
+            </CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>連絡先開示済み</CardDescription>
-            <CardTitle className="text-2xl">{disclosedCount}</CardTitle>
+            <CardTitle className="text-2xl tabular-nums">
+              {disclosedCount}
+            </CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>新規</CardDescription>
-            <CardTitle className="text-2xl">
+            <CardTitle className="text-2xl tabular-nums">
               {interests.filter((i) => i.status === "EXPRESSED").length}
             </CardTitle>
           </CardHeader>
@@ -250,20 +277,22 @@ export default function InboxPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>メッセージ可能</CardDescription>
-            <CardTitle className="text-2xl">{disclosedCount}</CardTitle>
+            <CardTitle className="text-2xl tabular-nums">
+              {disclosedCount}
+            </CardTitle>
           </CardHeader>
         </Card>
       </div>
 
       {isLoading ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">読み込み中...</p>
+          <p className="text-muted-foreground text-pretty">読み込み中...</p>
         </div>
       ) : interests.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <svg
-              className="w-12 h-12 mx-auto text-muted-foreground mb-4"
+              className="size-12 mx-auto text-muted-foreground mb-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -275,12 +304,19 @@ export default function InboxPage() {
                 d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
               />
             </svg>
-            <p className="text-muted-foreground mb-2">
+            <p className="text-muted-foreground mb-2 text-pretty">
               まだ企業からの興味表明はありません
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground text-pretty">
               エージェントを公開すると、企業から興味表明を受け取れます
             </p>
+            <div className="mt-4">
+              <Link href="/agent">
+                <Button variant="outline" size="sm">
+                  エージェントを公開する
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -292,14 +328,14 @@ export default function InboxPage() {
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
-                  <Avatar className="h-12 w-12">
+                  <Avatar className="size-12">
                     <AvatarFallback className="bg-primary text-white">
                       {interest.recruiter.companyName[0]}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold truncate">
+                      <h3 className="font-semibold truncate text-balance">
                         {interest.recruiter.companyName}
                       </h3>
                       <Badge
@@ -312,7 +348,7 @@ export default function InboxPage() {
                       </Badge>
                     </div>
                     {interest.message && (
-                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2 text-pretty">
                         {interest.message}
                       </p>
                     )}
@@ -324,19 +360,21 @@ export default function InboxPage() {
                             : interest.recruiter.companyName}
                           :
                         </span>
-                        <span className="truncate text-muted-foreground">
+                        <span className="truncate text-muted-foreground text-pretty">
                           {interest.lastMessage.content}
                         </span>
                       </div>
                     )}
                     <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                      <span>
+                      <span className="tabular-nums">
                         {new Date(interest.createdAt).toLocaleDateString(
                           "ja-JP",
                         )}
                       </span>
                       {interest.messageCount > 0 && (
-                        <span>{interest.messageCount}件のメッセージ</span>
+                        <span className="tabular-nums">
+                          {interest.messageCount}件のメッセージ
+                        </span>
                       )}
                     </div>
                   </div>
@@ -380,7 +418,10 @@ export default function InboxPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDeclineDisclosure(interest.id)}
+                          onClick={() => {
+                            setDeclineTarget(interest);
+                            setDeclineError(null);
+                          }}
                           disabled={isUpdating === interest.id}
                         >
                           辞退
@@ -396,6 +437,14 @@ export default function InboxPage() {
                       <Button size="sm" variant="outline" disabled>
                         辞退
                       </Button>
+                    )}
+                    {actionErrors[interest.id] && (
+                      <p
+                        className="text-xs text-destructive text-pretty"
+                        role="alert"
+                      >
+                        {actionErrors[interest.id]}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -421,7 +470,7 @@ export default function InboxPage() {
 
           <ScrollArea className="h-80 border rounded-lg p-4">
             {messages.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
+              <p className="text-center text-muted-foreground py-8 text-pretty">
                 まだメッセージはありません
               </p>
             ) : (
@@ -429,26 +478,29 @@ export default function InboxPage() {
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex ${
+                    className={cn(
+                      "flex",
                       message.senderType === "USER"
                         ? "justify-end"
-                        : "justify-start"
-                    }`}
+                        : "justify-start",
+                    )}
                   >
                     <div
-                      className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                      className={cn(
+                        "max-w-[80%] rounded-lg px-4 py-2",
                         message.senderType === "USER"
                           ? "bg-primary text-white"
-                          : "bg-gray-100"
-                      }`}
+                          : "bg-gray-100",
+                      )}
                     >
-                      <p className="text-sm">{message.content}</p>
+                      <p className="text-sm text-pretty">{message.content}</p>
                       <p
-                        className={`text-xs mt-1 ${
+                        className={cn(
+                          "text-xs mt-1 tabular-nums",
                           message.senderType === "USER"
                             ? "text-white/70"
-                            : "text-muted-foreground"
-                        }`}
+                            : "text-muted-foreground",
+                        )}
                       >
                         {new Date(message.createdAt).toLocaleString("ja-JP")}
                       </p>
@@ -460,24 +512,69 @@ export default function InboxPage() {
           </ScrollArea>
 
           {selectedInterest?.status === "CONTACT_DISCLOSED" && (
-            <div className="flex gap-2">
-              <Textarea
-                placeholder="メッセージを入力..."
-                value={messageContent}
-                onChange={(e) => setMessageContent(e.target.value)}
-                className="flex-1"
-                rows={2}
-              />
-              <Button
-                onClick={handleSendMessage}
-                disabled={isSending || !messageContent.trim()}
-              >
-                送信
-              </Button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Textarea
+                  placeholder="メッセージを入力..."
+                  value={messageContent}
+                  onChange={(e) => setMessageContent(e.target.value)}
+                  className="flex-1"
+                  rows={2}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={isSending || !messageContent.trim()}
+                >
+                  送信
+                </Button>
+              </div>
+              {messageError && (
+                <p className="text-xs text-destructive text-pretty" role="alert">
+                  {messageError}
+                </p>
+              )}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!declineTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeclineTarget(null);
+            setDeclineError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>連絡先開示を辞退しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              辞退すると、この企業からの連絡先リクエストは拒否されます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                if (declineTarget) {
+                  handleDeclineDisclosure(declineTarget.id);
+                }
+              }}
+              disabled={isUpdating === declineTarget?.id}
+            >
+              辞退する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          {declineError && (
+            <p className="text-xs text-destructive text-pretty" role="alert">
+              {declineError}
+            </p>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

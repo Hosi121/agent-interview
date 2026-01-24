@@ -76,7 +76,7 @@ export default function ApplicantLayout({
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-dvh flex items-center justify-center">
         <p>Loading...</p>
       </div>
     );
@@ -87,7 +87,7 @@ export default function ApplicantLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-dvh bg-gray-50">
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
@@ -114,9 +114,14 @@ export default function ApplicantLayout({
               {/* 通知ベル */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="relative"
+                    aria-label="通知"
+                  >
                     <svg
-                      className="w-5 h-5"
+                      className="size-5"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -131,7 +136,7 @@ export default function ApplicantLayout({
                     {unreadCount > 0 && (
                       <Badge
                         variant="destructive"
-                        className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs"
+                        className="absolute -top-1 -right-1 size-5 p-0 flex items-center justify-center text-xs tabular-nums"
                       >
                         {unreadCount > 9 ? "9+" : unreadCount}
                       </Badge>
@@ -148,10 +153,10 @@ export default function ApplicantLayout({
                     </div>
                   ) : (
                     <>
-                      {notifications.map((notification) => (
-                        <DropdownMenuItem
-                          key={notification.id}
-                          className="flex flex-col items-start gap-1 cursor-pointer"
+                  {notifications.map((notification) => (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className="flex flex-col items-start gap-1 cursor-pointer"
                           onClick={() => {
                             if (notification.relatedInterest) {
                               router.push("/inbox");
@@ -159,18 +164,18 @@ export default function ApplicantLayout({
                           }}
                         >
                           <div className="flex items-center gap-2 w-full">
-                            <span className="font-medium text-sm truncate flex-1">
-                              {notification.title}
-                            </span>
-                            {!notification.isRead && (
-                              <span className="w-2 h-2 bg-primary rounded-full" />
-                            )}
-                          </div>
-                          <span className="text-xs text-muted-foreground line-clamp-1">
-                            {notification.message}
-                          </span>
-                        </DropdownMenuItem>
-                      ))}
+                        <span className="font-medium text-sm truncate flex-1">
+                          {notification.title}
+                        </span>
+                        {!notification.isRead && (
+                          <span className="size-2 bg-primary rounded-full" />
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground line-clamp-1 text-pretty">
+                        {notification.message}
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="justify-center text-primary"
@@ -188,9 +193,10 @@ export default function ApplicantLayout({
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="relative h-8 w-8 rounded-full"
+                    className="relative size-8 rounded-full"
+                    aria-label="アカウントメニュー"
                   >
-                    <Avatar className="h-8 w-8">
+                    <Avatar className="size-8">
                       <AvatarFallback>
                         {session.user?.name?.[0] || "U"}
                       </AvatarFallback>
