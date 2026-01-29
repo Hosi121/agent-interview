@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { isCompanyAccessDenied } from "@/lib/access-control";
+import { authOptions } from "@/lib/auth";
 import { openai } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
@@ -103,11 +103,33 @@ ${conversationText}`,
           sessionId: existingSession.id,
         },
       },
+      include: {
+        message: {
+          select: {
+            id: true,
+            content: true,
+          },
+        },
+      },
     });
 
     const referenceCounts = new Map<string, number>();
+    const referenceMessages = new Map<
+      string,
+      { messageId: string; snippet: string }[]
+    >();
     for (const ref of references) {
       referenceCounts.set(ref.refId, (referenceCounts.get(ref.refId) || 0) + 1);
+      const snippets = referenceMessages.get(ref.refId) || [];
+      const snippet =
+        ref.message.content.length > 50
+          ? ref.message.content.slice(0, 50) + "..."
+          : ref.message.content;
+      // Avoid duplicates
+      if (!snippets.some((s) => s.messageId === ref.message.id)) {
+        snippets.push({ messageId: ref.message.id, snippet });
+      }
+      referenceMessages.set(ref.refId, snippets);
     }
 
     const fragmentIds = Array.from(referenceCounts.keys());
@@ -129,6 +151,7 @@ ${conversationText}`,
         skills: fragment.skills,
         keywords: fragment.keywords,
         count: referenceCounts.get(fragment.id) || 0,
+        messageSnippets: referenceMessages.get(fragment.id) || [],
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
