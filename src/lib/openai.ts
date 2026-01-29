@@ -1,4 +1,8 @@
 import OpenAI from "openai";
+import type {
+  ChatCompletionContentPart,
+  ChatCompletionMessageParam,
+} from "openai/resources/chat/completions";
 
 export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -203,4 +207,80 @@ ${input.answer}
   } catch {
     return [];
   }
+}
+
+/**
+ * GPT-4o VisionでPDFページ画像からテキストを抽出する
+ */
+export async function extractTextFromPdfWithVision(
+  pdfBuffer: Buffer,
+): Promise<string> {
+  // pdf-to-imgでPDFを画像に変換
+  const { pdf } = await import("pdf-to-img");
+  const pages: Buffer[] = [];
+
+  // PDFの各ページを画像として取得
+  const document = await pdf(pdfBuffer, { scale: 2.0 });
+  for await (const page of document) {
+    pages.push(page);
+  }
+
+  if (pages.length === 0) {
+    throw new Error("PDFからページを抽出できませんでした");
+  }
+
+  // 最大10ページまで処理（コスト制限）
+  const maxPages = Math.min(pages.length, 10);
+  const extractedTexts: string[] = [];
+
+  for (let i = 0; i < maxPages; i++) {
+    const base64Image = pages[i].toString("base64");
+
+    const imageContent: ChatCompletionContentPart = {
+      type: "image_url",
+      image_url: {
+        url: `data:image/png;base64,${base64Image}`,
+        detail: "high",
+      },
+    };
+
+    const messages: ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content: `あなたはOCRアシスタントです。画像内のすべてのテキストを正確に抽出してください。
+レイアウトや構造を可能な限り保持し、表がある場合はMarkdown形式で表現してください。
+テキストのみを出力し、説明や解釈は加えないでください。`,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `このページ（${i + 1}/${pages.length}ページ）のテキストを抽出してください。`,
+          },
+          imageContent,
+        ],
+      },
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      max_tokens: 4000,
+      temperature: 0.1,
+    });
+
+    const pageText = response.choices[0]?.message?.content || "";
+    if (pageText.trim()) {
+      extractedTexts.push(`--- ページ ${i + 1} ---\n${pageText}`);
+    }
+  }
+
+  if (pages.length > maxPages) {
+    extractedTexts.push(
+      `\n(注: ${pages.length}ページ中、最初の${maxPages}ページのみ処理しました)`,
+    );
+  }
+
+  return extractedTexts.join("\n\n");
 }

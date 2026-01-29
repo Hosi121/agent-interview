@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getFileBuffer } from "@/lib/minio";
-import { extractFragments } from "@/lib/openai";
+import { extractFragments, extractTextFromPdfWithVision } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(
@@ -37,10 +37,8 @@ export async function POST(
     let textContent = "";
 
     if (document.fileName.toLowerCase().endsWith(".pdf")) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require("pdf-parse");
-      const pdfData = await pdfParse(fileBuffer);
-      textContent = pdfData.text;
+      // GPT-4o VisionでOCR処理（スキャンPDFにも対応）
+      textContent = await extractTextFromPdfWithVision(fileBuffer);
     } else if (
       document.fileName.toLowerCase().endsWith(".txt") ||
       document.fileName.toLowerCase().endsWith(".md")
