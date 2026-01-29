@@ -21,6 +21,7 @@ const navigation = [
   { name: "エージェント一覧", href: "/recruiter/agents" },
   { name: "興味リスト", href: "/recruiter/interests" },
   { name: "ウォッチリスト", href: "/recruiter/watches" },
+  { name: "プラン・ポイント", href: "/recruiter/billing" },
 ];
 
 interface Subscription {
