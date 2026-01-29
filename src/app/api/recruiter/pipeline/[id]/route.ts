@@ -1,9 +1,12 @@
 import type { PipelineStage } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
+import { withRecruiterAuth } from "@/lib/api-utils";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
+
+type RouteContext = { params: Promise<{ id: string }> };
 
 const VALID_STAGES: PipelineStage[] = [
   "INTERESTED",
@@ -17,18 +20,9 @@ const VALID_STAGES: PipelineStage[] = [
 ];
 
 // パイプライン詳細取得
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
+export const GET = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id } = await context!.params;
 
     const pipeline = await prisma.candidatePipeline.findFirst({
       where: {
@@ -54,10 +48,7 @@ export async function GET(
     });
 
     if (!pipeline) {
-      return NextResponse.json(
-        { error: "Pipeline not found" },
-        { status: 404 },
-      );
+      throw new NotFoundError("パイプラインが見つかりません");
     }
 
     if (
@@ -66,7 +57,7 @@ export async function GET(
         pipeline.agent.userId,
       )
     ) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     // 関連する面接セッションも取得
@@ -90,30 +81,39 @@ export async function GET(
       pipeline,
       sessions,
     });
-  } catch (error) {
-    console.error("Get pipeline error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
+
+const updatePipelineSchema = z.object({
+  stage: z
+    .enum([
+      "INTERESTED",
+      "CONTACTED",
+      "SCREENING",
+      "INTERVIEWING",
+      "OFFER",
+      "HIRED",
+      "REJECTED",
+      "WITHDRAWN",
+    ])
+    .optional(),
+  note: z.string().optional(),
+});
 
 // パイプラインステージ更新
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+export const PATCH = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id } = await context!.params;
+    const rawBody = await req.json();
+    const parsed = updatePipelineSchema.safeParse(rawBody);
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!parsed.success) {
+      throw new ValidationError("入力内容に問題があります", {
+        fields: parsed.error.flatten().fieldErrors,
+      });
     }
 
-    const { id } = await params;
-    const body = await request.json();
-    const { stage, note } = body;
+    const { stage, note } = parsed.data;
 
     const existingPipeline = await prisma.candidatePipeline.findFirst({
       where: {
@@ -128,10 +128,7 @@ export async function PATCH(
     });
 
     if (!existingPipeline) {
-      return NextResponse.json(
-        { error: "Pipeline not found" },
-        { status: 404 },
-      );
+      throw new NotFoundError("パイプラインが見つかりません");
     }
 
     if (
@@ -140,11 +137,7 @@ export async function PATCH(
         existingPipeline.agent.userId,
       )
     ) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (stage && !VALID_STAGES.includes(stage)) {
-      return NextResponse.json({ error: "Invalid stage" }, { status: 400 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     const updateData: { stage?: PipelineStage; note?: string } = {};
@@ -187,28 +180,13 @@ export async function PATCH(
     });
 
     return NextResponse.json({ pipeline });
-  } catch (error) {
-    console.error("Update pipeline error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
 
 // パイプラインから削除
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
+export const DELETE = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id } = await context!.params;
 
     const existingPipeline = await prisma.candidatePipeline.findFirst({
       where: {
@@ -223,10 +201,7 @@ export async function DELETE(
     });
 
     if (!existingPipeline) {
-      return NextResponse.json(
-        { error: "Pipeline not found" },
-        { status: 404 },
-      );
+      throw new NotFoundError("パイプラインが見つかりません");
     }
 
     if (
@@ -235,7 +210,7 @@ export async function DELETE(
         existingPipeline.agent.userId,
       )
     ) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     await prisma.candidatePipeline.delete({
@@ -243,11 +218,5 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Delete pipeline error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

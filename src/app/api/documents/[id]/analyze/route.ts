@@ -1,23 +1,16 @@
 import { FragmentType, SourceType } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { withUserAuth } from "@/lib/api-utils";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import { getFileBuffer } from "@/lib/minio";
 import { extractFragments, extractTextFromPdfWithVision } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+type RouteContext = { params: Promise<{ id: string }> };
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
+export const POST = withUserAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id } = await context!.params;
 
     const document = await prisma.document.findFirst({
       where: {
@@ -27,10 +20,7 @@ export async function POST(
     });
 
     if (!document) {
-      return NextResponse.json(
-        { error: "Document not found" },
-        { status: 404 },
-      );
+      throw new NotFoundError("ドキュメントが見つかりません");
     }
 
     const fileBuffer = await getFileBuffer(document.filePath);
@@ -49,9 +39,8 @@ export async function POST(
     }
 
     if (!textContent.trim()) {
-      return NextResponse.json(
-        { error: "ドキュメントからテキストを抽出できませんでした" },
-        { status: 400 },
+      throw new ValidationError(
+        "ドキュメントからテキストを抽出できませんでした",
       );
     }
 
@@ -98,11 +87,5 @@ export async function POST(
       fragmentsCount: createdFragments.length,
       summary,
     });
-  } catch (error) {
-    console.error("Document analysis error:", error);
-    return NextResponse.json(
-      { error: "ドキュメントの解析に失敗しました" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

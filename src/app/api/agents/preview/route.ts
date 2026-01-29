@@ -1,42 +1,51 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { withUserAuth } from "@/lib/api-utils";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import { generateChatResponse } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+const previewSchema = z.object({
+  messages: z.array(
+    z.object({
+      role: z.enum(["user", "assistant"]),
+      content: z.string(),
+    }),
+  ),
+});
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const POST = withUserAuth(async (req, session) => {
+  const rawBody = await req.json();
+  const parsed = previewSchema.safeParse(rawBody);
 
-    const { messages } = await req.json();
-
-    const agent = await prisma.agentProfile.findUnique({
-      where: { userId: session.user.userId },
-      include: {
-        user: true,
-      },
+  if (!parsed.success) {
+    throw new ValidationError("入力内容に問題があります", {
+      fields: parsed.error.flatten().fieldErrors,
     });
+  }
 
-    if (!agent) {
-      return NextResponse.json(
-        { error: "エージェントがまだ作成されていません" },
-        { status: 404 },
-      );
-    }
+  const { messages } = parsed.data;
 
-    const fragments = await prisma.fragment.findMany({
-      where: { userId: session.user.userId },
-    });
+  const agent = await prisma.agentProfile.findUnique({
+    where: { userId: session.user.userId },
+    include: {
+      user: true,
+    },
+  });
 
-    const fragmentsContext = fragments
-      .map((f) => `[${f.type}]: ${f.content}`)
-      .join("\n");
+  if (!agent) {
+    throw new NotFoundError("エージェントがまだ作成されていません");
+  }
 
-    const previewSystemPrompt = `${agent.systemPrompt}
+  const fragments = await prisma.fragment.findMany({
+    where: { userId: session.user.userId },
+  });
+
+  const fragmentsContext = fragments
+    .map((f) => `[${f.type}]: ${f.content}`)
+    .join("\n");
+
+  const previewSystemPrompt = `${agent.systemPrompt}
 
 以下は${agent.user.name}さんに関する情報です。この情報を参考にして回答してください：
 
@@ -46,24 +55,15 @@ ${fragmentsContext || "（詳細な情報はまだ収集されていません）
 採用担当者からの質問を想定して、${agent.user.name}さんの代理として丁寧かつ専門的に回答してください。
 わからないことは正直に「その点についてはまだ情報を持っていません」と答えてください。`;
 
-    const formattedMessages = messages.map(
-      (m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }),
-    );
+  const formattedMessages = messages.map((m) => ({
+    role: m.role as "user" | "assistant",
+    content: m.content,
+  }));
 
-    const responseMessage = await generateChatResponse(
-      previewSystemPrompt,
-      formattedMessages,
-    );
+  const responseMessage = await generateChatResponse(
+    previewSystemPrompt,
+    formattedMessages,
+  );
 
-    return NextResponse.json({ message: responseMessage });
-  } catch (error) {
-    console.error("Agent preview error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  return NextResponse.json({ message: responseMessage });
+});

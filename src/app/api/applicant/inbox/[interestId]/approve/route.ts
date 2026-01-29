@@ -1,30 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { withUserAuth } from "@/lib/api-utils";
 import {
-  checkPointBalance,
-  consumePointsWithOperations,
+  ConflictError,
+  ForbiddenError,
   InsufficientPointsError,
   NoSubscriptionError,
-} from "@/lib/points";
+  NotFoundError,
+  ValidationError,
+} from "@/lib/errors";
+import { checkPointBalance, consumePointsWithOperations } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
 
-interface RouteContext {
-  params: Promise<{ interestId: string }>;
-}
+type RouteContext = { params: Promise<{ interestId: string }> };
 
-export async function POST(request: NextRequest, context: RouteContext) {
-  try {
-    const session = await getServerSession(authOptions);
+const approveSchema = z.object({
+  preference: z.enum(["ALLOW", "NONE"]).optional().default("NONE"),
+});
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const POST = withUserAuth<RouteContext>(
+  async (req, session, context) => {
+    const { interestId } = await context!.params;
+    const rawBody = await req.json().catch(() => ({}));
+    const parsed = approveSchema.safeParse(rawBody);
 
-    const { interestId } = await context.params;
-    const body = await request.json().catch(() => ({}));
-    const preference =
-      body.preference === "ALLOW" ? "ALLOW" : ("NONE" as const);
+    const preference = parsed.success ? parsed.data.preference : "NONE";
 
     const interest = await prisma.interest.findUnique({
       where: { id: interestId },
@@ -49,11 +49,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     if (!interest) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      throw new NotFoundError("興味表明が見つかりません");
     }
 
     if (interest.userId !== session.user.userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      throw new ForbiddenError("この操作を行う権限がありません");
     }
 
     if (interest.status === "CONTACT_DISCLOSED") {
@@ -68,17 +68,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     if (interest.status === "DECLINED") {
-      return NextResponse.json(
-        { error: "既に辞退済みです" },
-        { status: 409 },
-      );
+      throw new ConflictError("既に辞退済みです");
     }
 
     if (interest.status !== "CONTACT_REQUESTED") {
-      return NextResponse.json(
-        { error: "連絡先開示リクエストがありません" },
-        { status: 400 },
-      );
+      throw new ValidationError("連絡先開示リクエストがありません");
     }
 
     const pointCheck = await checkPointBalance(
@@ -87,14 +81,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
 
     if (!pointCheck.canProceed) {
-      return NextResponse.json(
-        {
-          error: "企業側のポイントが不足しています",
-          required: pointCheck.required,
-          available: pointCheck.available,
-        },
-        { status: 409 },
-      );
+      throw new ConflictError("企業側のポイントが不足しています");
     }
 
     await consumePointsWithOperations(
@@ -149,28 +136,5 @@ export async function POST(request: NextRequest, context: RouteContext) {
         phone: interest.user.phone,
       },
     });
-  } catch (error) {
-    console.error("Approve contact disclosure error:", error);
-    if (error instanceof NoSubscriptionError) {
-      return NextResponse.json(
-        { error: "企業側のサブスクリプションがありません" },
-        { status: 409 },
-      );
-    }
-
-    if (error instanceof InsufficientPointsError) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          required: error.required,
-          available: error.available,
-        },
-        { status: 409 },
-      );
-    }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

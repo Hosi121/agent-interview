@@ -1,141 +1,134 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { withRecruiterAuth } from "@/lib/api-utils";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import { openai } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
+const compareSchema = z.object({
+  agentIds: z
+    .array(z.string())
+    .min(2, "少なくとも2名の候補者が必要です")
+    .max(5, "最大5名の候補者まで比較できます"),
+  jobId: z.string().optional(),
+});
+
 // 候補者比較レポート生成
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+export const POST = withRecruiterAuth(async (req, session) => {
+  const rawBody = await req.json();
+  const parsed = compareSchema.safeParse(rawBody);
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { agentIds, jobId } = body;
-
-    if (!agentIds || !Array.isArray(agentIds) || agentIds.length < 2) {
-      return NextResponse.json(
-        { error: "At least 2 agentIds are required" },
-        { status: 400 },
-      );
-    }
-
-    if (agentIds.length > 5) {
-      return NextResponse.json(
-        { error: "Maximum 5 candidates can be compared at once" },
-        { status: 400 },
-      );
-    }
-
-    // 候補者情報を取得
-    const agents = await prisma.agentProfile.findMany({
-      where: {
-        id: { in: agentIds },
-        status: "PUBLIC",
-        user: {
-          companyAccesses: {
-            none: {
-              recruiterId: session.user.recruiterId,
-              status: "DENY",
-            },
-          },
-        },
-      },
-      include: {
-        user: {
-          select: {
-            name: true,
-            fragments: {
-              select: {
-                type: true,
-                content: true,
-                skills: true,
-                keywords: true,
-              },
-            },
-          },
-        },
-      },
+  if (!parsed.success) {
+    throw new ValidationError("入力内容に問題があります", {
+      fields: parsed.error.flatten().fieldErrors,
     });
+  }
 
-    if (agents.length !== agentIds.length) {
-      return NextResponse.json(
-        { error: "Some agents not found or not public" },
-        { status: 404 },
-      );
-    }
+  const { agentIds, jobId } = parsed.data;
 
-    // 求人情報を取得（指定されている場合）
-    let job = null;
-    if (jobId) {
-      job = await prisma.jobPosting.findFirst({
-        where: {
-          id: jobId,
-          recruiterId: session.user.recruiterId,
+  // 候補者情報を取得
+  const agents = await prisma.agentProfile.findMany({
+    where: {
+      id: { in: agentIds },
+      status: "PUBLIC",
+      user: {
+        companyAccesses: {
+          none: {
+            recruiterId: session.user.recruiterId,
+            status: "DENY",
+          },
         },
-      });
-    }
+      },
+    },
+    include: {
+      user: {
+        select: {
+          name: true,
+          fragments: {
+            select: {
+              type: true,
+              content: true,
+              skills: true,
+              keywords: true,
+            },
+          },
+        },
+      },
+    },
+  });
 
-    // 面接評価も取得
-    const evaluations = await prisma.interviewEvaluation.findMany({
+  if (agents.length !== agentIds.length) {
+    throw new NotFoundError("一部の候補者が見つからないか、非公開です");
+  }
+
+  // 求人情報を取得（指定されている場合）
+  let job = null;
+  if (jobId) {
+    job = await prisma.jobPosting.findFirst({
       where: {
+        id: jobId,
         recruiterId: session.user.recruiterId,
-        session: {
-          agentId: { in: agentIds },
-        },
-      },
-      include: {
-        session: {
-          select: { agentId: true },
-        },
       },
     });
+  }
 
-    // 候補者ごとの評価をマップ
-    const evalByAgent = new Map<string, (typeof evaluations)[0]>();
-    for (const ev of evaluations) {
-      if (ev.session.agentId) {
-        evalByAgent.set(ev.session.agentId, ev);
-      }
+  // 面接評価も取得
+  const evaluations = await prisma.interviewEvaluation.findMany({
+    where: {
+      recruiterId: session.user.recruiterId,
+      session: {
+        agentId: { in: agentIds },
+      },
+    },
+    include: {
+      session: {
+        select: { agentId: true },
+      },
+    },
+  });
+
+  // 候補者ごとの評価をマップ
+  const evalByAgent = new Map<string, (typeof evaluations)[0]>();
+  for (const ev of evaluations) {
+    if (ev.session.agentId) {
+      evalByAgent.set(ev.session.agentId, ev);
     }
+  }
 
-    // 候補者データを整形
-    const candidatesData = agents.map((agent) => {
-      const fragments = agent.user.fragments;
-      const skills = [...new Set(fragments.flatMap((f) => f.skills))];
-      const achievements = fragments
-        .filter((f) => f.type === "ACHIEVEMENT")
-        .map((f) => f.content);
-      const evaluation = evalByAgent.get(agent.id);
+  // 候補者データを整形
+  const candidatesData = agents.map((agent) => {
+    const fragments = agent.user.fragments;
+    const skills = [...new Set(fragments.flatMap((f) => f.skills))];
+    const achievements = fragments
+      .filter((f) => f.type === "ACHIEVEMENT")
+      .map((f) => f.content);
+    const evaluation = evalByAgent.get(agent.id);
 
-      return {
-        id: agent.id,
-        name: agent.user.name,
-        skills,
-        achievements: achievements.slice(0, 3),
-        fragmentCounts: {
-          total: fragments.length,
-          achievement: fragments.filter((f) => f.type === "ACHIEVEMENT").length,
-          skill: fragments.filter((f) => f.type === "SKILL_USAGE").length,
-          fact: fragments.filter((f) => f.type === "FACT").length,
-        },
-        evaluation: evaluation
-          ? {
-              overall: evaluation.overallRating,
-              technical: evaluation.technicalRating,
-              communication: evaluation.communicationRating,
-              culture: evaluation.cultureRating,
-              comment: evaluation.comment,
-            }
-          : null,
-      };
-    });
+    return {
+      id: agent.id,
+      name: agent.user.name,
+      skills,
+      achievements: achievements.slice(0, 3),
+      fragmentCounts: {
+        total: fragments.length,
+        achievement: fragments.filter((f) => f.type === "ACHIEVEMENT").length,
+        skill: fragments.filter((f) => f.type === "SKILL_USAGE").length,
+        fact: fragments.filter((f) => f.type === "FACT").length,
+      },
+      evaluation: evaluation
+        ? {
+            overall: evaluation.overallRating,
+            technical: evaluation.technicalRating,
+            communication: evaluation.communicationRating,
+            culture: evaluation.cultureRating,
+            comment: evaluation.comment,
+          }
+        : null,
+    };
+  });
 
-    // AI による比較分析
-    const comparisonPrompt = `
+  // AI による比較分析
+  const comparisonPrompt = `
 以下の候補者を比較分析してください。
 
 ${job ? `## 求人情報\nタイトル: ${job.title}\n説明: ${job.description}\n必須スキル: ${job.skills.join(", ")}\n経験レベル: ${job.experienceLevel}` : ""}
@@ -170,53 +163,46 @@ ${c.evaluation ? `- 面接評価: 総合${c.evaluation.overall}/5, 技術${c.eva
 }
 `;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content:
-            "あなたは採用担当者をサポートするアシスタントです。客観的かつ公平に候補者を分析してください。",
-        },
-        {
-          role: "user",
-          content: comparisonPrompt,
-        },
-      ],
-      temperature: 0.5,
-      max_tokens: 2000,
-    });
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      {
+        role: "system",
+        content:
+          "あなたは採用担当者をサポートするアシスタントです。客観的かつ公平に候補者を分析してください。",
+      },
+      {
+        role: "user",
+        content: comparisonPrompt,
+      },
+    ],
+    temperature: 0.5,
+    max_tokens: 2000,
+  });
 
-    const aiResponse = response.choices[0]?.message?.content || "";
+  const aiResponse = response.choices[0]?.message?.content || "";
 
-    let analysis = null;
-    try {
-      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0]);
-      }
-    } catch {
-      // JSON解析失敗時はテキストのまま
-      analysis = { summary: aiResponse };
+  let analysis = null;
+  try {
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      analysis = JSON.parse(jsonMatch[0]);
     }
-
-    return NextResponse.json({
-      candidates: candidatesData,
-      job: job
-        ? {
-            id: job.id,
-            title: job.title,
-            skills: job.skills,
-            experienceLevel: job.experienceLevel,
-          }
-        : null,
-      analysis,
-    });
-  } catch (error) {
-    console.error("Compare candidates error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+  } catch {
+    // JSON解析失敗時はテキストのまま
+    analysis = { summary: aiResponse };
   }
-}
+
+  return NextResponse.json({
+    candidates: candidatesData,
+    job: job
+      ? {
+          id: job.id,
+          title: job.title,
+          skills: job.skills,
+          experienceLevel: job.experienceLevel,
+        }
+      : null,
+    analysis,
+  });
+});

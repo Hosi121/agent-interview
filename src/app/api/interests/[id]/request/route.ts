@@ -1,26 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { withRecruiterAuth } from "@/lib/api-utils";
 import {
-  checkPointBalance,
-  consumePointsWithOperations,
+  ConflictError,
+  ForbiddenError,
   InsufficientPointsError,
-  NoSubscriptionError,
-} from "@/lib/points";
+  NotFoundError,
+} from "@/lib/errors";
+import { checkPointBalance, consumePointsWithOperations } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+type RouteContext = { params: Promise<{ id: string }> };
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id: interestId } = await params;
+export const POST = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id: interestId } = await context!.params;
 
     const interest = await prisma.interest.findUnique({
       where: { id: interestId },
@@ -45,14 +38,11 @@ export async function POST(
     });
 
     if (!interest) {
-      return NextResponse.json(
-        { error: "興味表明が見つかりません" },
-        { status: 404 },
-      );
+      throw new NotFoundError("興味表明が見つかりません");
     }
 
     if (interest.recruiterId !== session.user.recruiterId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      throw new ForbiddenError("この興味表明にアクセスする権限がありません");
     }
 
     if (interest.status === "CONTACT_DISCLOSED") {
@@ -67,10 +57,7 @@ export async function POST(
     }
 
     if (interest.status === "DECLINED") {
-      return NextResponse.json(
-        { error: "候補者が辞退しました", status: interest.status },
-        { status: 409 },
-      );
+      throw new ConflictError("候補者が辞退しました");
     }
 
     const accessPreference = await prisma.companyAccess.findUnique({
@@ -111,13 +98,9 @@ export async function POST(
         "CONTACT_DISCLOSURE",
       );
       if (!pointCheck.canProceed) {
-        return NextResponse.json(
-          {
-            error: "ポイントが不足しています",
-            required: pointCheck.required,
-            available: pointCheck.available,
-          },
-          { status: 402 },
+        throw new InsufficientPointsError(
+          pointCheck.required,
+          pointCheck.available,
         );
       }
 
@@ -181,27 +164,5 @@ export async function POST(
     }
 
     return NextResponse.json({ status: "CONTACT_REQUESTED" });
-  } catch (error) {
-    console.error("Contact request error:", error);
-
-    if (error instanceof NoSubscriptionError) {
-      return NextResponse.json({ error: error.message }, { status: 402 });
-    }
-
-    if (error instanceof InsufficientPointsError) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          required: error.required,
-          available: error.available,
-        },
-        { status: 402 },
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

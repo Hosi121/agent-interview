@@ -1,24 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { withUserAuth } from "@/lib/api-utils";
+import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
-interface RouteContext {
-  params: Promise<{ interestId: string }>;
-}
+type RouteContext = { params: Promise<{ interestId: string }> };
 
-export async function POST(request: NextRequest, context: RouteContext) {
-  try {
-    const session = await getServerSession(authOptions);
+const declineSchema = z.object({
+  preference: z.enum(["DENY", "NONE"]).optional().default("NONE"),
+});
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const POST = withUserAuth<RouteContext>(
+  async (req, session, context) => {
+    const { interestId } = await context!.params;
+    const rawBody = await req.json().catch(() => ({}));
+    const parsed = declineSchema.safeParse(rawBody);
 
-    const { interestId } = await context.params;
-    const body = await request.json().catch(() => ({}));
-    const preference =
-      body.preference === "DENY" ? "DENY" : ("NONE" as const);
+    const preference = parsed.success ? parsed.data.preference : "NONE";
 
     const interest = await prisma.interest.findUnique({
       where: { id: interestId },
@@ -40,18 +38,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     if (!interest) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      throw new NotFoundError("興味表明が見つかりません");
     }
 
     if (interest.userId !== session.user.userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      throw new ForbiddenError("この操作を行う権限がありません");
     }
 
     if (interest.status === "CONTACT_DISCLOSED") {
-      return NextResponse.json(
-        { error: "既に連絡先が開示されています" },
-        { status: 409 },
-      );
+      throw new ConflictError("既に連絡先が開示されています");
     }
 
     if (interest.status !== "DECLINED") {
@@ -93,11 +88,5 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     return NextResponse.json({ status: "DECLINED" });
-  } catch (error) {
-    console.error("Decline contact disclosure error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

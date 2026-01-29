@@ -1,41 +1,35 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { withUserAuth } from "@/lib/api-utils";
+import { ForbiddenError, NotFoundError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { deleteFile } from "@/lib/minio";
 import { prisma } from "@/lib/prisma";
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+type RouteContext = { params: Promise<{ id: string }> };
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
+export const DELETE = withUserAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id } = await context!.params;
 
     const document = await prisma.document.findUnique({
       where: { id },
     });
 
     if (!document) {
-      return NextResponse.json(
-        { error: "Document not found" },
-        { status: 404 },
-      );
+      throw new NotFoundError("ドキュメントが見つかりません");
     }
 
     if (document.userId !== session.user.userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      throw new ForbiddenError("このドキュメントを削除する権限がありません");
     }
 
     try {
       await deleteFile(document.filePath);
     } catch (error) {
-      console.error("Failed to delete file from storage:", error);
+      logger.error("Failed to delete file from storage", error as Error, {
+        documentId: id,
+        filePath: document.filePath,
+      });
     }
 
     await prisma.document.delete({
@@ -43,11 +37,5 @@ export async function DELETE(
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Delete document error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

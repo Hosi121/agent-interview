@@ -1,8 +1,9 @@
 import { type FragmentType, SourceType } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
+import { logger } from "@/lib/logger";
 import { extractFragments, generateChatResponse } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
@@ -19,29 +20,24 @@ const SYSTEM_PROMPT = `あなたは求職者からキャリア情報を収集す
 具体的なエピソードや数字を含む回答を促してください。
 日本語で回答してください。`;
 
-export async function POST(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+const chatSchema = z.object({
+  messages: z.array(
+    z.object({
+      role: z.enum(["user", "assistant"]),
+      content: z.string(),
+    }),
+  ),
+});
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const POST = withUserValidation(
+  chatSchema,
+  async (body, req, session) => {
+    const { messages } = body;
 
-    const { messages } = await req.json();
-
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: "Messages are required" },
-        { status: 400 },
-      );
-    }
-
-    const chatMessages = messages.map(
-      (m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }),
-    );
+    const chatMessages = messages.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
 
     const responseMessage = await generateChatResponse(
       SYSTEM_PROMPT,
@@ -50,15 +46,11 @@ export async function POST(req: NextRequest) {
 
     let fragmentsExtracted = 0;
 
-    const userMessages = messages.filter(
-      (m: { role: string }) => m.role === "user",
-    );
+    const userMessages = messages.filter((m) => m.role === "user");
     if (userMessages.length > 0 && userMessages.length % 3 === 0) {
       try {
         const conversationText = messages
-          .map(
-            (m: { role: string; content: string }) => `${m.role}: ${m.content}`,
-          )
+          .map((m) => `${m.role}: ${m.content}`)
           .join("\n");
 
         const extractedData = await extractFragments(conversationText);
@@ -80,7 +72,9 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (extractError) {
-        console.error("Fragment extraction error:", extractError);
+        logger.error("Fragment extraction error", extractError as Error, {
+          userId: session.user.userId,
+        });
       }
     }
 
@@ -97,11 +91,5 @@ export async function POST(req: NextRequest) {
       fragmentsExtracted,
       coverage,
     });
-  } catch (error) {
-    console.error("Chat API error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

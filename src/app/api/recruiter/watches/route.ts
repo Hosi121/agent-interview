@@ -1,64 +1,86 @@
 import type { ExperienceLevel } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { withRecruiterAuth } from "@/lib/api-utils";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 // ウォッチリスト一覧取得
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const watches = await prisma.candidateWatch.findMany({
-      where: {
-        recruiterId: session.user.recruiterId,
+export const GET = withRecruiterAuth(async (req, session) => {
+  const watches = await prisma.candidateWatch.findMany({
+    where: {
+      recruiterId: session.user.recruiterId,
+    },
+    include: {
+      job: {
+        select: { id: true, title: true },
       },
-      include: {
-        job: {
-          select: { id: true, title: true },
-        },
-        _count: {
-          select: { notifications: true },
-        },
-        notifications: {
-          where: { isRead: false },
-          select: { id: true },
-        },
+      _count: {
+        select: { notifications: true },
       },
-      orderBy: { createdAt: "desc" },
-    });
+      notifications: {
+        where: { isRead: false },
+        select: { id: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
-    const watchesWithUnread = watches.map((watch) => ({
-      ...watch,
-      unreadCount: watch.notifications.length,
-      notifications: undefined,
-    }));
+  const watchesWithUnread = watches.map((watch) => ({
+    ...watch,
+    unreadCount: watch.notifications.length,
+    notifications: undefined,
+  }));
 
-    return NextResponse.json({ watches: watchesWithUnread });
-  } catch (error) {
-    console.error("Get watches error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  return NextResponse.json({ watches: watchesWithUnread });
+});
+
+const createWatchSchema = z.object({
+  name: z.string().min(1, "名前は必須です"),
+  jobId: z.string().optional(),
+  skills: z.array(z.string()).default([]),
+  keywords: z.array(z.string()).default([]),
+  experienceLevel: z.enum(["JUNIOR", "MID", "SENIOR", "LEAD"]).optional(),
+  locationPref: z.string().optional(),
+  salaryMin: z.number().optional(),
+});
 
 // ウォッチリスト作成
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+export const POST = withRecruiterAuth(async (req, session) => {
+  const rawBody = await req.json();
+  const parsed = createWatchSchema.safeParse(rawBody);
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!parsed.success) {
+    throw new ValidationError("入力内容に問題があります", {
+      fields: parsed.error.flatten().fieldErrors,
+    });
+  }
+
+  const {
+    name,
+    jobId,
+    skills,
+    keywords,
+    experienceLevel,
+    locationPref,
+    salaryMin,
+  } = parsed.data;
+
+  if (jobId) {
+    const job = await prisma.jobPosting.findFirst({
+      where: {
+        id: jobId,
+        recruiterId: session.user.recruiterId,
+      },
+    });
+    if (!job) {
+      throw new NotFoundError("求人が見つかりません");
     }
+  }
 
-    const body = await request.json();
-    const {
+  const watch = await prisma.candidateWatch.create({
+    data: {
+      recruiterId: session.user.recruiterId,
       name,
       jobId,
       skills,
@@ -66,54 +88,19 @@ export async function POST(request: NextRequest) {
       experienceLevel,
       locationPref,
       salaryMin,
-    } = body;
-
-    if (!name) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
-    }
-
-    if (jobId) {
-      const job = await prisma.jobPosting.findFirst({
-        where: {
-          id: jobId,
-          recruiterId: session.user.recruiterId,
-        },
-      });
-      if (!job) {
-        return NextResponse.json({ error: "Job not found" }, { status: 404 });
-      }
-    }
-
-    const watch = await prisma.candidateWatch.create({
-      data: {
-        recruiterId: session.user.recruiterId,
-        name,
-        jobId,
-        skills: skills || [],
-        keywords: keywords || [],
-        experienceLevel,
-        locationPref,
-        salaryMin,
+    },
+    include: {
+      job: {
+        select: { id: true, title: true },
       },
-      include: {
-        job: {
-          select: { id: true, title: true },
-        },
-      },
-    });
+    },
+  });
 
-    // 既存の公開エージェントとマッチング確認
-    await checkExistingAgentsForWatch(watch.id);
+  // 既存の公開エージェントとマッチング確認
+  await checkExistingAgentsForWatch(watch.id);
 
-    return NextResponse.json({ watch }, { status: 201 });
-  } catch (error) {
-    console.error("Create watch error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  return NextResponse.json({ watch }, { status: 201 });
+});
 
 // 既存エージェントとのマッチング確認
 async function checkExistingAgentsForWatch(watchId: string) {

@@ -1,92 +1,72 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { withUserAuth } from "@/lib/api-utils";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
-interface RouteContext {
-  params: Promise<{ interestId: string }>;
-}
+type RouteContext = { params: Promise<{ interestId: string }> };
 
 // メッセージ一覧取得
-export async function GET(request: NextRequest, context: RouteContext) {
-  try {
-    const session = await getServerSession(authOptions);
+export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
+  const { interestId } = await context!.params;
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // 自分宛ての興味表明か確認
+  const interest = await prisma.interest.findFirst({
+    where: {
+      id: interestId,
+      userId: session.user.userId,
+    },
+  });
 
-    const { interestId } = await context.params;
-
-    // 自分宛ての興味表明か確認
-    const interest = await prisma.interest.findFirst({
-      where: {
-        id: interestId,
-        userId: session.user.userId,
-      },
-    });
-
-    if (!interest) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    const messages = await prisma.directMessage.findMany({
-      where: {
-        interestId,
-      },
-      include: {
-        recruiter: {
-          select: { companyName: true },
-        },
-        user: {
-          select: { name: true },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-    });
-
-    return NextResponse.json({
-      messages: messages.map((m) => ({
-        id: m.id,
-        content: m.content,
-        senderType: m.senderType,
-        createdAt: m.createdAt,
-        recruiter: m.recruiter,
-        user: m.user,
-      })),
-    });
-  } catch (error) {
-    console.error("Get messages error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+  if (!interest) {
+    throw new NotFoundError("興味表明が見つかりません");
   }
-}
+
+  const messages = await prisma.directMessage.findMany({
+    where: {
+      interestId,
+    },
+    include: {
+      recruiter: {
+        select: { companyName: true },
+      },
+      user: {
+        select: { name: true },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return NextResponse.json({
+    messages: messages.map((m) => ({
+      id: m.id,
+      content: m.content,
+      senderType: m.senderType,
+      createdAt: m.createdAt,
+      recruiter: m.recruiter,
+      user: m.user,
+    })),
+  });
+});
+
+const sendMessageSchema = z.object({
+  content: z.string().min(1, "メッセージを入力してください"),
+});
 
 // メッセージ送信
-export async function POST(request: NextRequest, context: RouteContext) {
-  try {
-    const session = await getServerSession(authOptions);
+export const POST = withUserAuth<RouteContext>(
+  async (req, session, context) => {
+    const { interestId } = await context!.params;
+    const rawBody = await req.json();
+    const parsed = sendMessageSchema.safeParse(rawBody);
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!parsed.success) {
+      throw new ValidationError("入力内容に問題があります", {
+        fields: parsed.error.flatten().fieldErrors,
+      });
     }
 
-    const { interestId } = await context.params;
-    const body = await request.json();
-    const { content } = body;
-
-    if (
-      !content ||
-      typeof content !== "string" ||
-      content.trim().length === 0
-    ) {
-      return NextResponse.json(
-        { error: "メッセージを入力してください" },
-        { status: 400 },
-      );
-    }
+    const { content } = parsed.data;
 
     // 自分宛ての興味表明で、連絡先開示済みか確認
     const interest = await prisma.interest.findFirst({
@@ -106,10 +86,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     if (!interest) {
-      return NextResponse.json(
-        { error: "メッセージを送信できません" },
-        { status: 403 },
-      );
+      throw new ForbiddenError("メッセージを送信できません");
     }
 
     const message = await prisma.directMessage.create({
@@ -147,21 +124,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       data: { updatedAt: new Date() },
     });
 
-    return NextResponse.json({
-      message: {
-        id: message.id,
-        content: message.content,
-        senderType: message.senderType,
-        createdAt: message.createdAt,
-        user: message.user,
-        recruiter: null,
-      },
-    });
-  } catch (error) {
-    console.error("Send message error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
+      {
+        message: {
+          id: message.id,
+          content: message.content,
+          senderType: message.senderType,
+          createdAt: message.createdAt,
+          user: message.user,
+          recruiter: null,
+        },
+      },
+      { status: 201 },
     );
-  }
-}
+  },
+);

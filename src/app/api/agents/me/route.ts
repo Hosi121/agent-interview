@@ -1,7 +1,9 @@
 import type { AgentStatus } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
+import { withUserAuth } from "@/lib/api-utils";
+import { ValidationError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import {
   calculateJobMatchScore,
   calculateWatchMatchScore,
@@ -123,88 +125,71 @@ async function performAutoMatching(agentId: string, userId: string) {
       }
     }
 
-    console.log(
-      `Auto-matching completed: ${watchMatchResults.length} watch matches, ${activeJobs.length} jobs processed for agent ${agentId}`,
-    );
+    logger.info("Auto-matching completed", {
+      agentId,
+      watchMatches: watchMatchResults.length,
+      jobsProcessed: activeJobs.length,
+    });
   } catch (error) {
-    console.error("Auto-matching error:", error);
+    logger.error("Auto-matching error", error as Error, { agentId, userId });
     // エラーが発生してもメインの処理には影響を与えない
   }
 }
 
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions);
+export const GET = withUserAuth(async (req, session) => {
+  const agent = await prisma.agentProfile.findUnique({
+    where: { userId: session.user.userId },
+  });
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const fragments = await prisma.fragment.findMany({
+    where: { userId: session.user.userId },
+    orderBy: { createdAt: "desc" },
+  });
 
-    const agent = await prisma.agentProfile.findUnique({
-      where: { userId: session.user.userId },
+  return NextResponse.json({ agent, fragments });
+});
+
+const updateAgentSchema = z.object({
+  systemPrompt: z.string().optional(),
+  status: z.enum(["DRAFT", "PUBLIC", "PRIVATE"]).optional(),
+});
+
+export const PATCH = withUserAuth(async (req, session) => {
+  const rawBody = await req.json();
+  const parsed = updateAgentSchema.safeParse(rawBody);
+
+  if (!parsed.success) {
+    throw new ValidationError("入力内容に問題があります", {
+      fields: parsed.error.flatten().fieldErrors,
     });
-
-    const fragments = await prisma.fragment.findMany({
-      where: { userId: session.user.userId },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return NextResponse.json({ agent, fragments });
-  } catch (error) {
-    console.error("Get agent error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
   }
-}
 
-export async function PATCH(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+  const { systemPrompt, status } = parsed.data;
 
-    if (!session?.user?.userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const updateData: { systemPrompt?: string; status?: AgentStatus } = {};
 
-    const body = await req.json();
-    const { systemPrompt, status } = body;
-
-    const updateData: { systemPrompt?: string; status?: AgentStatus } = {};
-
-    if (systemPrompt !== undefined) {
-      updateData.systemPrompt = systemPrompt;
-    }
-
-    if (status !== undefined) {
-      updateData.status = status as AgentStatus;
-    }
-
-    // 現在のステータスを取得
-    const currentAgent = await prisma.agentProfile.findUnique({
-      where: { userId: session.user.userId },
-    });
-
-    const agent = await prisma.agentProfile.update({
-      where: { userId: session.user.userId },
-      data: updateData,
-    });
-
-    // ステータスがPUBLICに変更された場合、自動マッチングを実行
-    if (
-      status === "PUBLIC" &&
-      currentAgent &&
-      currentAgent.status !== "PUBLIC"
-    ) {
-      await performAutoMatching(agent.id, session.user.userId);
-    }
-
-    return NextResponse.json({ agent });
-  } catch (error) {
-    console.error("Update agent error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+  if (systemPrompt !== undefined) {
+    updateData.systemPrompt = systemPrompt;
   }
-}
+
+  if (status !== undefined) {
+    updateData.status = status as AgentStatus;
+  }
+
+  // 現在のステータスを取得
+  const currentAgent = await prisma.agentProfile.findUnique({
+    where: { userId: session.user.userId },
+  });
+
+  const agent = await prisma.agentProfile.update({
+    where: { userId: session.user.userId },
+    data: updateData,
+  });
+
+  // ステータスがPUBLICに変更された場合、自動マッチングを実行
+  if (status === "PUBLIC" && currentAgent && currentAgent.status !== "PUBLIC") {
+    await performAutoMatching(agent.id, session.user.userId);
+  }
+
+  return NextResponse.json({ agent });
+});
