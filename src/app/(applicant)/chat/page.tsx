@@ -1,8 +1,10 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
+import { CoverageIndicator } from "@/components/chat/CoverageIndicator";
+import { FinishSuggestion } from "@/components/chat/FinishSuggestion";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -11,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { ChatCoverageState } from "@/types";
 
 interface Message {
   id: string;
@@ -29,23 +32,36 @@ const INITIAL_MESSAGE = `こんにちは！私はあなたのエージェント�
 
 何でも気軽にお話しください！`;
 
+const INITIAL_COVERAGE: ChatCoverageState = {
+  percentage: 0,
+  isReadyToFinish: false,
+  isComplete: false,
+  categories: [],
+};
+
 export default function ChatPage() {
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fragmentCount, setFragmentCount] = useState(0);
+  const [coverage, setCoverage] = useState<ChatCoverageState>(INITIAL_COVERAGE);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const fetchFragmentCount = useCallback(async () => {
+  const fetchInitialData = useCallback(async () => {
     try {
       const response = await fetch("/api/agents/me");
       if (response.ok) {
         const data = await response.json();
         if (data.fragments) {
           setFragmentCount(data.fragments.length);
+          // 初期網羅度を計算（APIからcoverageが返ってくる場合に対応）
+          if (data.coverage) {
+            setCoverage(data.coverage);
+          }
         }
       }
     } catch (error) {
-      console.error("Failed to fetch fragment count:", error);
+      console.error("Failed to fetch initial data:", error);
     }
   }, []);
 
@@ -57,8 +73,8 @@ export default function ChatPage() {
         content: INITIAL_MESSAGE,
       },
     ]);
-    fetchFragmentCount();
-  }, [fetchFragmentCount]);
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
@@ -99,6 +115,10 @@ export default function ChatPage() {
       if (data.fragmentsExtracted) {
         setFragmentCount((prev) => prev + data.fragmentsExtracted);
       }
+
+      if (data.coverage) {
+        setCoverage(data.coverage);
+      }
     } catch (error) {
       console.error("Chat error:", error);
       const errorMessage: Message = {
@@ -113,10 +133,20 @@ export default function ChatPage() {
     }
   };
 
+  const handleContinueChat = () => {
+    chatInputRef.current?.focus();
+  };
+
   return (
     <div className="grid lg:grid-cols-4 gap-6 h-[calc(100vh-12rem)]">
-      <div className="lg:col-span-3">
-        <Card className="h-full flex flex-col">
+      <div className="lg:col-span-3 flex flex-col gap-4">
+        {coverage.isReadyToFinish && (
+          <FinishSuggestion
+            coverage={coverage}
+            onContinue={handleContinueChat}
+          />
+        )}
+        <Card className="flex-1 flex flex-col min-h-0">
           <CardHeader className="border-b">
             <CardTitle>AIとチャット</CardTitle>
             <CardDescription>
@@ -130,6 +160,7 @@ export default function ChatPage() {
               isLoading={isLoading}
               userName={session?.user?.name || undefined}
               placeholder="経験やスキルについて話してください..."
+              inputRef={chatInputRef}
             />
           </CardContent>
         </Card>
@@ -147,6 +178,9 @@ export default function ChatPage() {
             </div>
           </CardContent>
         </Card>
+        {coverage.categories.length > 0 && (
+          <CoverageIndicator coverage={coverage} />
+        )}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">ヒント</CardTitle>

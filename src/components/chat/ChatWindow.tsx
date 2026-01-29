@@ -1,5 +1,6 @@
 "use client";
 
+import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ interface ChatWindowProps {
   onDraftChange?: (value: string) => void;
   followUpSuggestions?: string[];
   onFollowUpSelect?: (suggestion: string) => void;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
 export function ChatWindow({
@@ -43,6 +45,7 @@ export function ChatWindow({
   onDraftChange,
   followUpSuggestions = [],
   onFollowUpSelect,
+  inputRef,
 }: ChatWindowProps) {
   const [internalInput, setInternalInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -113,6 +116,7 @@ export function ChatWindow({
       <form onSubmit={handleSubmit} className="border-t p-4">
         <div className="flex gap-2">
           <Textarea
+            ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
