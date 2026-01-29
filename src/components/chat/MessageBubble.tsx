@@ -22,6 +22,7 @@ interface MessageBubbleProps {
   role: "user" | "assistant";
   senderName?: string;
   references?: FragmentReference[];
+  messageId?: string;
 }
 
 const fragmentTypeLabels: Record<string, string> = {
@@ -40,6 +41,7 @@ export function MessageBubble({
   role,
   senderName,
   references,
+  messageId,
 }: MessageBubbleProps) {
   const isUser = role === "user";
   const [isOpen, setIsOpen] = useState(false);
@@ -51,6 +53,7 @@ export function MessageBubble({
         "flex gap-3 max-w-[80%]",
         isUser ? "ml-auto flex-row-reverse" : "",
       )}
+      data-message-id={messageId}
     >
       <Avatar className="h-8 w-8 flex-shrink-0">
         <AvatarFallback

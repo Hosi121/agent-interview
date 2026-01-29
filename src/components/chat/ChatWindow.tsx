@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +29,8 @@ interface ChatWindowProps {
   placeholder?: string;
   draftMessage?: string;
   onDraftChange?: (value: string) => void;
+  followUpSuggestions?: string[];
+  onFollowUpSelect?: (suggestion: string) => void;
 }
 
 export function ChatWindow({
@@ -38,6 +41,8 @@ export function ChatWindow({
   placeholder = "メッセージを入力...",
   draftMessage,
   onDraftChange,
+  followUpSuggestions = [],
+  onFollowUpSelect,
 }: ChatWindowProps) {
   const [internalInput, setInternalInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -75,6 +80,7 @@ export function ChatWindow({
           {messages.map((message) => (
             <MessageBubble
               key={message.id}
+              messageId={message.id}
               content={message.content}
               role={message.role}
               senderName={userName}
@@ -98,6 +104,12 @@ export function ChatWindow({
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
+      {followUpSuggestions.length > 0 && onFollowUpSelect && (
+        <FollowUpSuggestions
+          suggestions={followUpSuggestions}
+          onSelect={onFollowUpSelect}
+        />
+      )}
       <form onSubmit={handleSubmit} className="border-t p-4">
         <div className="flex gap-2">
           <Textarea
