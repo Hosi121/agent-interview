@@ -36,3 +36,18 @@ export interface FragmentData {
   keywords: string[];
   confidence?: number;
 }
+
+export interface CoverageCategoryDetail {
+  category: string;
+  label: string;
+  current: number;
+  required: number;
+  fulfilled: boolean;
+}
+
+export interface ChatCoverageState {
+  percentage: number;
+  isReadyToFinish: boolean; // 80%以上
+  isComplete: boolean; // 100%
+  categories: CoverageCategoryDetail[];
+}
