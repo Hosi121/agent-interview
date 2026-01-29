@@ -1,29 +1,38 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
-import { generateChatResponse, generateFollowUpQuestions } from "@/lib/openai";
+import { handleError, withRecruiterAuth } from "@/lib/api-utils";
 import {
-  checkPointBalance,
-  consumePoints,
+  ForbiddenError,
   InsufficientPointsError,
-  NoSubscriptionError,
-} from "@/lib/points";
+  NotFoundError,
+} from "@/lib/errors";
+import { generateChatResponse, generateFollowUpQuestions } from "@/lib/openai";
+import { checkPointBalance, consumePoints } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+type RouteContext = { params: Promise<{ id: string }> };
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+const chatSchema = z.object({
+  message: z.string().min(1, "メッセージは必須です"),
+  jobId: z.string().optional(),
+  missingInfo: z.array(z.string()).optional(),
+});
+
+export const POST = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id } = await context!.params;
+    const rawBody = await req.json();
+    const parsed = chatSchema.safeParse(rawBody);
+
+    if (!parsed.success) {
+      const { ValidationError } = await import("@/lib/errors");
+      throw new ValidationError("入力内容に問題があります", {
+        fields: parsed.error.flatten().fieldErrors,
+      });
     }
 
-    const { id } = await params;
-    const { message, jobId, missingInfo } = await req.json();
+    const { message, jobId, missingInfo } = parsed.data;
 
     const agent = await prisma.agentProfile.findUnique({
       where: { id },
@@ -33,18 +42,15 @@ export async function POST(
     });
 
     if (!agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      throw new NotFoundError("エージェントが見つかりません");
     }
 
     if (agent.status !== "PUBLIC") {
-      return NextResponse.json(
-        { error: "Agent is not public" },
-        { status: 403 },
-      );
+      throw new ForbiddenError("このエージェントは公開されていません");
     }
 
     if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     let job = null;
@@ -57,7 +63,7 @@ export async function POST(
       });
 
       if (!job) {
-        return NextResponse.json({ error: "Job not found" }, { status: 404 });
+        throw new NotFoundError("求人が見つかりません");
       }
     }
 
@@ -83,13 +89,9 @@ export async function POST(
         "CONVERSATION",
       );
       if (!pointCheck.canProceed) {
-        return NextResponse.json(
-          {
-            error: "ポイントが不足しています",
-            required: pointCheck.required,
-            available: pointCheck.available,
-          },
-          { status: 402 },
+        throw new InsufficientPointsError(
+          pointCheck.required,
+          pointCheck.available,
         );
       }
 
@@ -244,7 +246,7 @@ ${fragmentsContext || "（詳細な情報はまだ収集されていません）
           missingInfo: info,
         });
       } catch (followError) {
-        console.error("Follow-up generation error:", followError);
+        // フォローアップ質問の生成失敗は無視（メイン機能ではない）
       }
     }
 
@@ -253,27 +255,5 @@ ${fragmentsContext || "（詳細な情報はまだ収集されていません）
       references,
       followUps,
     });
-  } catch (error) {
-    console.error("Interview chat error:", error);
-
-    if (error instanceof NoSubscriptionError) {
-      return NextResponse.json({ error: error.message }, { status: 402 });
-    }
-
-    if (error instanceof InsufficientPointsError) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          required: error.required,
-          available: error.available,
-        },
-        { status: 402 },
-      );
-    }
-
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

@@ -1,22 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
+import { withRecruiterAuth } from "@/lib/api-utils";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { openai } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+type RouteContext = { params: Promise<{ id: string }> };
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id: agentId } = await params;
+export const GET = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id: agentId } = await context!.params;
 
     const agent = await prisma.agentProfile.findUnique({
       where: { id: agentId },
@@ -24,18 +18,15 @@ export async function GET(
     });
 
     if (!agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      throw new NotFoundError("エージェントが見つかりません");
     }
 
     if (agent.status !== "PUBLIC") {
-      return NextResponse.json(
-        { error: "Agent is not public" },
-        { status: 403 },
-      );
+      throw new ForbiddenError("このエージェントは公開されていません");
     }
 
     if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     // agentIdからセッションを検索
@@ -56,47 +47,36 @@ export async function GET(
     });
 
     return NextResponse.json({ evaluation });
-  } catch (error) {
-    console.error("Get evaluation error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+const evaluationSchema = z.object({
+  overallRating: z.number().int().min(1).max(5),
+  technicalRating: z.number().int().min(1).max(5),
+  communicationRating: z.number().int().min(1).max(5),
+  cultureRating: z.number().int().min(1).max(5),
+  comment: z.string().optional(),
+});
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id: agentId } = await context!.params;
+    const rawBody = await req.json();
+    const parsed = evaluationSchema.safeParse(rawBody);
+
+    if (!parsed.success) {
+      throw new ValidationError("すべての評価項目を入力してください", {
+        fields: parsed.error.flatten().fieldErrors,
+      });
     }
 
-    const { id: agentId } = await params;
-    const body = await req.json();
     const {
       overallRating,
       technicalRating,
       communicationRating,
       cultureRating,
       comment,
-    } = body;
-
-    if (
-      !overallRating ||
-      !technicalRating ||
-      !communicationRating ||
-      !cultureRating
-    ) {
-      return NextResponse.json(
-        { error: "すべての評価項目を入力してください" },
-        { status: 400 },
-      );
-    }
+    } = parsed.data;
 
     const agent = await prisma.agentProfile.findUnique({
       where: { id: agentId },
@@ -104,18 +84,15 @@ export async function POST(
     });
 
     if (!agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      throw new NotFoundError("エージェントが見つかりません");
     }
 
     if (agent.status !== "PUBLIC") {
-      return NextResponse.json(
-        { error: "Agent is not public" },
-        { status: 403 },
-      );
+      throw new ForbiddenError("このエージェントは公開されていません");
     }
 
     if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     // agentIdからセッションを検索
@@ -136,10 +113,7 @@ export async function POST(
     });
 
     if (!interviewSession) {
-      return NextResponse.json(
-        { error: "まず面接チャットを開始してください" },
-        { status: 404 },
-      );
+      throw new NotFoundError("まず面接チャットを開始してください");
     }
 
     let matchScore: number | null = null;
@@ -180,8 +154,8 @@ JSONで{"score": 数値, "reason": "理由"}の形式で回答してください
           response.choices[0]?.message?.content || "{}",
         );
         matchScore = result.score || null;
-      } catch (e) {
-        console.error("Match score calculation error:", e);
+      } catch {
+        // マッチスコア計算の失敗は無視（メイン機能ではない）
       }
     }
 
@@ -208,11 +182,5 @@ JSONで{"score": 数値, "reason": "理由"}の形式で回答してください
     });
 
     return NextResponse.json({ evaluation });
-  } catch (error) {
-    console.error("Create evaluation error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

@@ -1,39 +1,31 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { type NextRequest, NextResponse } from "next/server";
 import { isCompanyAccessDenied } from "@/lib/access-control";
-import { authOptions } from "@/lib/auth";
+import { withRecruiterAuth } from "@/lib/api-utils";
+import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { openai } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
+type RouteContext = { params: Promise<{ id: string }> };
 
 // 会話の要約を生成
-export async function GET(request: Request, context: RouteContext) {
-  try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await context.params;
+export const GET = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id } = await context!.params;
 
     // エージェントの存在確認
     const agent = await prisma.agentProfile.findUnique({
-      where: { id: id },
+      where: { id },
       include: {
         user: { select: { name: true } },
       },
     });
 
     if (!agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      throw new NotFoundError("エージェントが見つかりません");
     }
 
     if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     // このリクルーターとエージェントのセッションを取得
@@ -163,11 +155,5 @@ ${conversationText}`,
         existingSession.messages[existingSession.messages.length - 1].createdAt,
       evidence,
     });
-  } catch (error) {
-    console.error("Generate summary error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

@@ -1,21 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
+import { withRecruiterAuth } from "@/lib/api-utils";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+type RouteContext = { params: Promise<{ id: string }> };
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id: agentId } = await params;
+export const GET = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id: agentId } = await context!.params;
 
     const agent = await prisma.agentProfile.findUnique({
       where: { id: agentId },
@@ -23,18 +17,15 @@ export async function GET(
     });
 
     if (!agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      throw new NotFoundError("エージェントが見つかりません");
     }
 
     if (agent.status !== "PUBLIC") {
-      return NextResponse.json(
-        { error: "Agent is not public" },
-        { status: 403 },
-      );
+      throw new ForbiddenError("このエージェントは公開されていません");
     }
 
     if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     // agentIdからセッションを検索
@@ -59,28 +50,26 @@ export async function GET(
     });
 
     return NextResponse.json({ notes });
-  } catch (error) {
-    console.error("Get notes error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+const noteSchema = z.object({
+  content: z.string().min(1, "メモの内容を入力してください"),
+});
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const POST = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id: agentId } = await context!.params;
+    const rawBody = await req.json();
+    const parsed = noteSchema.safeParse(rawBody);
+
+    if (!parsed.success) {
+      throw new ValidationError("入力内容に問題があります", {
+        fields: parsed.error.flatten().fieldErrors,
+      });
     }
 
-    const { id: agentId } = await params;
-    const { content } = await req.json();
+    const { content } = parsed.data;
 
     const agent = await prisma.agentProfile.findUnique({
       where: { id: agentId },
@@ -88,25 +77,15 @@ export async function POST(
     });
 
     if (!agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      throw new NotFoundError("エージェントが見つかりません");
     }
 
     if (agent.status !== "PUBLIC") {
-      return NextResponse.json(
-        { error: "Agent is not public" },
-        { status: 403 },
-      );
+      throw new ForbiddenError("このエージェントは公開されていません");
     }
 
     if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    if (!content?.trim()) {
-      return NextResponse.json(
-        { error: "メモの内容を入力してください" },
-        { status: 400 },
-      );
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     // agentIdからセッションを検索
@@ -119,10 +98,7 @@ export async function POST(
     });
 
     if (!chatSession) {
-      return NextResponse.json(
-        { error: "まず面接チャットを開始してください" },
-        { status: 404 },
-      );
+      throw new NotFoundError("まず面接チャットを開始してください");
     }
 
     const note = await prisma.interviewNote.create({
@@ -133,12 +109,6 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ note });
-  } catch (error) {
-    console.error("Create note error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+    return NextResponse.json({ note }, { status: 201 });
+  },
+);

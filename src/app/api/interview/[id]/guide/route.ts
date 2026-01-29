@@ -1,29 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { isCompanyAccessDenied } from "@/lib/access-control";
+import { withRecruiterAuth } from "@/lib/api-utils";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { generateInterviewGuide } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const session = await getServerSession(authOptions);
+type RouteContext = { params: Promise<{ id: string }> };
 
-    if (!session?.user?.recruiterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { id } = await params;
-    const jobId = request.nextUrl.searchParams.get("jobId");
+export const GET = withRecruiterAuth<RouteContext>(
+  async (req, session, context) => {
+    const { id } = await context!.params;
+    const jobId = req.nextUrl.searchParams.get("jobId");
 
     if (!jobId) {
-      return NextResponse.json(
-        { error: "jobId is required" },
-        { status: 400 },
-      );
+      throw new ValidationError("jobId is required");
     }
 
     const agent = await prisma.agentProfile.findUnique({
@@ -47,11 +37,11 @@ export async function GET(
     });
 
     if (!agent || agent.status !== "PUBLIC") {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      throw new NotFoundError("エージェントが見つかりません");
     }
 
     if (await isCompanyAccessDenied(session.user.recruiterId, agent.user.id)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      throw new ForbiddenError("アクセスが拒否されています");
     }
 
     const job = await prisma.jobPosting.findFirst({
@@ -62,12 +52,14 @@ export async function GET(
     });
 
     if (!job) {
-      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+      throw new NotFoundError("求人が見つかりません");
     }
 
     const fragments = agent.user.fragments;
     const candidateSkills = [
-      ...new Set(fragments.flatMap((f) => f.skills.map((s) => s.toLowerCase()))),
+      ...new Set(
+        fragments.flatMap((f) => f.skills.map((s) => s.toLowerCase())),
+      ),
     ];
 
     const missingSkills = job.skills.filter(
@@ -95,9 +87,7 @@ export async function GET(
       missingInfoHints.push("課題や困難を乗り越えた経験が不足");
     }
 
-    const learningCount = fragments.filter(
-      (f) => f.type === "LEARNING",
-    ).length;
+    const learningCount = fragments.filter((f) => f.type === "LEARNING").length;
     if (learningCount < 1) {
       missingInfoHints.push("学びや改善プロセスが不足");
     }
@@ -109,11 +99,13 @@ export async function GET(
 
     const candidateSummary = `候補者名: ${agent.user.name}
 スキル: ${[...new Set(fragments.flatMap((f) => f.skills))].join(", ") || "なし"}
-主な実績: ${fragments
-      .filter((f) => f.type === "ACHIEVEMENT")
-      .slice(0, 3)
-      .map((f) => f.content)
-      .join(" / ") || "なし"}
+主な実績: ${
+      fragments
+        .filter((f) => f.type === "ACHIEVEMENT")
+        .slice(0, 3)
+        .map((f) => f.content)
+        .join(" / ") || "なし"
+    }
 フラグメント抜粋:
 ${fragmentPreview || "情報なし"}`;
 
@@ -147,11 +139,5 @@ ${fragmentPreview || "情報なし"}`;
         focusAreas: guide.focusAreas || [],
       },
     });
-  } catch (error) {
-    console.error("Interview guide error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
+  },
+);
