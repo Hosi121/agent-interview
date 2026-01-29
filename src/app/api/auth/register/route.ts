@@ -1,72 +1,71 @@
 import type { AccountType } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { withValidation } from "@/lib/api-utils";
+import { ConflictError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { email, password, name, companyName, accountType } = body;
+const registerSchema = z
+  .object({
+    email: z.string().email("有効なメールアドレスを入力してください"),
+    password: z.string().min(6, "パスワードは6文字以上で入力してください"),
+    name: z.string().min(1, "名前は必須です"),
+    companyName: z.string().optional(),
+    accountType: z.enum(["USER", "RECRUITER"], {
+      message: "アカウントタイプはUSERまたはRECRUITERを指定してください",
+    }),
+  })
+  .refine(
+    (data) => {
+      if (data.accountType === "RECRUITER" && !data.companyName) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "会社名は必須です",
+      path: ["companyName"],
+    },
+  );
 
-    if (!email || !password || !name || !accountType) {
-      return NextResponse.json(
-        { error: "必須項目が不足しています" },
-        { status: 400 },
-      );
-    }
+export const POST = withValidation(registerSchema, async (body, req) => {
+  const { email, password, name, companyName, accountType } = body;
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "パスワードは6文字以上で入力してください" },
-        { status: 400 },
-      );
-    }
+  const existingAccount = await prisma.account.findUnique({
+    where: { email },
+  });
 
-    if (accountType === "RECRUITER" && !companyName) {
-      return NextResponse.json({ error: "会社名は必須です" }, { status: 400 });
-    }
-
-    const existingAccount = await prisma.account.findUnique({
-      where: { email },
-    });
-
-    if (existingAccount) {
-      return NextResponse.json(
-        { error: "このメールアドレスは既に登録されています" },
-        { status: 400 },
-      );
-    }
-
-    const passwordHash = await hash(password, 12);
-
-    const account = await prisma.account.create({
-      data: {
-        email,
-        passwordHash,
-        accountType: accountType as AccountType,
-        ...(accountType === "USER"
-          ? {
-              user: {
-                create: { name },
-              },
-            }
-          : {
-              recruiter: {
-                create: {
-                  companyName,
-                },
-              },
-            }),
-      },
-      include: {
-        user: true,
-        recruiter: true,
-      },
-    });
-
-    return NextResponse.json({ account });
-  } catch (error) {
-    console.error("Registration error:", error);
-    return NextResponse.json({ error: "登録に失敗しました" }, { status: 500 });
+  if (existingAccount) {
+    throw new ConflictError("このメールアドレスは既に登録されています");
   }
-}
+
+  const passwordHash = await hash(password, 12);
+
+  const account = await prisma.account.create({
+    data: {
+      email,
+      passwordHash,
+      accountType: accountType as AccountType,
+      ...(accountType === "USER"
+        ? {
+            user: {
+              create: { name },
+            },
+          }
+        : {
+            recruiter: {
+              create: {
+                companyName: companyName!,
+              },
+            },
+          }),
+    },
+    include: {
+      user: true,
+      recruiter: true,
+    },
+  });
+
+  return NextResponse.json({ account }, { status: 201 });
+});
