@@ -5,7 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { use, useCallback, useEffect, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
-import { EvaluationForm, InterviewNotes } from "@/components/interview";
+import {
+  EvaluationForm,
+  EvidencePack,
+  InterviewNotes,
+  MissingInfoAlert,
+} from "@/components/interview";
+import type { EvidenceFragment } from "@/components/interview/EvidencePack";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,16 +77,16 @@ interface Summary {
   summary: string | null;
   messageCount: number;
   lastMessageAt: string | null;
-  evidence?: EvidenceFragment[];
+  evidence?: SummaryEvidenceFragment[];
 }
 
-interface EvidenceFragment {
-  id: string;
-  type: string;
-  content: string;
-  skills: string[];
-  keywords: string[];
-  count: number;
+interface MessageSnippet {
+  messageId: string;
+  snippet: string;
+}
+
+interface SummaryEvidenceFragment extends EvidenceFragment {
+  messageSnippets?: MessageSnippet[];
 }
 
 interface JobPosting {
@@ -540,6 +546,8 @@ export default function InterviewPage({
                 placeholder={`${agentInfo.user.name}さんのエージェントに質問...`}
                 draftMessage={draftMessage}
                 onDraftChange={setDraftMessage}
+                followUpSuggestions={selectedJobId ? followUps : []}
+                onFollowUpSelect={setDraftMessage}
               />
             </CardContent>
           </Card>
@@ -616,31 +624,18 @@ export default function InterviewPage({
                         </div>
                       </div>
                       {summary.evidence && summary.evidence.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-balance tabular-nums">
-                            根拠パック（参照 {summary.evidence.length}件）
-                          </p>
-                          <div className="space-y-2">
-                            {summary.evidence.map((item) => (
-                              <div
-                                key={item.id}
-                                className="rounded-md border border-muted p-2"
-                              >
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <span className="font-medium text-foreground">
-                                    {item.type}
-                                  </span>
-                                  <span className="tabular-nums">
-                                    参照 {item.count}回
-                                  </span>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1 text-pretty">
-                                  {item.content}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        <EvidencePack
+                          evidence={summary.evidence}
+                          onScrollToMessage={(messageId) => {
+                            const element = document.querySelector(
+                              `[data-message-id="${messageId}"]`,
+                            );
+                            element?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "center",
+                            });
+                          }}
+                        />
                       )}
                       <Button
                         variant="outline"
@@ -690,9 +685,9 @@ export default function InterviewPage({
                           質問テンプレ
                         </p>
                         <div className="space-y-2">
-                          {guide.questions.map((question, index) => (
+                          {guide.questions.map((question) => (
                             <div
-                              key={`${question}-${index}`}
+                              key={question}
                               className="rounded-md border border-muted p-2"
                             >
                               <p className="text-sm text-pretty">{question}</p>
@@ -710,16 +705,12 @@ export default function InterviewPage({
                       </div>
 
                       {guide.missingInfo.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-balance">
-                            不足情報の指摘
-                          </p>
-                          <ul className="space-y-1 text-sm text-muted-foreground text-pretty">
-                            {guide.missingInfo.map((item) => (
-                              <li key={item}>・{item}</li>
-                            ))}
-                          </ul>
-                        </div>
+                        <MissingInfoAlert
+                          items={guide.missingInfo}
+                          onAskAbout={(item) =>
+                            setDraftMessage(`${item}について教えてください。`)
+                          }
+                        />
                       )}
 
                       {guide.focusAreas && guide.focusAreas.length > 0 && (
@@ -741,9 +732,9 @@ export default function InterviewPage({
                             直近回答の深掘り候補
                           </p>
                           <div className="space-y-2">
-                            {followUps.map((item, index) => (
+                            {followUps.map((item) => (
                               <Button
-                                key={`${item}-${index}`}
+                                key={item}
                                 size="sm"
                                 variant="secondary"
                                 className="w-full justify-start"
