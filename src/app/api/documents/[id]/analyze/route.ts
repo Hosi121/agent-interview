@@ -34,6 +34,12 @@ export const POST = withUserAuth<RouteContext>(
       document.fileName.toLowerCase().endsWith(".md")
     ) {
       textContent = fileBuffer.toString("utf-8");
+    } else if (document.fileName.toLowerCase().endsWith(".docx")) {
+      // Word(docx)をプレーンテキストに変換（動的インポートでサーバーのみ読み込み）
+      const mammothModule = await import("mammoth");
+      const mammoth = mammothModule.default || mammothModule;
+      const { value } = await mammoth.extractRawText({ buffer: fileBuffer });
+      textContent = value || "";
     } else {
       textContent = fileBuffer.toString("utf-8");
     }

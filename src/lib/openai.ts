@@ -56,7 +56,77 @@ JSON形式で返してください。`;
   });
 
   const content = response.choices[0]?.message?.content || "{}";
-  return JSON.parse(content);
+
+  try {
+    const parsed = JSON.parse(content);
+
+    // ① 想定形 fragments/Fragments
+    let rawFragments =
+      (Array.isArray(parsed.fragments) && parsed.fragments) ||
+      (Array.isArray((parsed as any).Fragments) && (parsed as any).Fragments);
+
+    // ② カテゴリ名をキーに持つオブジェクト（例: { FACT: [...], ACHIEVEMENT: [...] }）
+    if (!rawFragments && parsed && typeof parsed === "object") {
+      const keys = Object.keys(parsed);
+      const candidateKeys = keys.filter((k) =>
+        [
+          "ACHIEVEMENT",
+          "ACTION",
+          "CHALLENGE",
+          "LEARNING",
+          "VALUE",
+          "EMOTION",
+          "FACT",
+          "SKILL_USAGE",
+        ].includes(k.toUpperCase()),
+      );
+      if (candidateKeys.length > 0) {
+        rawFragments = candidateKeys.flatMap((k) => {
+          const arr = (parsed as any)[k];
+          return Array.isArray(arr)
+            ? arr.map((item: any) => ({ ...(item || {}), Category: k }))
+            : [];
+        });
+      }
+    }
+
+    if (!rawFragments) {
+      rawFragments = [];
+    }
+
+    // FragmentType列挙に合わせた型名へ変換（未知は FACT にフォールバック）
+    const normalizedFragments = rawFragments.map((f: any) => ({
+      type: String(
+        f.type || f.Type || f.Category || f.category || "FACT",
+      ).toUpperCase(),
+      content:
+        f.content ||
+        f.Content ||
+        f.Detail ||
+        f.description ||
+        f.Description ||
+        "",
+      skills: Array.isArray(f.skills)
+        ? f.skills
+        : f.Related_Skill
+          ? [f.Related_Skill]
+          : f.related_skills && Array.isArray(f.related_skills)
+            ? f.related_skills
+            : [],
+      keywords: Array.isArray(f.keywords)
+        ? f.keywords
+        : Array.isArray(f.Keywords)
+          ? f.Keywords
+          : f.key_words && Array.isArray(f.key_words)
+            ? f.key_words
+            : [],
+    }));
+
+    return { fragments: normalizedFragments };
+  } catch (error) {
+    // 失敗時は空の結果を返してAPIを落とさない
+    return { fragments: [] };
+  }
 }
 
 export async function generateAgentSystemPrompt(

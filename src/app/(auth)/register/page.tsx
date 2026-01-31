@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function RegisterPage() {
+function RegisterTabs() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultTab =
@@ -286,5 +286,13 @@ export default function RegisterPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">読み込み中...</div>}>
+      <RegisterTabs />
+    </Suspense>
   );
 }
