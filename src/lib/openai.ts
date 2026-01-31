@@ -289,8 +289,12 @@ export async function extractTextFromPdfWithVision(
   const { pdf } = await import("pdf-to-img");
   const pages: Buffer[] = [];
 
+  // BufferをData URL形式に変換（pdf-to-imgはファイルパスまたはdata URLを受け付ける）
+  const base64Pdf = pdfBuffer.toString("base64");
+  const pdfDataUrl = `data:application/pdf;base64,${base64Pdf}`;
+
   // PDFの各ページを画像として取得
-  const document = await pdf(pdfBuffer, { scale: 2.0 });
+  const document = await pdf(pdfDataUrl, { scale: 2.0 });
   for await (const page of document) {
     pages.push(page);
   }
