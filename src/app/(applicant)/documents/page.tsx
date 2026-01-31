@@ -1,6 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,16 +28,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -172,9 +172,7 @@ export default function DocumentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-balance">
-            ドキュメント管理
-          </h1>
+          <h1 className="text-3xl font-bold text-balance">ドキュメント管理</h1>
           <p className="text-muted-foreground mt-2 text-pretty">
             履歴書やポートフォリオをアップロードして、エージェントに統合しましょう
           </p>
@@ -210,13 +208,13 @@ export default function DocumentsPage() {
             <DialogHeader>
               <DialogTitle>ドキュメントをアップロード</DialogTitle>
               <DialogDescription>
-                PDF、テキスト、Markdownファイルをアップロードできます
+                PDF、テキスト、Markdown、Word（docx）ファイルをアップロードできます
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <Input
                 type="file"
-                accept=".pdf,.txt,.md"
+                accept=".pdf,.txt,.md,.docx"
                 onChange={handleFileUpload}
                 disabled={isUploading}
               />
@@ -226,7 +224,10 @@ export default function DocumentsPage() {
                 </p>
               )}
               {uploadError && (
-                <p className="text-sm text-destructive text-pretty" role="alert">
+                <p
+                  className="text-sm text-destructive text-pretty"
+                  role="alert"
+                >
                   {uploadError}
                 </p>
               )}
