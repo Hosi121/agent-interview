@@ -22,6 +22,7 @@ const navigation = [
   { name: "興味リスト", href: "/recruiter/interests" },
   { name: "ウォッチリスト", href: "/recruiter/watches" },
   { name: "プラン・ポイント", href: "/recruiter/billing" },
+  { name: "メンバー管理", href: "/recruiter/members" },
 ];
 
 interface Subscription {

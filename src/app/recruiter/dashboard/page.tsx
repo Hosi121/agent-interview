@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { MembersResponse } from "@/lib/types/recruiter";
 
 interface InterviewSession {
   id: string;
@@ -29,13 +31,15 @@ export default function RecruiterDashboard() {
   const [recentSessions, setRecentSessions] = useState<InterviewSession[]>([]);
   const [totalSessionCount, setTotalSessionCount] = useState(0);
   const [agentCount, setAgentCount] = useState(0);
+  const [membersData, setMembersData] = useState<MembersResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
-      const [sessionsRes, agentsRes] = await Promise.all([
-        fetch("/api/recruiter/sessions"),
+      const [sessionsRes, agentsRes, membersRes] = await Promise.all([
+        fetch("/api/recruiter/sessions?scope=company"),
         fetch("/api/agents/public"),
+        fetch("/api/recruiter/members"),
       ]);
 
       if (sessionsRes.ok) {
@@ -48,6 +52,11 @@ export default function RecruiterDashboard() {
         const data = await agentsRes.json();
         setAgentCount(data.agents.length);
       }
+
+      if (membersRes.ok) {
+        const data = await membersRes.json();
+        setMembersData(data);
+      }
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -58,6 +67,17 @@ export default function RecruiterDashboard() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const inviteCount = useMemo(
+    () => membersData?.invites?.length ?? 0,
+    [membersData?.invites?.length],
+  );
+
+  const activeMemberCount = useMemo(
+    () =>
+      membersData?.members?.filter((m) => m.status === "ACTIVE").length ?? 0,
+    [membersData?.members],
+  );
 
   return (
     <div className="space-y-8">
@@ -124,6 +144,90 @@ export default function RecruiterDashboard() {
           <CardContent>
             <p className="text-4xl font-bold text-primary">
               {isLoading ? "-" : totalSessionCount}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <svg
+                className="w-5 h-5 text-primary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              メンバー / 招待
+            </CardTitle>
+            <CardDescription>会社アカウントの管理</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-sm text-muted-foreground">メンバー</p>
+                <p className="text-3xl font-bold">
+                  {isLoading ? "-" : activeMemberCount}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">招待中</p>
+                <p className="text-3xl font-bold">
+                  {isLoading ? "-" : inviteCount}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Link href="/recruiter/members">
+                <Button size="sm">メンバーを管理</Button>
+              </Link>
+              <Link href="/recruiter/members">
+                <Button size="sm" variant="outline">
+                  招待リンクを作成
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <svg
+                className="w-5 h-5 text-primary"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              会社の状態
+            </CardTitle>
+            <CardDescription>
+              {membersData?.company?.name ?? "会社情報を取得中"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Badge variant="outline">あなたの権限</Badge>
+              <span className="font-medium">{membersData?.myRole ?? "-"}</span>
+            </div>
+            <p className="text-sm text-muted-foreground text-pretty">
+              招待制で2人目以降の採用担当者を追加できます。
+              「招待リンクを作成」からメールアドレスを入力し、リンクを共有してください。
             </p>
           </CardContent>
         </Card>

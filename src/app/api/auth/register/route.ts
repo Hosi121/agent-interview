@@ -32,6 +32,16 @@ const registerSchema = z
 export const POST = withValidation(registerSchema, async (body, req) => {
   const { email, password, name, companyName, accountType } = body;
 
+  if (accountType === "RECRUITER") {
+    return NextResponse.json(
+      {
+        error:
+          "採用担当者の新規登録は招待制です。管理者に招待を依頼してください。",
+      },
+      { status: 403 },
+    );
+  }
+
   const existingAccount = await prisma.account.findUnique({
     where: { email },
   });

@@ -52,6 +52,11 @@ export const authOptions: NextAuthOptions = {
           include: {
             user: true,
             recruiter: true,
+            companyMemberships: {
+              where: { status: "ACTIVE" },
+              include: { company: true },
+              take: 1,
+            },
           },
         });
 
@@ -65,6 +70,12 @@ export const authOptions: NextAuthOptions = {
           if (account.recruiter) {
             session.user.recruiterId = account.recruiter.id;
             session.user.companyName = account.recruiter.companyName;
+          }
+          const membership = account.companyMemberships?.[0];
+          if (membership) {
+            session.user.companyId = membership.companyId;
+            session.user.companyRole = membership.role;
+            session.user.companyName = membership.company.name;
           }
         }
       }

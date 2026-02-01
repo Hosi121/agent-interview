@@ -80,6 +80,9 @@ model Account {
 
   user      User?
   recruiter Recruiter?
+  invites   Invite[] @relation("InviteSender")
+  companyMemberships CompanyMember[]
+  invitedMembers     CompanyMember[] @relation("MemberInviter")
 }
 
 model User {
@@ -105,6 +108,8 @@ model Recruiter {
   accountId   String  @unique
   account     Account @relation(fields: [accountId], references: [id])
   companyName String
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
 
   sessions     Session[]
   notes        InterviewNote[]
@@ -117,6 +122,58 @@ model Recruiter {
   interests    Interest[]
   sentMessages DirectMessage[] @relation("SentMessages")
   candidateAccesses CompanyAccess[]
+}
+
+model Company {
+  id                 String    @id @default(uuid())
+  name               String
+  slug               String    @unique
+  createdByAccountId String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  recruiters Recruiter[]
+  members    CompanyMember[]
+  invites    Invite[]
+
+  @@index([slug])
+}
+
+model CompanyMember {
+  id                 String              @id @default(uuid())
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id])
+  accountId          String
+  account            Account             @relation(fields: [accountId], references: [id])
+  role               CompanyRole
+  status             CompanyMemberStatus @default(ACTIVE)
+  invitedByAccountId String?
+  invitedBy          Account?            @relation("MemberInviter", fields: [invitedByAccountId], references: [id])
+  joinedAt           DateTime?           @default(now())
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([companyId, accountId])
+  @@index([accountId])
+}
+
+model Invite {
+  id                 String       @id @default(uuid())
+  token              String       @unique
+  companyId          String
+  company            Company      @relation(fields: [companyId], references: [id])
+  email              String
+  role               CompanyRole
+  status             InviteStatus @default(PENDING)
+  expiresAt          DateTime
+  invitedByAccountId String
+  invitedBy          Account      @relation("InviteSender", fields: [invitedByAccountId], references: [id])
+  usedAccountId      String?
+  usedAt             DateTime?
+  createdAt          DateTime     @default(now())
+
+  @@index([companyId, status])
+  @@index([email])
 }
 
 model Document {
@@ -453,6 +510,25 @@ enum PlanType {
   LIGHT
   STANDARD
   ENTERPRISE
+}
+
+enum CompanyRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum CompanyMemberStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum InviteStatus {
+  PENDING
+  USED
+  REVOKED
+  EXPIRED
 }
 
 enum SubscriptionStatus {
