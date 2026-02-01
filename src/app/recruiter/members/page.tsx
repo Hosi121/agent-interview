@@ -12,33 +12,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import type {
+  InviteSummary,
+  MemberSummary,
+  MembersResponse,
+} from "@/lib/types/recruiter";
 
-type Member = {
-  id: string;
-  email: string;
-  role: "OWNER" | "ADMIN" | "MEMBER";
-  status: "ACTIVE" | "INVITED" | "DISABLED";
-  companyName: string;
-  createdAt: string;
-  joinedAt: string | null;
-};
-
-type Invite = {
-  id: string;
-  email: string;
-  role: "OWNER" | "ADMIN" | "MEMBER";
-  status: string;
-  expiresAt: string;
-  createdAt: string;
-  acceptUrl: string;
-};
-
-type MembersResponse = {
-  company: { id: string; name: string; slug: string };
-  myRole: "OWNER" | "ADMIN" | "MEMBER";
-  members: Member[];
-  invites: Invite[];
-};
+type Member = MemberSummary;
+type Invite = InviteSummary;
 
 const roleLabel: Record<Member["role"], string> = {
   OWNER: "オーナー",

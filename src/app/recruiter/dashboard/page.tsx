@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { MembersResponse } from "@/lib/types/recruiter";
 
 interface InterviewSession {
   id: string;
@@ -23,33 +24,6 @@ interface InterviewSession {
   };
   createdAt: string;
   messages: { id: string }[];
-}
-
-interface MemberSummary {
-  id: string;
-  role: "OWNER" | "ADMIN" | "MEMBER";
-  status: "ACTIVE" | "INVITED" | "DISABLED";
-  email: string;
-  companyName: string;
-  createdAt: string;
-  joinedAt: string | null;
-}
-
-interface InviteSummary {
-  id: string;
-  email: string;
-  role: "OWNER" | "ADMIN" | "MEMBER";
-  status: string;
-  expiresAt: string;
-  createdAt: string;
-  acceptUrl: string;
-}
-
-interface MembersResponse {
-  company: { id: string; name: string; slug: string };
-  myRole: "OWNER" | "ADMIN" | "MEMBER";
-  members: MemberSummary[];
-  invites: InviteSummary[];
 }
 
 export default function RecruiterDashboard() {
