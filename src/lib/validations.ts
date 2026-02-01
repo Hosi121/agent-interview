@@ -25,6 +25,20 @@ export const loginSchema = z.object({
   password: z.string().min(1, "パスワードを入力してください"),
 });
 
+export const inviteCreateSchema = z.object({
+  email: z.string().email("有効なメールアドレスを入力してください"),
+  role: z.enum(["ADMIN", "MEMBER"], {
+    message: "権限を選択してください",
+  }),
+});
+
+export const inviteAcceptSchema = z.object({
+  password: z
+    .string()
+    .min(6, "パスワードは6文字以上にしてください")
+    .max(100, "パスワードは100文字以下にしてください"),
+});
+
 // 求人関連
 export const experienceLevelSchema = z.enum([
   "ENTRY",
@@ -167,6 +181,8 @@ export function formatZodError(error: z.ZodError): {
 // 型エクスポート
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type InviteCreateInput = z.infer<typeof inviteCreateSchema>;
+export type InviteAcceptInput = z.infer<typeof inviteAcceptSchema>;
 export type JobPostingInput = z.infer<typeof jobPostingSchema>;
 export type WatchCreateInput = z.infer<typeof watchCreateSchema>;
 export type PipelineCreateInput = z.infer<typeof pipelineCreateSchema>;
