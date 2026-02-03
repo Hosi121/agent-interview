@@ -124,7 +124,6 @@ model Recruiter {
   pipelines         CandidatePipeline[]
   interests         Interest[]
   sentMessages      DirectMessage[]   @relation("SentMessages")
-  candidateAccesses CompanyAccess[]
 
   @@index([companyId])
 }
@@ -141,6 +140,7 @@ model Company {
   invites           Invite[]
   subscription      Subscription?
   pointTransactions PointTransaction[]
+  candidateAccesses CompanyAccess[]
 
   @@index([slug])
 }
@@ -610,15 +610,15 @@ model CompanyAccess {
   id          String              @id @default(uuid())
   userId      String
   user        User                @relation(fields: [userId], references: [id])
-  recruiterId String
-  recruiter   Recruiter           @relation(fields: [recruiterId], references: [id])
+  companyId   String
+  company     Company             @relation(fields: [companyId], references: [id])
   status      CompanyAccessStatus
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  @@unique([userId, recruiterId])
+  @@unique([userId, companyId])
   @@index([userId])
-  @@index([recruiterId])
+  @@index([companyId])
 }
 
 model DirectMessage {
