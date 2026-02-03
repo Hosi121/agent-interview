@@ -13,7 +13,7 @@ function slugifyName(name: string): string {
   return base || fallback;
 }
 
-async function generateUniqueSlug(name: string): Promise<string> {
+export async function generateUniqueSlug(name: string): Promise<string> {
   const base = slugifyName(name);
   let candidate = base;
   let counter = 1;
