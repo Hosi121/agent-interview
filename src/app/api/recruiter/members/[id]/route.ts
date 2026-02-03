@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withRecruiterAuth, withRecruiterValidation } from "@/lib/api-utils";
-import { canManageMembers, ensureCompanyForRecruiter } from "@/lib/company";
+import { canManageMembers, getRecruiterWithCompany } from "@/lib/company";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { memberUpdateSchema } from "@/lib/validations";
@@ -16,11 +16,11 @@ export const PATCH = withRecruiterValidation(
       throw new ForbiddenError("採用担当者のみが利用できます");
     }
 
-    const { company, membership } = await ensureCompanyForRecruiter(
+    const { company, recruiter } = await getRecruiterWithCompany(
       session.user.recruiterId,
     );
 
-    if (!canManageMembers(membership.role)) {
+    if (!canManageMembers(recruiter.role)) {
       throw new ForbiddenError("メンバーを更新する権限がありません");
     }
 
@@ -29,7 +29,7 @@ export const PATCH = withRecruiterValidation(
       throw new NotFoundError("メンバーが見つかりません");
     }
 
-    const target = await prisma.companyMember.findFirst({
+    const target = await prisma.recruiter.findFirst({
       where: { id: params.id, companyId: company.id },
       include: { account: true },
     });
@@ -42,7 +42,7 @@ export const PATCH = withRecruiterValidation(
       throw new ConflictError("自分自身のステータスは変更できません");
     }
 
-    if (target.role === "OWNER" && membership.role !== "OWNER") {
+    if (target.role === "OWNER" && recruiter.role !== "OWNER") {
       throw new ForbiddenError("オーナーのステータスは変更できません");
     }
 
@@ -53,7 +53,7 @@ export const PATCH = withRecruiterValidation(
       );
     }
 
-    const updated = await prisma.companyMember.update({
+    const updated = await prisma.recruiter.update({
       where: { id: target.id },
       data: { status: body.status },
     });
@@ -71,11 +71,11 @@ export const DELETE = withRecruiterAuth(
       throw new ForbiddenError("採用担当者のみが利用できます");
     }
 
-    const { company, membership } = await ensureCompanyForRecruiter(
+    const { company, recruiter } = await getRecruiterWithCompany(
       session.user.recruiterId,
     );
 
-    if (!canManageMembers(membership.role)) {
+    if (!canManageMembers(recruiter.role)) {
       throw new ForbiddenError("メンバーを削除する権限がありません");
     }
 
@@ -84,7 +84,7 @@ export const DELETE = withRecruiterAuth(
       throw new NotFoundError("メンバーが見つかりません");
     }
 
-    const target = await prisma.companyMember.findFirst({
+    const target = await prisma.recruiter.findFirst({
       where: { id: params.id, companyId: company.id },
       include: { account: true },
     });
@@ -97,16 +97,13 @@ export const DELETE = withRecruiterAuth(
       throw new ConflictError("自分自身は削除できません");
     }
 
-    if (target.role === "OWNER" && membership.role !== "OWNER") {
+    if (target.role === "OWNER" && recruiter.role !== "OWNER") {
       throw new ForbiddenError("オーナーは削除できません");
     }
 
+    // メンバーを削除（RecruiterレコードとAccountを削除）
     await prisma.$transaction(async (tx) => {
-      await tx.companyMember.delete({ where: { id: target.id } });
-      await tx.recruiter.updateMany({
-        where: { accountId: target.accountId, companyId: company.id },
-        data: { companyId: null },
-      });
+      await tx.recruiter.delete({ where: { id: target.id } });
     });
 
     return NextResponse.json(

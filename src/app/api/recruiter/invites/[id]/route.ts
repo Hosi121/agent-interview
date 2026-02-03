@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withRecruiterValidation } from "@/lib/api-utils";
-import { canManageMembers, ensureCompanyForRecruiter } from "@/lib/company";
+import { canManageMembers, getRecruiterWithCompany } from "@/lib/company";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { inviteUpdateSchema } from "@/lib/validations";
@@ -16,11 +16,11 @@ export const PATCH = withRecruiterValidation(
       throw new ForbiddenError("採用担当者のみが利用できます");
     }
 
-    const { company, membership } = await ensureCompanyForRecruiter(
+    const { company, recruiter } = await getRecruiterWithCompany(
       session.user.recruiterId,
     );
 
-    if (!canManageMembers(membership.role)) {
+    if (!canManageMembers(recruiter.role)) {
       throw new ForbiddenError("招待を更新する権限がありません");
     }
 

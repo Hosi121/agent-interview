@@ -103,21 +103,13 @@ export const POST = withValidation(
           accountType: "RECRUITER",
           recruiter: {
             create: {
-              companyName: invite.company.name,
               companyId: invite.companyId,
+              role: invite.role,
+              status: "ACTIVE",
+              invitedByAccountId: invite.invitedByAccountId,
+              joinedAt: new Date(),
             },
           },
-        },
-      });
-
-      await tx.companyMember.create({
-        data: {
-          companyId: invite.companyId,
-          accountId: createdAccount.id,
-          role: invite.role,
-          status: "ACTIVE",
-          invitedByAccountId: invite.invitedByAccountId,
-          joinedAt: new Date(),
         },
       });
 

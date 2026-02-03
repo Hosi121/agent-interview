@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-utils";
-import { ensureCompanyForRecruiter } from "@/lib/company";
+import { getRecruiterWithCompany } from "@/lib/company";
 import { ForbiddenError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
@@ -9,18 +9,14 @@ export const GET = withAuth(async (_req, session) => {
     throw new ForbiddenError("採用担当者のみが利用できます");
   }
 
-  const { company, membership } = await ensureCompanyForRecruiter(
+  const { company, recruiter } = await getRecruiterWithCompany(
     session.user.recruiterId,
   );
 
-  const members = await prisma.companyMember.findMany({
+  const members = await prisma.recruiter.findMany({
     where: { companyId: company.id },
     include: {
-      account: {
-        include: {
-          recruiter: true,
-        },
-      },
+      account: true,
     },
     orderBy: { createdAt: "asc" },
   });
@@ -38,13 +34,13 @@ export const GET = withAuth(async (_req, session) => {
       name: company.name,
       slug: company.slug,
     },
-    myRole: membership.role,
+    myRole: recruiter.role,
     members: members.map((m) => ({
       id: m.id,
       role: m.role,
       status: m.status,
       email: m.account.email,
-      companyName: m.account.recruiter?.companyName ?? company.name,
+      companyName: company.name,
       createdAt: m.createdAt,
       joinedAt: m.joinedAt,
     })),
