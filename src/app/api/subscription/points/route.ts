@@ -1,8 +1,8 @@
 import { PointTransactionType } from "@prisma/client";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withRecruiterValidation } from "@/lib/api-utils";
-import { NoSubscriptionError } from "@/lib/errors";
+import { ForbiddenError, NoSubscriptionError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { PLANS } from "@/lib/stripe";
 
@@ -16,12 +16,16 @@ const purchasePointsSchema = z.object({
 export const POST = withRecruiterValidation(
   purchasePointsSchema,
   async (body, req, session) => {
+    if (!session.user.companyId) {
+      throw new ForbiddenError("会社に所属していません");
+    }
+
     const { amount } = body;
-    const recruiterId = session.user.recruiterId;
+    const companyId = session.user.companyId;
 
     // サブスクリプションを確認
     const subscription = await prisma.subscription.findUnique({
-      where: { recruiterId },
+      where: { companyId },
     });
 
     if (!subscription) {
@@ -39,14 +43,14 @@ export const POST = withRecruiterValidation(
 
       // サブスクリプションの残高を更新
       const updatedSubscription = await tx.subscription.update({
-        where: { recruiterId },
+        where: { companyId },
         data: { pointBalance: newBalance },
       });
 
       // 取引履歴を記録
       await tx.pointTransaction.create({
         data: {
-          recruiterId,
+          companyId,
           type: PointTransactionType.PURCHASE,
           amount,
           balance: newBalance,

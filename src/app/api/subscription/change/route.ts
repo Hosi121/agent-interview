@@ -1,8 +1,8 @@
 import { type PlanType, PointTransactionType } from "@prisma/client";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withRecruiterValidation } from "@/lib/api-utils";
-import { ValidationError } from "@/lib/errors";
+import { ForbiddenError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { PLANS } from "@/lib/stripe";
 
@@ -15,19 +15,23 @@ const changePlanSchema = z.object({
 export const POST = withRecruiterValidation(
   changePlanSchema,
   async (body, req, session) => {
+    if (!session.user.companyId) {
+      throw new ForbiddenError("会社に所属していません");
+    }
+
     const { planType } = body;
-    const recruiterId = session.user.recruiterId;
+    const companyId = session.user.companyId;
     const planInfo = PLANS[planType as keyof typeof PLANS];
 
     // 既存のサブスクリプションを確認
     const existingSubscription = await prisma.subscription.findUnique({
-      where: { recruiterId },
+      where: { companyId },
     });
 
     if (existingSubscription) {
       // プラン変更
       const updatedSubscription = await prisma.subscription.update({
-        where: { recruiterId },
+        where: { companyId },
         data: {
           planType: planType as PlanType,
           pointsIncluded: planInfo.pointsIncluded,
@@ -44,7 +48,7 @@ export const POST = withRecruiterValidation(
     const newSubscription = await prisma.$transaction(async (tx) => {
       const subscription = await tx.subscription.create({
         data: {
-          recruiterId,
+          companyId,
           planType: planType as PlanType,
           pointBalance: planInfo.pointsIncluded,
           pointsIncluded: planInfo.pointsIncluded,
@@ -55,7 +59,7 @@ export const POST = withRecruiterValidation(
       // 初回ポイント付与の履歴を記録
       await tx.pointTransaction.create({
         data: {
-          recruiterId,
+          companyId,
           type: PointTransactionType.GRANT,
           amount: planInfo.pointsIncluded,
           balance: planInfo.pointsIncluded,

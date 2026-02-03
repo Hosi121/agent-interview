@@ -13,11 +13,11 @@ type TransactionClient = Prisma.TransactionClient;
 export { InsufficientPointsError, NoSubscriptionError };
 
 /**
- * 採用担当者のポイント残高を取得
+ * 会社のポイント残高を取得
  */
-export async function getPointBalance(recruiterId: string): Promise<number> {
+export async function getPointBalance(companyId: string): Promise<number> {
   const subscription = await prisma.subscription.findUnique({
-    where: { recruiterId },
+    where: { companyId },
   });
 
   if (!subscription) {
@@ -31,7 +31,7 @@ export async function getPointBalance(recruiterId: string): Promise<number> {
  * ポイントが足りるかチェック
  */
 export async function checkPointBalance(
-  recruiterId: string,
+  companyId: string,
   action: keyof typeof POINT_COSTS,
 ): Promise<{ canProceed: boolean; required: number; available: number }> {
   const required = POINT_COSTS[action];
@@ -41,7 +41,7 @@ export async function checkPointBalance(
   }
 
   const subscription = await prisma.subscription.findUnique({
-    where: { recruiterId },
+    where: { companyId },
   });
 
   if (!subscription) {
@@ -59,7 +59,7 @@ export async function checkPointBalance(
  * ポイントを消費
  */
 export async function consumePoints(
-  recruiterId: string,
+  companyId: string,
   action: PointAction,
   relatedId?: string,
   description?: string,
@@ -69,7 +69,7 @@ export async function consumePoints(
 
   if (cost === 0) {
     const subscription = await prisma.subscription.findUnique({
-      where: { recruiterId },
+      where: { companyId },
     });
     return { newBalance: subscription?.pointBalance || 0, consumed: 0 };
   }
@@ -77,7 +77,7 @@ export async function consumePoints(
   // トランザクションでポイント消費
   const result = await prisma.$transaction(async (tx) => {
     const subscription = await tx.subscription.findUnique({
-      where: { recruiterId },
+      where: { companyId },
     });
 
     if (!subscription) {
@@ -92,14 +92,14 @@ export async function consumePoints(
 
     // サブスクリプションの残高を更新
     await tx.subscription.update({
-      where: { recruiterId },
+      where: { companyId },
       data: { pointBalance: newBalance },
     });
 
     // 取引履歴を記録
     await tx.pointTransaction.create({
       data: {
-        recruiterId,
+        companyId,
         type: PointTransactionType.CONSUME,
         action,
         amount: -cost,
@@ -120,7 +120,7 @@ export async function consumePoints(
  * ポイントを消費し、追加の操作をトランザクション内で実行
  */
 export async function consumePointsWithOperations<T>(
-  recruiterId: string,
+  companyId: string,
   action: PointAction,
   operations: (tx: TransactionClient) => Promise<T>,
   relatedId?: string,
@@ -131,7 +131,7 @@ export async function consumePointsWithOperations<T>(
 
   const result = await prisma.$transaction(async (tx) => {
     const subscription = await tx.subscription.findUnique({
-      where: { recruiterId },
+      where: { companyId },
     });
 
     if (!subscription) {
@@ -147,14 +147,14 @@ export async function consumePointsWithOperations<T>(
     if (cost > 0) {
       // サブスクリプションの残高を更新
       await tx.subscription.update({
-        where: { recruiterId },
+        where: { companyId },
         data: { pointBalance: newBalance },
       });
 
       // 取引履歴を記録
       await tx.pointTransaction.create({
         data: {
-          recruiterId,
+          companyId,
           type: PointTransactionType.CONSUME,
           action,
           amount: -cost,
@@ -179,14 +179,14 @@ export async function consumePointsWithOperations<T>(
  * ポイントを付与
  */
 export async function grantPoints(
-  recruiterId: string,
+  companyId: string,
   amount: number,
   type: PointTransactionType,
   description?: string,
 ): Promise<{ newBalance: number }> {
   const result = await prisma.$transaction(async (tx) => {
     const subscription = await tx.subscription.findUnique({
-      where: { recruiterId },
+      where: { companyId },
     });
 
     if (!subscription) {
@@ -196,13 +196,13 @@ export async function grantPoints(
     const newBalance = subscription.pointBalance + amount;
 
     await tx.subscription.update({
-      where: { recruiterId },
+      where: { companyId },
       data: { pointBalance: newBalance },
     });
 
     await tx.pointTransaction.create({
       data: {
-        recruiterId,
+        companyId,
         type,
         amount,
         balance: newBalance,
@@ -220,12 +220,12 @@ export async function grantPoints(
  * ポイント取引履歴を取得
  */
 export async function getPointHistory(
-  recruiterId: string,
+  companyId: string,
   limit = 50,
   offset = 0,
 ) {
   return prisma.pointTransaction.findMany({
-    where: { recruiterId },
+    where: { companyId },
     orderBy: { createdAt: "desc" },
     take: limit,
     skip: offset,
