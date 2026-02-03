@@ -101,13 +101,15 @@ export const DELETE = withRecruiterAuth(
       throw new ForbiddenError("オーナーは削除できません");
     }
 
-    // メンバーを削除（RecruiterレコードとAccountを削除）
-    await prisma.$transaction(async (tx) => {
-      await tx.recruiter.delete({ where: { id: target.id } });
+    // メンバーをソフトデリート（DISABLEDに変更）
+    // 関連データを保持しつつアクセスを無効化
+    const updated = await prisma.recruiter.update({
+      where: { id: target.id },
+      data: { status: "DISABLED" },
     });
 
     return NextResponse.json(
-      { id: target.id, status: "DELETED" },
+      { id: updated.id, status: "DISABLED" },
       { status: 200 },
     );
   },

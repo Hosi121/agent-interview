@@ -2,9 +2,9 @@
  * ポイント管理システム - 単体テスト
  *
  * ユーザーストーリー:
- * - 採用担当者として、エージェントと会話するためにポイントを消費したい
- * - 採用担当者として、連絡先を開示するためにポイントを消費したい
- * - 採用担当者として、ポイント残高を確認したい
+ * - 会社として、エージェントと会話するためにポイントを消費したい
+ * - 会社として、連絡先を開示するためにポイントを消費したい
+ * - 会社として、ポイント残高を確認したい
  * - システムとして、ポイント不足時に適切なエラーを返したい
  */
 
@@ -101,15 +101,15 @@ describe("ポイント管理システム - 単体テスト", () => {
     describe("正常系", () => {
       it("サブスクリプションが存在する場合、ポイント残高を返す", async () => {
         mockPrisma.subscription.findUnique.mockResolvedValue({
-          recruiterId: "recruiter-1",
+          companyId: "company-1",
           pointBalance: 150,
         });
 
-        const balance = await getPointBalance("recruiter-1");
+        const balance = await getPointBalance("company-1");
 
         expect(balance).toBe(150);
         expect(mockPrisma.subscription.findUnique).toHaveBeenCalledWith({
-          where: { recruiterId: "recruiter-1" },
+          where: { companyId: "company-1" },
         });
       });
     });
@@ -118,7 +118,7 @@ describe("ポイント管理システム - 単体テスト", () => {
       it("サブスクリプションが存在しない場合、NoSubscriptionErrorをスロー", async () => {
         mockPrisma.subscription.findUnique.mockResolvedValue(null);
 
-        await expect(getPointBalance("recruiter-1")).rejects.toThrow(
+        await expect(getPointBalance("company-1")).rejects.toThrow(
           NoSubscriptionError,
         );
       });
@@ -129,11 +129,11 @@ describe("ポイント管理システム - 単体テスト", () => {
     describe("正常系", () => {
       it("ポイントが十分な場合、canProceed: trueを返す", async () => {
         mockPrisma.subscription.findUnique.mockResolvedValue({
-          recruiterId: "recruiter-1",
+          companyId: "company-1",
           pointBalance: 100,
         });
 
-        const result = await checkPointBalance("recruiter-1", "CONVERSATION");
+        const result = await checkPointBalance("company-1", "CONVERSATION");
 
         expect(result.canProceed).toBe(true);
         expect(result.required).toBe(1);
@@ -142,7 +142,7 @@ describe("ポイント管理システム - 単体テスト", () => {
 
       it("無料アクション（INTEREST）の場合、常にcanProceed: trueを返す", async () => {
         // サブスクリプションの確認すら不要
-        const result = await checkPointBalance("recruiter-1", "INTEREST");
+        const result = await checkPointBalance("company-1", "INTEREST");
 
         expect(result.canProceed).toBe(true);
         expect(result.required).toBe(0);
@@ -152,12 +152,12 @@ describe("ポイント管理システム - 単体テスト", () => {
     describe("異常系", () => {
       it("ポイントが不足している場合、canProceed: falseを返す", async () => {
         mockPrisma.subscription.findUnique.mockResolvedValue({
-          recruiterId: "recruiter-1",
+          companyId: "company-1",
           pointBalance: 5,
         });
 
         const result = await checkPointBalance(
-          "recruiter-1",
+          "company-1",
           "CONTACT_DISCLOSURE",
         );
 
@@ -170,7 +170,7 @@ describe("ポイント管理システム - 単体テスト", () => {
         mockPrisma.subscription.findUnique.mockResolvedValue(null);
 
         await expect(
-          checkPointBalance("recruiter-1", "CONVERSATION"),
+          checkPointBalance("company-1", "CONVERSATION"),
         ).rejects.toThrow(NoSubscriptionError);
       });
     });
@@ -183,7 +183,7 @@ describe("ポイント管理システム - 単体テスト", () => {
           const tx = {
             subscription: {
               findUnique: vi.fn().mockResolvedValue({
-                recruiterId: "recruiter-1",
+                companyId: "company-1",
                 pointBalance: 100,
               }),
               update: vi.fn().mockResolvedValue({
@@ -198,7 +198,7 @@ describe("ポイント管理システム - 単体テスト", () => {
         });
         mockPrisma.$transaction.mockImplementation(mockTransaction);
 
-        const result = await consumePoints("recruiter-1", "CONVERSATION");
+        const result = await consumePoints("company-1", "CONVERSATION");
 
         expect(result.newBalance).toBe(99);
         expect(result.consumed).toBe(1);
@@ -206,11 +206,11 @@ describe("ポイント管理システム - 単体テスト", () => {
 
       it("無料アクションは残高を変更しない", async () => {
         mockPrisma.subscription.findUnique.mockResolvedValue({
-          recruiterId: "recruiter-1",
+          companyId: "company-1",
           pointBalance: 100,
         });
 
-        const result = await consumePoints("recruiter-1", "CONVERSATION");
+        const result = await consumePoints("company-1", "CONVERSATION");
         // 無料アクションのテストは別途必要（現在のコードでは対応していない）
       });
     });
@@ -221,7 +221,7 @@ describe("ポイント管理システム - 単体テスト", () => {
           const tx = {
             subscription: {
               findUnique: vi.fn().mockResolvedValue({
-                recruiterId: "recruiter-1",
+                companyId: "company-1",
                 pointBalance: 5,
               }),
             },
@@ -231,7 +231,7 @@ describe("ポイント管理システム - 単体テスト", () => {
         mockPrisma.$transaction.mockImplementation(mockTransaction);
 
         await expect(
-          consumePoints("recruiter-1", "CONTACT_DISCLOSURE"),
+          consumePoints("company-1", "CONTACT_DISCLOSURE"),
         ).rejects.toThrow(InsufficientPointsError);
       });
 
@@ -247,7 +247,7 @@ describe("ポイント管理システム - 単体テスト", () => {
         mockPrisma.$transaction.mockImplementation(mockTransaction);
 
         await expect(
-          consumePoints("recruiter-1", "CONVERSATION"),
+          consumePoints("company-1", "CONVERSATION"),
         ).rejects.toThrow(NoSubscriptionError);
       });
     });
@@ -260,7 +260,7 @@ describe("ポイント管理システム - 単体テスト", () => {
           const tx = {
             subscription: {
               findUnique: vi.fn().mockResolvedValue({
-                recruiterId: "recruiter-1",
+                companyId: "company-1",
                 pointBalance: 100,
               }),
               update: vi.fn().mockResolvedValue({
@@ -275,7 +275,7 @@ describe("ポイント管理システム - 単体テスト", () => {
         });
         mockPrisma.$transaction.mockImplementation(mockTransaction);
 
-        const result = await grantPoints("recruiter-1", 100, "GRANT");
+        const result = await grantPoints("company-1", 100, "GRANT");
 
         expect(result.newBalance).toBe(200);
       });
@@ -293,7 +293,7 @@ describe("ポイント管理システム - 単体テスト", () => {
         });
         mockPrisma.$transaction.mockImplementation(mockTransaction);
 
-        await expect(grantPoints("recruiter-1", 100, "GRANT")).rejects.toThrow(
+        await expect(grantPoints("company-1", 100, "GRANT")).rejects.toThrow(
           NoSubscriptionError,
         );
       });
@@ -309,11 +309,11 @@ describe("ポイント管理システム - 単体テスト", () => {
         ];
         mockPrisma.pointTransaction.findMany.mockResolvedValue(mockHistory);
 
-        const history = await getPointHistory("recruiter-1");
+        const history = await getPointHistory("company-1");
 
         expect(history).toEqual(mockHistory);
         expect(mockPrisma.pointTransaction.findMany).toHaveBeenCalledWith({
-          where: { recruiterId: "recruiter-1" },
+          where: { companyId: "company-1" },
           orderBy: { createdAt: "desc" },
           take: 50,
           skip: 0,
@@ -323,10 +323,10 @@ describe("ポイント管理システム - 単体テスト", () => {
       it("ページネーションパラメータを正しく処理する", async () => {
         mockPrisma.pointTransaction.findMany.mockResolvedValue([]);
 
-        await getPointHistory("recruiter-1", 20, 40);
+        await getPointHistory("company-1", 20, 40);
 
         expect(mockPrisma.pointTransaction.findMany).toHaveBeenCalledWith({
-          where: { recruiterId: "recruiter-1" },
+          where: { companyId: "company-1" },
           orderBy: { createdAt: "desc" },
           take: 20,
           skip: 40,
