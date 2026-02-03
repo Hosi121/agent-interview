@@ -1,4 +1,4 @@
-import type { AccountType } from "@prisma/client";
+import type { AccountType, CompanyRole } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import type { ZodError, ZodSchema } from "zod";
@@ -21,7 +21,9 @@ export interface AuthenticatedSession {
     accountType?: AccountType;
     recruiterId?: string;
     userId?: string;
+    companyId?: string;
     companyName?: string;
+    companyRole?: CompanyRole;
   };
 }
 
