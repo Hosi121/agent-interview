@@ -119,16 +119,17 @@ export const POST = withRecruiterAuth(async (req, session) => {
   });
 
   // 求職者に通知を作成
+  const companyName = session.user.companyName || "企業";
   await prisma.notification.create({
     data: {
       accountId: agent.user.accountId,
       type: "NEW_CANDIDATE_MATCH",
       title: "企業からの興味表明",
-      body: `${session.user.companyName}があなたに興味を持っています`,
+      body: `${companyName}があなたに興味を持っています`,
       data: {
         interestId: interest.id,
         recruiterId: session.user.recruiterId,
-        companyName: session.user.companyName,
+        companyName,
       },
     },
   });

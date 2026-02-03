@@ -5,7 +5,11 @@ import { ForbiddenError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 export const GET = withAuth(async (_req, session) => {
-  if (session.user.accountType !== "RECRUITER" || !session.user.recruiterId) {
+  if (
+    session.user.accountType !== "RECRUITER" ||
+    !session.user.recruiterId ||
+    !session.user.accountId
+  ) {
     throw new ForbiddenError("採用担当者のみが利用できます");
   }
 
