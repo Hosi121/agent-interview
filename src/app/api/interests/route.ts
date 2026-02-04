@@ -82,7 +82,7 @@ export const POST = withRecruiterAuth(async (req, session) => {
     throw new ForbiddenError("このエージェントは非公開です");
   }
 
-  if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+  if (await isCompanyAccessDenied(session.user.companyId, agent.userId)) {
     throw new ForbiddenError("この候補者へのアクセスが制限されています");
   }
 
@@ -119,16 +119,17 @@ export const POST = withRecruiterAuth(async (req, session) => {
   });
 
   // 求職者に通知を作成
+  const companyName = session.user.companyName || "企業";
   await prisma.notification.create({
     data: {
       accountId: agent.user.accountId,
       type: "NEW_CANDIDATE_MATCH",
       title: "企業からの興味表明",
-      body: `${session.user.companyName}があなたに興味を持っています`,
+      body: `${companyName}があなたに興味を持っています`,
       data: {
         interestId: interest.id,
         recruiterId: session.user.recruiterId,
-        companyName: session.user.companyName,
+        companyName,
       },
     },
   });

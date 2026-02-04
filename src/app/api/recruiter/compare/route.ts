@@ -34,7 +34,7 @@ export const POST = withRecruiterAuth(async (req, session) => {
       user: {
         companyAccesses: {
           none: {
-            recruiterId: session.user.recruiterId,
+            companyId: session.user.companyId,
             status: "DENY",
           },
         },

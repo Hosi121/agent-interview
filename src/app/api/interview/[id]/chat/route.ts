@@ -49,7 +49,7 @@ export const POST = withRecruiterAuth<RouteContext>(
       throw new ForbiddenError("このエージェントは公開されていません");
     }
 
-    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+    if (await isCompanyAccessDenied(session.user.companyId, agent.userId)) {
       throw new ForbiddenError("アクセスが拒否されています");
     }
 
@@ -84,8 +84,12 @@ export const POST = withRecruiterAuth<RouteContext>(
 
     // 新規セッション作成時はポイントをチェック・消費
     if (isNewSession) {
+      if (!session.user.companyId) {
+        throw new ForbiddenError("会社に所属していません");
+      }
+
       const pointCheck = await checkPointBalance(
-        session.user.recruiterId,
+        session.user.companyId,
         "CONVERSATION",
       );
       if (!pointCheck.canProceed) {
@@ -108,7 +112,7 @@ export const POST = withRecruiterAuth<RouteContext>(
 
       // ポイント消費
       await consumePoints(
-        session.user.recruiterId,
+        session.user.companyId,
         "CONVERSATION",
         chatSession.id,
         `エージェント会話: ${agent.user.name}`,

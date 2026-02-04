@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withAuth } from "@/lib/api-utils";
 import {
@@ -40,7 +40,11 @@ export const GET = withAuth<RouteContext>(async (req, session, context) => {
       recruiter: {
         select: {
           id: true,
-          companyName: true,
+          company: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
       user: {
@@ -52,7 +56,14 @@ export const GET = withAuth<RouteContext>(async (req, session, context) => {
     },
   });
 
-  return NextResponse.json({ messages });
+  return NextResponse.json({
+    messages: messages.map((m) => ({
+      ...m,
+      recruiter: m.recruiter
+        ? { id: m.recruiter.id, companyName: m.recruiter.company.name }
+        : null,
+    })),
+  });
 });
 
 const sendMessageSchema = z.object({
@@ -87,8 +98,13 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
       recruiter: {
         select: {
           id: true,
-          companyName: true,
+          companyId: true,
           accountId: true,
+          company: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
     },
@@ -112,10 +128,10 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
     throw new ForbiddenError("このメッセージにアクセスする権限がありません");
   }
 
-  // 採用担当者の場合はポイント消費
-  if (isRecruiter && session.user.recruiterId) {
+  // 採用担当者の場合はポイント消費（会社のポイントを使用）
+  if (isRecruiter && session.user.companyId) {
     const pointCheck = await checkPointBalance(
-      session.user.recruiterId,
+      session.user.companyId,
       "MESSAGE_SEND",
     );
     if (!pointCheck.canProceed) {
@@ -126,7 +142,7 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
     }
 
     await consumePoints(
-      session.user.recruiterId,
+      session.user.companyId,
       "MESSAGE_SEND",
       interestId,
       `メッセージ送信: ${interest.user.name}`,
@@ -161,7 +177,7 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
       type: "SYSTEM",
       title: "新しいメッセージ",
       body: isRecruiter
-        ? `${interest.recruiter.companyName}からメッセージが届きました`
+        ? `${interest.recruiter.company.name}からメッセージが届きました`
         : `${interest.user.name}からメッセージが届きました`,
       data: {
         interestId,

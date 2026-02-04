@@ -1,7 +1,7 @@
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { withAuthValidation } from "@/lib/api-utils";
-import { canManageMembers, ensureCompanyForRecruiter } from "@/lib/company";
+import { canManageMembers, getRecruiterWithCompany } from "@/lib/company";
 import { ConflictError, ForbiddenError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { inviteCreateSchema } from "@/lib/validations";
@@ -17,15 +17,15 @@ export const POST = withAuthValidation(
       throw new ForbiddenError("採用担当者のみが利用できます");
     }
 
-    const { company, membership } = await ensureCompanyForRecruiter(
+    const { company, recruiter } = await getRecruiterWithCompany(
       session.user.recruiterId,
     );
 
-    if (!canManageMembers(membership.role)) {
+    if (!canManageMembers(recruiter.role)) {
       throw new ForbiddenError("招待を作成する権限がありません");
     }
 
-    const existingMember = await prisma.companyMember.findFirst({
+    const existingMember = await prisma.recruiter.findFirst({
       where: {
         companyId: company.id,
         account: { email: body.email },

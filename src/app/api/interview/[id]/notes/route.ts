@@ -24,7 +24,7 @@ export const GET = withRecruiterAuth<RouteContext>(
       throw new ForbiddenError("このエージェントは公開されていません");
     }
 
-    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+    if (await isCompanyAccessDenied(session.user.companyId, agent.userId)) {
       throw new ForbiddenError("アクセスが拒否されています");
     }
 
@@ -84,7 +84,7 @@ export const POST = withRecruiterAuth<RouteContext>(
       throw new ForbiddenError("このエージェントは公開されていません");
     }
 
-    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+    if (await isCompanyAccessDenied(session.user.companyId, agent.userId)) {
       throw new ForbiddenError("アクセスが拒否されています");
     }
 

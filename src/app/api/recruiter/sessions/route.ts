@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withRecruiterAuth } from "@/lib/api-utils";
-import { ensureCompanyForRecruiter } from "@/lib/company";
+import { getRecruiterWithCompany } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 
 export const GET = withRecruiterAuth(async (req, session) => {
@@ -9,7 +9,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
   // デフォルト: 自分が実施したセッションのみ。scope=company の場合は会社全体で集計。
   const recruiterFilter = await (async () => {
     if (scope === "company") {
-      const { company } = await ensureCompanyForRecruiter(
+      const { company } = await getRecruiterWithCompany(
         session.user.recruiterId,
       );
       return { recruiter: { companyId: company.id } } as const;
@@ -25,7 +25,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
         user: {
           companyAccesses: {
             none: {
-              recruiterId: session.user.recruiterId,
+              companyId: session.user.companyId,
               status: "DENY",
             },
           },

@@ -53,7 +53,7 @@ export const GET = withRecruiterAuth<RouteContext>(
 
     if (
       await isCompanyAccessDenied(
-        session.user.recruiterId,
+        session.user.companyId,
         pipeline.agent.userId,
       )
     ) {
@@ -133,7 +133,7 @@ export const PATCH = withRecruiterAuth<RouteContext>(
 
     if (
       await isCompanyAccessDenied(
-        session.user.recruiterId,
+        session.user.companyId,
         existingPipeline.agent.userId,
       )
     ) {
@@ -206,7 +206,7 @@ export const DELETE = withRecruiterAuth<RouteContext>(
 
     if (
       await isCompanyAccessDenied(
-        session.user.recruiterId,
+        session.user.companyId,
         existingPipeline.agent.userId,
       )
     ) {

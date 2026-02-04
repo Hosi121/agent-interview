@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserAuth } from "@/lib/api-utils";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
@@ -30,8 +30,13 @@ export const POST = withUserAuth<RouteContext>(
         recruiter: {
           select: {
             id: true,
-            companyName: true,
+            companyId: true,
             accountId: true,
+            company: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
@@ -59,14 +64,14 @@ export const POST = withUserAuth<RouteContext>(
     if (preference === "DENY") {
       await prisma.companyAccess.upsert({
         where: {
-          userId_recruiterId: {
+          userId_companyId: {
             userId: interest.userId,
-            recruiterId: interest.recruiterId,
+            companyId: interest.recruiter.companyId,
           },
         },
         create: {
           userId: interest.userId,
-          recruiterId: interest.recruiterId,
+          companyId: interest.recruiter.companyId,
           status: "DENY",
         },
         update: { status: "DENY" },

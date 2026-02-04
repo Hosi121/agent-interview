@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import {
   ConflictError,
@@ -15,6 +15,10 @@ export const POST = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
     const { id: interestId } = await context!.params;
 
+    if (!session.user.companyId) {
+      throw new ForbiddenError("会社に所属していません");
+    }
+
     const interest = await prisma.interest.findUnique({
       where: { id: interestId },
       include: {
@@ -30,8 +34,13 @@ export const POST = withRecruiterAuth<RouteContext>(
         recruiter: {
           select: {
             id: true,
-            companyName: true,
+            companyId: true,
             accountId: true,
+            company: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
@@ -62,9 +71,9 @@ export const POST = withRecruiterAuth<RouteContext>(
 
     const accessPreference = await prisma.companyAccess.findUnique({
       where: {
-        userId_recruiterId: {
+        userId_companyId: {
           userId: interest.userId,
-          recruiterId: interest.recruiterId,
+          companyId: interest.recruiter.companyId,
         },
       },
     });
@@ -94,7 +103,7 @@ export const POST = withRecruiterAuth<RouteContext>(
 
     if (accessPreference?.status === "ALLOW") {
       const pointCheck = await checkPointBalance(
-        session.user.recruiterId,
+        session.user.companyId,
         "CONTACT_DISCLOSURE",
       );
       if (!pointCheck.canProceed) {
@@ -105,7 +114,7 @@ export const POST = withRecruiterAuth<RouteContext>(
       }
 
       await consumePointsWithOperations(
-        session.user.recruiterId,
+        session.user.companyId,
         "CONTACT_DISCLOSURE",
         async (tx) => {
           await tx.interest.update({
@@ -118,11 +127,11 @@ export const POST = withRecruiterAuth<RouteContext>(
               accountId: interest.user.accountId,
               type: "PIPELINE_UPDATE",
               title: "連絡先が自動で開示されました",
-              body: `${interest.recruiter.companyName}に連絡先が開示されました`,
+              body: `${interest.recruiter.company.name}に連絡先が開示されました`,
               data: {
                 interestId,
                 recruiterId: interest.recruiterId,
-                companyName: interest.recruiter.companyName,
+                companyName: interest.recruiter.company.name,
               },
             },
           });
@@ -153,11 +162,11 @@ export const POST = withRecruiterAuth<RouteContext>(
           accountId: interest.user.accountId,
           type: "SYSTEM",
           title: "連絡先開示のリクエスト",
-          body: `${interest.recruiter.companyName}が連絡先開示をリクエストしました`,
+          body: `${interest.recruiter.company.name}が連絡先開示をリクエストしました`,
           data: {
             interestId,
             recruiterId: interest.recruiterId,
-            companyName: interest.recruiter.companyName,
+            companyName: interest.recruiter.company.name,
           },
         },
       });

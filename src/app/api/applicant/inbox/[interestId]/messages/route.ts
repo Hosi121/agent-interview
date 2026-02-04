@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -28,7 +28,13 @@ export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
     },
     include: {
       recruiter: {
-        select: { companyName: true },
+        select: {
+          company: {
+            select: {
+              name: true,
+            },
+          },
+        },
       },
       user: {
         select: { name: true },
@@ -43,7 +49,7 @@ export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
       content: m.content,
       senderType: m.senderType,
       createdAt: m.createdAt,
-      recruiter: m.recruiter,
+      recruiter: m.recruiter ? { companyName: m.recruiter.company.name } : null,
       user: m.user,
     })),
   });

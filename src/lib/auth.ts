@@ -20,7 +20,9 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
           include: {
             user: true,
-            recruiter: true,
+            recruiter: {
+              include: { company: true },
+            },
           },
         });
 
@@ -39,7 +41,7 @@ export const authOptions: NextAuthOptions = {
         return {
           id: account.id,
           email: account.email,
-          name: account.user?.name || account.recruiter?.companyName || "",
+          name: account.user?.name || account.recruiter?.company?.name || "",
         };
       },
     }),
@@ -51,11 +53,8 @@ export const authOptions: NextAuthOptions = {
           where: { email: token.email },
           include: {
             user: true,
-            recruiter: true,
-            companyMemberships: {
-              where: { status: "ACTIVE" },
+            recruiter: {
               include: { company: true },
-              take: 1,
             },
           },
         });
@@ -69,13 +68,10 @@ export const authOptions: NextAuthOptions = {
           }
           if (account.recruiter) {
             session.user.recruiterId = account.recruiter.id;
-            session.user.companyName = account.recruiter.companyName;
-          }
-          const membership = account.companyMemberships?.[0];
-          if (membership) {
-            session.user.companyId = membership.companyId;
-            session.user.companyRole = membership.role;
-            session.user.companyName = membership.company.name;
+            session.user.companyId = account.recruiter.companyId;
+            session.user.companyRole = account.recruiter.role;
+            session.user.companyName = account.recruiter.company.name;
+            session.user.recruiterStatus = account.recruiter.status;
           }
         }
       }

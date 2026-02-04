@@ -24,7 +24,7 @@ export const GET = withRecruiterAuth<RouteContext>(
       throw new NotFoundError("エージェントが見つかりません");
     }
 
-    if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+    if (await isCompanyAccessDenied(session.user.companyId, agent.userId)) {
       throw new ForbiddenError("アクセスが拒否されています");
     }
 

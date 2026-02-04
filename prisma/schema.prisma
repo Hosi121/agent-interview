@@ -78,11 +78,10 @@ model Account {
   accountType  AccountType
   createdAt    DateTime    @default(now())
 
-  user      User?
-  recruiter Recruiter?
-  invites   Invite[] @relation("InviteSender")
-  companyMemberships CompanyMember[]
-  invitedMembers     CompanyMember[] @relation("MemberInviter")
+  user              User?
+  recruiter         Recruiter?
+  invites           Invite[]    @relation("InviteSender")
+  invitedRecruiters Recruiter[] @relation("RecruiterInviter")
 }
 
 model User {
@@ -104,24 +103,29 @@ model User {
 }
 
 model Recruiter {
-  id          String  @id @default(uuid())
-  accountId   String  @unique
-  account     Account @relation(fields: [accountId], references: [id])
-  companyName String
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id])
+  id                 String              @id @default(uuid())
+  accountId          String              @unique
+  account            Account             @relation(fields: [accountId], references: [id])
+  companyId          String
+  company            Company             @relation(fields: [companyId], references: [id])
+  role               CompanyRole         @default(MEMBER)
+  status             CompanyMemberStatus @default(ACTIVE)
+  invitedByAccountId String?
+  invitedBy          Account?            @relation("RecruiterInviter", fields: [invitedByAccountId], references: [id])
+  joinedAt           DateTime?           @default(now())
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
-  sessions     Session[]
-  notes        InterviewNote[]
-  evaluations  InterviewEvaluation[]
-  jobPostings  JobPosting[]
-  watches      CandidateWatch[]
-  pipelines    CandidatePipeline[]
-  subscription Subscription?
-  pointTransactions PointTransaction[]
-  interests    Interest[]
-  sentMessages DirectMessage[] @relation("SentMessages")
-  candidateAccesses CompanyAccess[]
+  sessions          Session[]
+  notes             InterviewNote[]
+  evaluations       InterviewEvaluation[]
+  jobPostings       JobPosting[]
+  watches           CandidateWatch[]
+  pipelines         CandidatePipeline[]
+  interests         Interest[]
+  sentMessages      DirectMessage[]   @relation("SentMessages")
+
+  @@index([companyId])
 }
 
 model Company {
@@ -132,29 +136,13 @@ model Company {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  recruiters Recruiter[]
-  members    CompanyMember[]
-  invites    Invite[]
+  recruiters        Recruiter[]
+  invites           Invite[]
+  subscription      Subscription?
+  pointTransactions PointTransaction[]
+  candidateAccesses CompanyAccess[]
 
   @@index([slug])
-}
-
-model CompanyMember {
-  id                 String              @id @default(uuid())
-  companyId          String
-  company            Company             @relation(fields: [companyId], references: [id])
-  accountId          String
-  account            Account             @relation(fields: [accountId], references: [id])
-  role               CompanyRole
-  status             CompanyMemberStatus @default(ACTIVE)
-  invitedByAccountId String?
-  invitedBy          Account?            @relation("MemberInviter", fields: [invitedByAccountId], references: [id])
-  joinedAt           DateTime?           @default(now())
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-
-  @@unique([companyId, accountId])
-  @@index([accountId])
 }
 
 model Invite {
@@ -557,26 +545,26 @@ enum PointAction {
 }
 
 model Subscription {
-  id              String             @id @default(uuid())
-  recruiterId     String             @unique
-  recruiter       Recruiter          @relation(fields: [recruiterId], references: [id])
-  planType        PlanType
-  pointBalance    Int                @default(0)
-  pointsIncluded  Int                // プランに含まれるポイント数
-  status          SubscriptionStatus @default(ACTIVE)
-  stripeCustomerId    String?
+  id                   String             @id @default(uuid())
+  companyId            String             @unique
+  company              Company            @relation(fields: [companyId], references: [id])
+  planType             PlanType
+  pointBalance         Int                @default(0)
+  pointsIncluded       Int                // プランに含まれるポイント数
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId     String?
   stripeSubscriptionId String?
-  billingCycleStart DateTime         @default(now())
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  billingCycleStart    DateTime           @default(now())
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  @@index([recruiterId])
+  @@index([companyId])
 }
 
 model PointTransaction {
   id          String               @id @default(uuid())
-  recruiterId String
-  recruiter   Recruiter            @relation(fields: [recruiterId], references: [id])
+  companyId   String
+  company     Company              @relation(fields: [companyId], references: [id])
   type        PointTransactionType
   action      PointAction?         // CONSUMEの場合のみ
   amount      Int                  // 正: 増加, 負: 減少
@@ -585,7 +573,7 @@ model PointTransaction {
   description String?
   createdAt   DateTime             @default(now())
 
-  @@index([recruiterId, createdAt])
+  @@index([companyId, createdAt])
 }
 
 // ==========================================
@@ -622,15 +610,15 @@ model CompanyAccess {
   id          String              @id @default(uuid())
   userId      String
   user        User                @relation(fields: [userId], references: [id])
-  recruiterId String
-  recruiter   Recruiter           @relation(fields: [recruiterId], references: [id])
+  companyId   String
+  company     Company             @relation(fields: [companyId], references: [id])
   status      CompanyAccessStatus
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  @@unique([userId, recruiterId])
+  @@unique([userId, companyId])
   @@index([userId])
-  @@index([recruiterId])
+  @@index([companyId])
 }
 
 model DirectMessage {

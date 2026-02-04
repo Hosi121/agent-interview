@@ -37,7 +37,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
         user: {
           companyAccesses: {
             none: {
-              recruiterId: session.user.recruiterId,
+              companyId: session.user.companyId,
               status: "DENY",
             },
           },
@@ -133,7 +133,7 @@ export const POST = withRecruiterAuth(async (req, session) => {
     throw new NotFoundError("エージェントが見つからないか、非公開です");
   }
 
-  if (await isCompanyAccessDenied(session.user.recruiterId, agent.userId)) {
+  if (await isCompanyAccessDenied(session.user.companyId, agent.userId)) {
     throw new ForbiddenError("アクセスが拒否されています");
   }
 

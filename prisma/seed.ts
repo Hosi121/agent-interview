@@ -33,6 +33,16 @@ async function main() {
     include: { user: true },
   });
 
+  // テスト会社を作成
+  const company = await prisma.company.upsert({
+    where: { slug: "test-company" },
+    update: {},
+    create: {
+      name: "株式会社テスト",
+      slug: "test-company",
+    },
+  });
+
   // テスト採用担当者ユーザー
   const recruiterAccount = await prisma.account.upsert({
     where: { email: "recruiter@example.com" },
@@ -43,43 +53,42 @@ async function main() {
       accountType: AccountType.RECRUITER,
       recruiter: {
         create: {
-          companyName: "株式会社テスト",
+          companyId: company.id,
+          role: "OWNER",
+          status: "ACTIVE",
+          joinedAt: new Date(),
         },
       },
     },
     include: { recruiter: true },
   });
 
-  // 採用担当者にサブスクリプション（スタンダードプラン）を付与
-  if (recruiterAccount.recruiter) {
-    const recruiterId = recruiterAccount.recruiter.id;
+  // 会社にサブスクリプション（スタンダードプラン）を付与
+  await prisma.subscription.upsert({
+    where: { companyId: company.id },
+    update: {},
+    create: {
+      companyId: company.id,
+      planType: PlanType.STANDARD,
+      pointBalance: 300,
+      pointsIncluded: 300,
+      status: "ACTIVE",
+    },
+  });
 
-    await prisma.subscription.upsert({
-      where: { recruiterId },
-      update: {},
-      create: {
-        recruiterId,
-        planType: PlanType.STANDARD,
-        pointBalance: 300,
-        pointsIncluded: 300,
-        status: "ACTIVE",
-      },
-    });
-
-    // 初期ポイント付与の取引履歴
-    await prisma.pointTransaction.upsert({
-      where: { id: `seed-grant-${recruiterId}` },
-      update: {},
-      create: {
-        id: `seed-grant-${recruiterId}`,
-        recruiterId,
-        type: PointTransactionType.GRANT,
-        amount: 300,
-        balance: 300,
-        description: "スタンダードプラン初期ポイント付与",
-      },
-    });
-  }
+  // 初期ポイント付与の取引履歴
+  await prisma.pointTransaction.upsert({
+    where: { id: `seed-grant-${company.id}` },
+    update: {},
+    create: {
+      id: `seed-grant-${company.id}`,
+      companyId: company.id,
+      type: PointTransactionType.GRANT,
+      amount: 300,
+      balance: 300,
+      description: "スタンダードプラン初期ポイント付与",
+    },
+  });
 
   if (userAccount.user) {
     const userId = userAccount.user.id;
@@ -205,6 +214,7 @@ async function main() {
     console.log("  - 1 public agent");
     console.log("  - 連絡先: yamada.taro@example.com / 090-1234-5678");
     console.log("- Recruiter: recruiter@example.com / password123");
+    console.log("  - Company: 株式会社テスト (OWNER)");
     console.log("  - スタンダードプラン (300pt)");
   }
 }

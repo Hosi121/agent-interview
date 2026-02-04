@@ -1,14 +1,14 @@
 import { prisma } from "@/lib/prisma";
 
 export async function isCompanyAccessDenied(
-  recruiterId: string,
+  companyId: string,
   userId: string,
 ): Promise<boolean> {
   const access = await prisma.companyAccess.findUnique({
     where: {
-      userId_recruiterId: {
+      userId_companyId: {
         userId,
-        recruiterId,
+        companyId,
       },
     },
     select: { status: true },

@@ -110,7 +110,7 @@ export const POST = withRecruiterAuth<RouteContext>(
         user: {
           companyAccesses: {
             none: {
-              recruiterId: session.user.recruiterId,
+              companyId: session.user.companyId,
               status: "DENY",
             },
           },
@@ -194,7 +194,7 @@ export const POST = withRecruiterAuth<RouteContext>(
           user: {
             companyAccesses: {
               none: {
-                recruiterId: session.user.recruiterId,
+                companyId: session.user.companyId,
                 status: "DENY",
               },
             },
@@ -253,7 +253,7 @@ export const GET = withRecruiterAuth<RouteContext>(
           user: {
             companyAccesses: {
               none: {
-                recruiterId: session.user.recruiterId,
+                companyId: session.user.companyId,
                 status: "DENY",
               },
             },

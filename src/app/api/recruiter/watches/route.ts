@@ -106,6 +106,11 @@ export const POST = withRecruiterAuth(async (req, session) => {
 async function checkExistingAgentsForWatch(watchId: string) {
   const watch = await prisma.candidateWatch.findUnique({
     where: { id: watchId },
+    include: {
+      recruiter: {
+        select: { companyId: true },
+      },
+    },
   });
 
   if (!watch || !watch.isActive) return;
@@ -116,7 +121,7 @@ async function checkExistingAgentsForWatch(watchId: string) {
       user: {
         companyAccesses: {
           none: {
-            recruiterId: watch.recruiterId,
+            companyId: watch.recruiter.companyId,
             status: "DENY",
           },
         },

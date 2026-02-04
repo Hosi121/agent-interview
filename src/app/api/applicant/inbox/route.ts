@@ -12,7 +12,11 @@ export const GET = withUserAuth(async (req, session) => {
       recruiter: {
         select: {
           id: true,
-          companyName: true,
+          company: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
       directMessages: {
@@ -37,7 +41,7 @@ export const GET = withUserAuth(async (req, session) => {
     updatedAt: interest.updatedAt,
     recruiter: {
       id: interest.recruiter.id,
-      companyName: interest.recruiter.companyName,
+      companyName: interest.recruiter.company.name,
     },
     lastMessage: interest.directMessages[0] || null,
     messageCount: interest._count.directMessages,
