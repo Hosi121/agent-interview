@@ -54,42 +54,44 @@ export const POST = withUserAuth<RouteContext>(
       throw new ConflictError("既に連絡先が開示されています");
     }
 
-    if (interest.status !== "DECLINED") {
-      await prisma.interest.update({
-        where: { id: interestId },
-        data: { status: "DECLINED" },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      if (interest.status !== "DECLINED") {
+        await tx.interest.update({
+          where: { id: interestId },
+          data: { status: "DECLINED" },
+        });
+      }
 
-    if (preference === "DENY") {
-      await prisma.companyAccess.upsert({
-        where: {
-          userId_companyId: {
+      if (preference === "DENY") {
+        await tx.companyAccess.upsert({
+          where: {
+            userId_companyId: {
+              userId: interest.userId,
+              companyId: interest.recruiter.companyId,
+            },
+          },
+          create: {
             userId: interest.userId,
             companyId: interest.recruiter.companyId,
+            status: "DENY",
+          },
+          update: { status: "DENY" },
+        });
+      }
+
+      await tx.notification.create({
+        data: {
+          accountId: interest.recruiter.accountId,
+          type: "SYSTEM",
+          title: "連絡先開示が辞退されました",
+          body: `${interest.user.name}が連絡先開示を辞退しました`,
+          data: {
+            interestId,
+            recruiterId: interest.recruiterId,
+            userId: interest.userId,
           },
         },
-        create: {
-          userId: interest.userId,
-          companyId: interest.recruiter.companyId,
-          status: "DENY",
-        },
-        update: { status: "DENY" },
       });
-    }
-
-    await prisma.notification.create({
-      data: {
-        accountId: interest.recruiter.accountId,
-        type: "SYSTEM",
-        title: "連絡先開示が辞退されました",
-        body: `${interest.user.name}が連絡先開示を辞退しました`,
-        data: {
-          interestId,
-          recruiterId: interest.recruiterId,
-          userId: interest.userId,
-        },
-      },
     });
 
     return NextResponse.json({ status: "DECLINED" });
