@@ -153,10 +153,10 @@ export default function ApplicantLayout({
                     </div>
                   ) : (
                     <>
-                  {notifications.map((notification) => (
-                    <DropdownMenuItem
-                      key={notification.id}
-                      className="flex flex-col items-start gap-1 cursor-pointer"
+                      {notifications.map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          className="flex flex-col items-start gap-1 cursor-pointer"
                           onClick={() => {
                             if (notification.relatedInterest) {
                               router.push("/inbox");
@@ -164,18 +164,18 @@ export default function ApplicantLayout({
                           }}
                         >
                           <div className="flex items-center gap-2 w-full">
-                        <span className="font-medium text-sm truncate flex-1">
-                          {notification.title}
-                        </span>
-                        {!notification.isRead && (
-                          <span className="size-2 bg-primary rounded-full" />
-                        )}
-                      </div>
-                      <span className="text-xs text-muted-foreground line-clamp-1 text-pretty">
-                        {notification.message}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
+                            <span className="font-medium text-sm truncate flex-1">
+                              {notification.title}
+                            </span>
+                            {!notification.isRead && (
+                              <span className="size-2 bg-primary rounded-full" />
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground line-clamp-1 text-pretty">
+                            {notification.message}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="justify-center text-primary"

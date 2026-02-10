@@ -2,9 +2,8 @@
 
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import type * as React from "react";
-
-import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function AlertDialog({
   ...props
@@ -96,7 +95,10 @@ function AlertDialogTitle({
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn("text-lg leading-none font-semibold text-balance", className)}
+      className={cn(
+        "text-lg leading-none font-semibold text-balance",
+        className,
+      )}
       {...props}
     />
   );

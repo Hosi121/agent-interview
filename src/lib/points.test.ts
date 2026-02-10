@@ -210,7 +210,7 @@ describe("ポイント管理システム - 単体テスト", () => {
           pointBalance: 100,
         });
 
-        const result = await consumePoints("company-1", "CONVERSATION");
+        const _result = await consumePoints("company-1", "CONVERSATION");
         // 無料アクションのテストは別途必要（現在のコードでは対応していない）
       });
     });

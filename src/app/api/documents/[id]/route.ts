@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withUserAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
@@ -9,7 +9,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export const DELETE = withUserAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     const document = await prisma.document.findUnique({
       where: { id },

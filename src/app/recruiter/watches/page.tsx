@@ -1,10 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { type MouseEvent, useCallback, useEffect, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +12,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -295,7 +295,10 @@ export default function WatchesPage() {
                 {isCreating ? "作成中..." : "作成"}
               </Button>
               {createError && (
-                <p className="text-sm text-destructive text-pretty" role="alert">
+                <p
+                  className="text-sm text-destructive text-pretty"
+                  role="alert"
+                >
                   {createError}
                 </p>
               )}

@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";

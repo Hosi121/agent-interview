@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { RatingInput } from "./RatingInput";
 import { cn } from "@/lib/utils";
+import { RatingInput } from "./RatingInput";
 
 interface EvaluationData {
   overallRating: number;
@@ -93,9 +93,7 @@ export function EvaluationForm({
       )}
       {typeof matchScore === "number" && (
         <div className="p-3 bg-primary/10 rounded-lg">
-          <p className="text-sm font-medium text-balance">
-            AIマッチ度スコア
-          </p>
+          <p className="text-sm font-medium text-balance">AIマッチ度スコア</p>
           <p className="text-2xl font-bold text-primary tabular-nums">
             {matchScore}%
           </p>

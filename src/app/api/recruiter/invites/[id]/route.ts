@@ -11,7 +11,7 @@ interface RouteContext {
 
 export const PATCH = withRecruiterValidation(
   inviteUpdateSchema,
-  async (body, _req, session, context?: RouteContext) => {
+  async (body, _req, session, context: RouteContext) => {
     if (!session.user.recruiterId) {
       throw new ForbiddenError("採用担当者のみが利用できます");
     }
@@ -24,7 +24,7 @@ export const PATCH = withRecruiterValidation(
       throw new ForbiddenError("招待を更新する権限がありません");
     }
 
-    const params = await context?.params;
+    const params = await context.params;
     if (!params?.id) {
       throw new NotFoundError("招待が見つかりません");
     }

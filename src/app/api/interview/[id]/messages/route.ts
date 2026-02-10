@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
@@ -8,7 +8,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     const agent = await prisma.agentProfile.findUnique({
       where: { id },
@@ -84,7 +84,7 @@ export const GET = withRecruiterAuth<RouteContext>(
             type: fragment.type,
             content:
               fragment.content.length > 100
-                ? fragment.content.substring(0, 100) + "..."
+                ? `${fragment.content.substring(0, 100)}...`
                 : fragment.content,
             skills: fragment.skills,
           };

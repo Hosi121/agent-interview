@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withUserAuth } from "@/lib/api-utils";
 import { ValidationError } from "@/lib/errors";
 import { uploadFile } from "@/lib/minio";

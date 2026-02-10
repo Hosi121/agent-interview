@@ -100,7 +100,7 @@ export function PointPurchase({
               step={10}
               value={amount}
               onChange={(e) =>
-                setAmount(Math.max(10, parseInt(e.target.value) || 0))
+                setAmount(Math.max(10, parseInt(e.target.value, 10) || 0))
               }
               className="tabular-nums"
             />

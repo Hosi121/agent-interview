@@ -1,6 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
-import { handleError, withRecruiterAuth } from "@/lib/api-utils";
+import { withRecruiterAuth } from "@/lib/api-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
@@ -9,7 +9,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 // 求人詳細取得
 export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     const job = await prisma.jobPosting.findFirst({
       where: {
@@ -82,7 +82,7 @@ const jobUpdateSchema = z.object({
 // 求人更新
 export const PATCH = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
     const rawBody = await req.json();
     const parsed = jobUpdateSchema.safeParse(rawBody);
 
@@ -117,7 +117,7 @@ export const PATCH = withRecruiterAuth<RouteContext>(
 // 求人削除
 export const DELETE = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     const existingJob = await prisma.jobPosting.findFirst({
       where: {

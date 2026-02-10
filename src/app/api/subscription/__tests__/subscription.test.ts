@@ -70,7 +70,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
     describe("正常系", () => {
       it("認証済みユーザーのサブスクリプション情報を返す", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue({
@@ -97,7 +101,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("サブスクリプションがない場合、nullを返す", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue(null);
@@ -142,7 +150,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
     describe("正常系: 新規プラン選択", () => {
       it("新規ユーザーがLIGHTプランを選択すると100ポイントが付与される", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue(null);
@@ -180,7 +192,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("新規ユーザーがSTANDARDプランを選択すると300ポイントが付与される", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue(null);
@@ -216,7 +232,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("新規ユーザーがENTERPRISEプランを選択すると1000ポイントが付与される", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue(null);
@@ -254,7 +274,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
     describe("正常系: プラン変更", () => {
       it("既存ユーザーがプランをアップグレードできる", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue({
@@ -287,7 +311,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("既存ユーザーがプランをダウングレードできる", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue({
@@ -337,7 +365,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("無効なプランタイプの場合、400を返す", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         const { POST } = await import("../change/route");
@@ -358,7 +390,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("planTypeが指定されていない場合、400を返す", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         const { POST } = await import("../change/route");
@@ -381,7 +417,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
     describe("正常系", () => {
       it("100ポイントを購入できる", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue({
@@ -422,7 +462,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("プランに応じた単価で計算される（STANDARDは400円/pt）", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue({
@@ -479,7 +523,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("10ポイント未満の購入は400を返す", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         const { POST } = await import("../points/route");
@@ -500,7 +548,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("amountが数値でない場合、400を返す", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         const { POST } = await import("../points/route");
@@ -519,7 +571,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("サブスクリプションがない場合、402を返す", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         mockPrisma.subscription.findUnique.mockResolvedValue(null);
@@ -546,7 +602,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
     describe("正常系", () => {
       it("ポイント履歴を取得できる", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         const mockHistory = [
@@ -588,7 +648,11 @@ describe("サブスクリプションAPI - 結合テスト", () => {
 
       it("ページネーションパラメータが正しく渡される", async () => {
         mockGetServerSession.mockResolvedValue({
-          user: { recruiterId: "recruiter-1", companyId: "company-1", companyRole: "OWNER" },
+          user: {
+            recruiterId: "recruiter-1",
+            companyId: "company-1",
+            companyRole: "OWNER",
+          },
         });
 
         (getPointHistory as ReturnType<typeof vi.fn>).mockResolvedValue([]);

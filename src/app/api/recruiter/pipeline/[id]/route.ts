@@ -1,5 +1,5 @@
 import type { PipelineStage } from "@prisma/client";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const VALID_STAGES: PipelineStage[] = [
+const _VALID_STAGES: PipelineStage[] = [
   "INTERESTED",
   "CONTACTED",
   "SCREENING",
@@ -22,7 +22,7 @@ const VALID_STAGES: PipelineStage[] = [
 // パイプライン詳細取得
 export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     const pipeline = await prisma.candidatePipeline.findFirst({
       where: {
@@ -52,10 +52,7 @@ export const GET = withRecruiterAuth<RouteContext>(
     }
 
     if (
-      await isCompanyAccessDenied(
-        session.user.companyId,
-        pipeline.agent.userId,
-      )
+      await isCompanyAccessDenied(session.user.companyId, pipeline.agent.userId)
     ) {
       throw new ForbiddenError("アクセスが拒否されています");
     }
@@ -103,7 +100,7 @@ const updatePipelineSchema = z.object({
 // パイプラインステージ更新
 export const PATCH = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
     const rawBody = await req.json();
     const parsed = updatePipelineSchema.safeParse(rawBody);
 
@@ -186,7 +183,7 @@ export const PATCH = withRecruiterAuth<RouteContext>(
 // パイプラインから削除
 export const DELETE = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     const existingPipeline = await prisma.candidatePipeline.findFirst({
       where: {

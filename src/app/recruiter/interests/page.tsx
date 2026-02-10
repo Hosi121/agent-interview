@@ -329,7 +329,10 @@ export default function InterestsPage() {
                   )}
                 </div>
                 {requestErrors[interest.id] && (
-                  <p className="text-xs text-destructive text-pretty" role="alert">
+                  <p
+                    className="text-xs text-destructive text-pretty"
+                    role="alert"
+                  >
                     {requestErrors[interest.id]}
                   </p>
                 )}

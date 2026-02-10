@@ -16,8 +16,12 @@ const minioClient = new Minio.Client({
     : process.env.MINIO_ENDPOINT || "localhost",
   port: isS3 ? 443 : Number(process.env.MINIO_PORT) || 9000,
   useSSL: isS3,
-  accessKey: isS3 ? requireEnv("MINIO_ACCESS_KEY") : process.env.MINIO_ACCESS_KEY || "minioadmin",
-  secretKey: isS3 ? requireEnv("MINIO_SECRET_KEY") : process.env.MINIO_SECRET_KEY || "minioadmin",
+  accessKey: isS3
+    ? requireEnv("MINIO_ACCESS_KEY")
+    : process.env.MINIO_ACCESS_KEY || "minioadmin",
+  secretKey: isS3
+    ? requireEnv("MINIO_SECRET_KEY")
+    : process.env.MINIO_SECRET_KEY || "minioadmin",
   ...(isS3 && { region: process.env.AWS_REGION || "ap-northeast-1" }),
 });
 

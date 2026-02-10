@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { NotFoundError } from "@/lib/errors";
 import { calculateJobMatchScore } from "@/lib/matching";

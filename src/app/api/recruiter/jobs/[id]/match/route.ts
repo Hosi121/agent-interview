@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { NotFoundError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
@@ -91,7 +91,7 @@ function calculateExperienceMatch(
 // マッチング実行
 export const POST = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id: jobId } = await context!.params;
+    const { id: jobId } = await context.params;
 
     const job = await prisma.jobPosting.findFirst({
       where: {
@@ -230,7 +230,7 @@ export const POST = withRecruiterAuth<RouteContext>(
 // マッチ済み候補者一覧取得
 export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id: jobId } = await context!.params;
+    const { id: jobId } = await context.params;
     const searchParams = req.nextUrl.searchParams;
     const minScore = Number.parseFloat(searchParams.get("minScore") || "0");
 

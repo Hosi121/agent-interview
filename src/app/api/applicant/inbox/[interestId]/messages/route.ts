@@ -8,7 +8,7 @@ type RouteContext = { params: Promise<{ interestId: string }> };
 
 // メッセージ一覧取得
 export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
-  const { interestId } = await context!.params;
+  const { interestId } = await context.params;
 
   // 自分宛ての興味表明か確認
   const interest = await prisma.interest.findFirst({
@@ -62,7 +62,7 @@ const sendMessageSchema = z.object({
 // メッセージ送信
 export const POST = withUserAuth<RouteContext>(
   async (req, session, context) => {
-    const { interestId } = await context!.params;
+    const { interestId } = await context.params;
     const rawBody = await req.json();
     const parsed = sendMessageSchema.safeParse(rawBody);
 
