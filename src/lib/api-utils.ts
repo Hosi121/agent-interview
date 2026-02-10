@@ -1,4 +1,8 @@
-import type { AccountType, CompanyMemberStatus, CompanyRole } from "@prisma/client";
+import type {
+  AccountType,
+  CompanyMemberStatus,
+  CompanyRole,
+} from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import type { ZodError, ZodSchema } from "zod";
@@ -41,7 +45,7 @@ type RecruiterHandler<T = unknown> = (
   session: AuthenticatedSession & {
     user: { recruiterId: string; companyId: string };
   },
-  context?: T,
+  context: T,
 ) => Promise<NextResponse>;
 
 // Zodバリデーション付きの採用担当者用ハンドラーの型
@@ -51,14 +55,14 @@ type RecruiterValidatedHandler<TBody, TContext = unknown> = (
   session: AuthenticatedSession & {
     user: { recruiterId: string; companyId: string };
   },
-  context?: TContext,
+  context: TContext,
 ) => Promise<NextResponse>;
 
 // 認証済みユーザー用ハンドラーの型
 type UserHandler<T = unknown> = (
   req: NextRequest,
   session: AuthenticatedSession & { user: { userId: string } },
-  context?: T,
+  context: T,
 ) => Promise<NextResponse>;
 
 // Zodバリデーション付きのユーザー用ハンドラーの型
@@ -66,14 +70,14 @@ type UserValidatedHandler<TBody, TContext = unknown> = (
   body: TBody,
   req: NextRequest,
   session: AuthenticatedSession & { user: { userId: string } },
-  context?: TContext,
+  context: TContext,
 ) => Promise<NextResponse>;
 
 // 認証済み（どちらでも）用ハンドラーの型
 type AuthenticatedHandler<T = unknown> = (
   req: NextRequest,
   session: AuthenticatedSession,
-  context?: T,
+  context: T,
 ) => Promise<NextResponse>;
 
 // Zodバリデーション付きの認証ハンドラーの型
@@ -81,7 +85,7 @@ type AuthenticatedValidatedHandler<TBody, TContext = unknown> = (
   body: TBody,
   req: NextRequest,
   session: AuthenticatedSession,
-  context?: TContext,
+  context: TContext,
 ) => Promise<NextResponse>;
 
 /**
@@ -154,7 +158,10 @@ export function withRecruiterAuth<T = unknown>(
         throw new ForbiddenError("採用担当者権限が必要です");
       }
 
-      if (session.user.recruiterStatus && session.user.recruiterStatus !== "ACTIVE") {
+      if (
+        session.user.recruiterStatus &&
+        session.user.recruiterStatus !== "ACTIVE"
+      ) {
         throw new ForbiddenError("会社へのアクセス権が無効です");
       }
 
@@ -167,7 +174,7 @@ export function withRecruiterAuth<T = unknown>(
         session as unknown as AuthenticatedSession & {
           user: { recruiterId: string; companyId: string };
         },
-        context,
+        context as T,
       );
     } catch (error) {
       return handleError(error, req?.nextUrl?.pathname);
@@ -219,7 +226,7 @@ export function withUserAuth<T = unknown>(
         session as unknown as AuthenticatedSession & {
           user: { userId: string };
         },
-        context,
+        context as T,
       );
     } catch (error) {
       return handleError(error, req?.nextUrl?.pathname);
@@ -262,14 +269,17 @@ export function withAuth<T = unknown>(
         throw new UnauthorizedError();
       }
 
-      if (session.user.recruiterStatus && session.user.recruiterStatus !== "ACTIVE") {
+      if (
+        session.user.recruiterStatus &&
+        session.user.recruiterStatus !== "ACTIVE"
+      ) {
         throw new ForbiddenError("会社へのアクセス権が無効です");
       }
 
       return await handler(
         req,
         session as unknown as AuthenticatedSession,
-        context,
+        context as T,
       );
     } catch (error) {
       return handleError(error, req?.nextUrl?.pathname);
@@ -302,11 +312,11 @@ export function withAuthValidation<TBody, TContext = unknown>(
  * 認証不要のAPIルートのラッパー（エラーハンドリングのみ）
  */
 export function withErrorHandling<T = unknown>(
-  handler: (req: NextRequest, context?: T) => Promise<NextResponse>,
+  handler: (req: NextRequest, context: T) => Promise<NextResponse>,
 ): (req: NextRequest, context?: T) => Promise<NextResponse> {
   return async (req: NextRequest, context?: T) => {
     try {
-      return await handler(req, context);
+      return await handler(req, context as T);
     } catch (error) {
       return handleError(error, req?.nextUrl?.pathname);
     }
@@ -321,7 +331,7 @@ export function withValidation<TBody, TContext = unknown>(
   handler: (
     body: TBody,
     req: NextRequest,
-    context?: TContext,
+    context: TContext,
   ) => Promise<NextResponse>,
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return withErrorHandling(async (req, context) => {

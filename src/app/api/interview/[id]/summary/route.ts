@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
@@ -10,7 +10,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 // 会話の要約を生成
 export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     // エージェントの存在確認
     const agent = await prisma.agentProfile.findUnique({
@@ -115,7 +115,7 @@ ${conversationText}`,
       const snippets = referenceMessages.get(ref.refId) || [];
       const snippet =
         ref.message.content.length > 50
-          ? ref.message.content.slice(0, 50) + "..."
+          ? `${ref.message.content.slice(0, 50)}...`
           : ref.message.content;
       // Avoid duplicates
       if (!snippets.some((s) => s.messageId === ref.message.id)) {
@@ -138,7 +138,7 @@ ${conversationText}`,
         type: fragment.type,
         content:
           fragment.content.length > 160
-            ? fragment.content.slice(0, 160) + "..."
+            ? `${fragment.content.slice(0, 160)}...`
             : fragment.content,
         skills: fragment.skills,
         keywords: fragment.keywords,

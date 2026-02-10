@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withAuthValidation } from "@/lib/api-utils";
-import { createCompanyWithOwner, setupCompanyForRecruiter } from "@/lib/company";
+import {
+  createCompanyWithOwner,
+  setupCompanyForRecruiter,
+} from "@/lib/company";
 import { ForbiddenError } from "@/lib/errors";
 
 const createCompanySchema = z.object({

@@ -1,7 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
-import { handleError, withRecruiterAuth } from "@/lib/api-utils";
+import { withRecruiterAuth } from "@/lib/api-utils";
 import {
   ForbiddenError,
   InsufficientPointsError,
@@ -21,7 +21,7 @@ const chatSchema = z.object({
 
 export const POST = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
     const rawBody = await req.json();
     const parsed = chatSchema.safeParse(rawBody);
 
@@ -229,7 +229,7 @@ ${fragmentsContext || "（詳細な情報はまだ収集されていません）
       type: f.type,
       content:
         f.content.length > 100
-          ? f.content.substring(0, 100) + "..."
+          ? `${f.content.substring(0, 100)}...`
           : f.content,
       skills: f.skills,
     }));
@@ -249,7 +249,7 @@ ${fragmentsContext || "（詳細な情報はまだ収集されていません）
           answer: responseMessage,
           missingInfo: info,
         });
-      } catch (followError) {
+      } catch (_followError) {
         // フォローアップ質問の生成失敗は無視（メイン機能ではない）
       }
     }

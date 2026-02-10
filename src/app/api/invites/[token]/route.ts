@@ -9,8 +9,8 @@ interface RouteContext {
   params: Promise<{ token: string }>;
 }
 
-export const GET = withErrorHandling(async (_req, context?: RouteContext) => {
-  const params = await context?.params;
+export const GET = withErrorHandling<RouteContext>(async (_req, context) => {
+  const params = await context.params;
   if (!params?.token) {
     throw new NotFoundError("招待が見つかりません");
   }
@@ -53,8 +53,8 @@ export const GET = withErrorHandling(async (_req, context?: RouteContext) => {
 
 export const POST = withValidation(
   inviteAcceptSchema,
-  async (body, _req, context?: RouteContext) => {
-    const params = await context?.params;
+  async (body, _req, context: RouteContext) => {
+    const params = await context.params;
     if (!params?.token) {
       throw new NotFoundError("招待が見つかりません");
     }

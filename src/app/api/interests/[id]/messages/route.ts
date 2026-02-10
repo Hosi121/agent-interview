@@ -14,7 +14,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 // メッセージ一覧取得
 export const GET = withAuth<RouteContext>(async (req, session, context) => {
-  const { id: interestId } = await context!.params;
+  const { id: interestId } = await context.params;
 
   // 興味表明を取得してアクセス権限を確認
   const interest = await prisma.interest.findUnique({
@@ -72,7 +72,7 @@ const sendMessageSchema = z.object({
 
 // メッセージ送信（採用担当者のみ3pt消費、求職者は無料）
 export const POST = withAuth<RouteContext>(async (req, session, context) => {
-  const { id: interestId } = await context!.params;
+  const { id: interestId } = await context.params;
   const rawBody = await req.json();
   const parsed = sendMessageSchema.safeParse(rawBody);
 
@@ -129,9 +129,9 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
   }
 
   // 送信者IDを決定
-  const senderId = isRecruiter
-    ? session.user.recruiterId!
-    : session.user.userId!;
+  const senderId = (
+    isRecruiter ? session.user.recruiterId : session.user.userId
+  ) as string;
 
   // 相手の通知先
   const notificationAccountId = isRecruiter

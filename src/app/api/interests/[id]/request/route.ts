@@ -13,7 +13,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export const POST = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id: interestId } = await context!.params;
+    const { id: interestId } = await context.params;
 
     if (!session.user.companyId) {
       throw new ForbiddenError("会社に所属していません");

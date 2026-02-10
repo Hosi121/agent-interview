@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,14 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type {
-  InviteSummary,
-  MemberSummary,
-  MembersResponse,
-} from "@/lib/types/recruiter";
+import type { MemberSummary, MembersResponse } from "@/lib/types/recruiter";
 
 type Member = MemberSummary;
-type Invite = InviteSummary;
 
 const roleLabel: Record<Member["role"], string> = {
   OWNER: "オーナー",
@@ -52,7 +47,7 @@ export default function MemberManagementPage() {
     [data?.myRole],
   );
 
-  const fetchMembers = async () => {
+  const fetchMembers = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/recruiter/members");
@@ -65,11 +60,11 @@ export default function MemberManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchMembers();
-  }, []);
+  }, [fetchMembers]);
 
   const handleInvite = async () => {
     if (!email.trim()) {
@@ -108,7 +103,7 @@ export default function MemberManagementPage() {
     try {
       await navigator.clipboard.writeText(url);
       setMessage({ type: "success", text: "招待リンクをコピーしました" });
-    } catch (error) {
+    } catch (_error) {
       setMessage({ type: "error", text: "コピーに失敗しました" });
     }
   };

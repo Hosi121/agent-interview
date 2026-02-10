@@ -18,7 +18,7 @@ const approveSchema = z.object({
 
 export const POST = withUserAuth<RouteContext>(
   async (req, session, context) => {
-    const { interestId } = await context!.params;
+    const { interestId } = await context.params;
     const rawBody = await req.json().catch(() => ({}));
     const parsed = approveSchema.safeParse(rawBody);
 

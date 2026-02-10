@@ -1,4 +1,8 @@
-import type { AccountType, CompanyMemberStatus, CompanyRole } from "@prisma/client";
+import type {
+  AccountType,
+  CompanyMemberStatus,
+  CompanyRole,
+} from "@prisma/client";
 import "next-auth";
 
 declare module "next-auth" {

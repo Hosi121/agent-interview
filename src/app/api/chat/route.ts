@@ -1,5 +1,5 @@
 import { type FragmentType, SourceType } from "@prisma/client";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";

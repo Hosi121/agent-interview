@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -9,7 +9,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
     const jobId = req.nextUrl.searchParams.get("jobId");
 
     if (!jobId) {

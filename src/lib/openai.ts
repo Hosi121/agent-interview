@@ -58,12 +58,12 @@ JSON形式で返してください。`;
   const content = response.choices[0]?.message?.content || "{}";
 
   try {
-    const parsed = JSON.parse(content);
+    const parsed: Record<string, unknown> = JSON.parse(content);
 
     // ① 想定形 fragments/Fragments
     let rawFragments =
       (Array.isArray(parsed.fragments) && parsed.fragments) ||
-      (Array.isArray((parsed as any).Fragments) && (parsed as any).Fragments);
+      (Array.isArray(parsed.Fragments) && parsed.Fragments);
 
     // ② カテゴリ名をキーに持つオブジェクト（例: { FACT: [...], ACHIEVEMENT: [...] }）
     if (!rawFragments && parsed && typeof parsed === "object") {
@@ -82,9 +82,12 @@ JSON形式で返してください。`;
       );
       if (candidateKeys.length > 0) {
         rawFragments = candidateKeys.flatMap((k) => {
-          const arr = (parsed as any)[k];
+          const arr = parsed[k];
           return Array.isArray(arr)
-            ? arr.map((item: any) => ({ ...(item || {}), Category: k }))
+            ? arr.map((item: Record<string, unknown>) => ({
+                ...(item || {}),
+                Category: k,
+              }))
             : [];
         });
       }
@@ -95,35 +98,38 @@ JSON形式で返してください。`;
     }
 
     // FragmentType列挙に合わせた型名へ変換（未知は FACT にフォールバック）
-    const normalizedFragments = rawFragments.map((f: any) => ({
-      type: String(
-        f.type || f.Type || f.Category || f.category || "FACT",
-      ).toUpperCase(),
-      content:
-        f.content ||
-        f.Content ||
-        f.Detail ||
-        f.description ||
-        f.Description ||
-        "",
-      skills: Array.isArray(f.skills)
-        ? f.skills
-        : f.Related_Skill
-          ? [f.Related_Skill]
-          : f.related_skills && Array.isArray(f.related_skills)
-            ? f.related_skills
-            : [],
-      keywords: Array.isArray(f.keywords)
-        ? f.keywords
-        : Array.isArray(f.Keywords)
-          ? f.Keywords
-          : f.key_words && Array.isArray(f.key_words)
-            ? f.key_words
-            : [],
-    }));
+    const normalizedFragments = rawFragments.map(
+      (f: Record<string, unknown>) => ({
+        type: String(
+          f.type || f.Type || f.Category || f.category || "FACT",
+        ).toUpperCase(),
+        content: String(
+          f.content ||
+            f.Content ||
+            f.Detail ||
+            f.description ||
+            f.Description ||
+            "",
+        ),
+        skills: Array.isArray(f.skills)
+          ? f.skills
+          : f.Related_Skill
+            ? [f.Related_Skill]
+            : f.related_skills && Array.isArray(f.related_skills)
+              ? f.related_skills
+              : [],
+        keywords: Array.isArray(f.keywords)
+          ? f.keywords
+          : Array.isArray(f.Keywords)
+            ? f.Keywords
+            : f.key_words && Array.isArray(f.key_words)
+              ? f.key_words
+              : [],
+      }),
+    );
 
     return { fragments: normalizedFragments };
-  } catch (error) {
+  } catch (_error) {
     // 失敗時は空の結果を返してAPIを落とさない
     return { fragments: [] };
   }

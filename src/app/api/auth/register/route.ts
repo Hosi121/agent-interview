@@ -45,7 +45,8 @@ export const POST = withValidation(registerSchema, async (body, req) => {
 
   if (accountType === "RECRUITER") {
     // 採用担当者 + 会社を同時作成
-    const slug = await generateUniqueSlug(companyName!);
+    const validatedCompanyName = companyName as string;
+    const slug = await generateUniqueSlug(validatedCompanyName);
 
     const result = await prisma.$transaction(async (tx) => {
       // アカウント作成
@@ -60,7 +61,7 @@ export const POST = withValidation(registerSchema, async (body, req) => {
       // 会社作成
       const company = await tx.company.create({
         data: {
-          name: companyName!,
+          name: validatedCompanyName,
           slug,
           createdByAccountId: account.id,
         },

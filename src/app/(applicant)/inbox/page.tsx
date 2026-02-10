@@ -1,7 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,16 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -403,9 +403,7 @@ export default function InboxPage() {
                           className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
                         >
                           <option value="NONE">今回のみ</option>
-                          <option value="ALLOW">
-                            今後この企業は自動許可
-                          </option>
+                          <option value="ALLOW">今後この企業は自動許可</option>
                           <option value="DENY">今後この企業は自動拒否</option>
                         </select>
                         <Button
@@ -529,7 +527,10 @@ export default function InboxPage() {
                 </Button>
               </div>
               {messageError && (
-                <p className="text-xs text-destructive text-pretty" role="alert">
+                <p
+                  className="text-xs text-destructive text-pretty"
+                  role="alert"
+                >
                   {messageError}
                 </p>
               )}

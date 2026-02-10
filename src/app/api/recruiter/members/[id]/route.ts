@@ -11,7 +11,7 @@ interface RouteContext {
 
 export const PATCH = withRecruiterValidation(
   memberUpdateSchema,
-  async (body, _req, session, context?: RouteContext) => {
+  async (body, _req, session, context: RouteContext) => {
     if (!session.user.recruiterId || !session.user.accountId) {
       throw new ForbiddenError("採用担当者のみが利用できます");
     }
@@ -24,7 +24,7 @@ export const PATCH = withRecruiterValidation(
       throw new ForbiddenError("メンバーを更新する権限がありません");
     }
 
-    const params = await context?.params;
+    const params = await context.params;
     if (!params?.id) {
       throw new NotFoundError("メンバーが見つかりません");
     }
@@ -65,8 +65,8 @@ export const PATCH = withRecruiterValidation(
   },
 );
 
-export const DELETE = withRecruiterAuth(
-  async (_req, session, context?: RouteContext) => {
+export const DELETE = withRecruiterAuth<RouteContext>(
+  async (_req, session, context) => {
     if (!session.user.recruiterId || !session.user.accountId) {
       throw new ForbiddenError("採用担当者のみが利用できます");
     }
@@ -79,7 +79,7 @@ export const DELETE = withRecruiterAuth(
       throw new ForbiddenError("メンバーを削除する権限がありません");
     }
 
-    const params = await context?.params;
+    const params = await context.params;
     if (!params?.id) {
       throw new NotFoundError("メンバーが見つかりません");
     }

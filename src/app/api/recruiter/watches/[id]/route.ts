@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -9,7 +9,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 // ウォッチリスト詳細取得（通知一覧含む）
 export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     const watch = await prisma.candidateWatch.findFirst({
       where: {
@@ -69,7 +69,7 @@ const updateWatchSchema = z.object({
 // ウォッチリスト更新
 export const PATCH = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
     const rawBody = await req.json();
     const parsed = updateWatchSchema.safeParse(rawBody);
 
@@ -104,7 +104,7 @@ export const PATCH = withRecruiterAuth<RouteContext>(
 // ウォッチリスト削除
 export const DELETE = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id } = await context!.params;
+    const { id } = await context.params;
 
     const existingWatch = await prisma.candidateWatch.findFirst({
       where: {

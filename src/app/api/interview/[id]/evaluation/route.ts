@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
@@ -10,7 +10,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id: agentId } = await context!.params;
+    const { id: agentId } = await context.params;
 
     const agent = await prisma.agentProfile.findUnique({
       where: { id: agentId },
@@ -60,7 +60,7 @@ const evaluationSchema = z.object({
 
 export const POST = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
-    const { id: agentId } = await context!.params;
+    const { id: agentId } = await context.params;
     const rawBody = await req.json();
     const parsed = evaluationSchema.safeParse(rawBody);
 
