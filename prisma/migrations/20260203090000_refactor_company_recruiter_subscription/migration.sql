@@ -29,14 +29,14 @@ WHERE r."accountId" = cm."accountId"
   AND r."companyId" = cm."companyId";
 
 -- 3) For recruiters still missing companyId, create companies from legacy companyName
-WITH new_companies AS (
+CREATE TEMPORARY TABLE _new_companies AS
   SELECT
     r.id AS recruiter_id,
     md5(random()::text || clock_timestamp()::text) AS company_id,
     r."companyName" AS name
   FROM "Recruiter" r
-  WHERE r."companyId" IS NULL
-)
+  WHERE r."companyId" IS NULL;
+
 INSERT INTO "Company" (id, name, slug, "createdAt", "updatedAt")
 SELECT
   nc.company_id,
@@ -44,12 +44,14 @@ SELECT
   'migrated-' || nc.company_id,
   CURRENT_TIMESTAMP,
   CURRENT_TIMESTAMP
-FROM new_companies nc;
+FROM _new_companies nc;
 
 UPDATE "Recruiter" r
 SET "companyId" = nc.company_id
-FROM new_companies nc
+FROM _new_companies nc
 WHERE r.id = nc.recruiter_id;
+
+DROP TABLE _new_companies;
 
 -- 4) Drop legacy companyName and enforce companyId required
 ALTER TABLE "Recruiter" DROP COLUMN "companyName";
