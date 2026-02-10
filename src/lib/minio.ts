@@ -2,14 +2,22 @@ import * as Minio from "minio";
 
 const isS3 = process.env.STORAGE_PROVIDER === "s3";
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required when STORAGE_PROVIDER=s3`);
+  }
+  return value;
+}
+
 const minioClient = new Minio.Client({
   endPoint: isS3
     ? "s3.amazonaws.com"
     : process.env.MINIO_ENDPOINT || "localhost",
   port: isS3 ? 443 : Number(process.env.MINIO_PORT) || 9000,
   useSSL: isS3,
-  accessKey: process.env.MINIO_ACCESS_KEY || (isS3 ? (() => { throw new Error("MINIO_ACCESS_KEY is required when STORAGE_PROVIDER=s3"); })() : "minioadmin"),
-  secretKey: process.env.MINIO_SECRET_KEY || (isS3 ? (() => { throw new Error("MINIO_SECRET_KEY is required when STORAGE_PROVIDER=s3"); })() : "minioadmin"),
+  accessKey: isS3 ? requireEnv("MINIO_ACCESS_KEY") : process.env.MINIO_ACCESS_KEY || "minioadmin",
+  secretKey: isS3 ? requireEnv("MINIO_SECRET_KEY") : process.env.MINIO_SECRET_KEY || "minioadmin",
   ...(isS3 && { region: process.env.AWS_REGION || "ap-northeast-1" }),
 });
 
