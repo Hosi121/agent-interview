@@ -1,0 +1,15 @@
+# Environment configuration
+# Copy this file and fill in the values:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# Or use the pre-configured environment files:
+#   terraform plan -var-file=../environments/staging.tfvars
+#   terraform plan -var-file=../environments/production.tfvars
+
+environment = "staging"
+host_header = "metalk-staging.raim-tech.com"
+nextauth_url = "https://metalk-staging.raim-tech.com"
+
+# These will be set as placeholders and should be updated in SSM after apply
+# openai_api_key    = "sk-..."
+# stripe_secret_key = "sk_test_..."

@@ -1,0 +1,5 @@
+environment       = "staging"
+host_header       = "metalk-staging.raim-tech.com"
+nextauth_url      = "https://metalk-staging.raim-tech.com"
+openai_api_key    = "placeholder"
+stripe_secret_key = "placeholder"

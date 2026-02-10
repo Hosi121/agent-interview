@@ -1,0 +1,89 @@
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+
+  common_tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+################################################################################
+# CloudFront Distribution (ALB Origin)
+################################################################################
+
+resource "aws_cloudfront_distribution" "main" {
+  enabled = true
+
+  origin {
+    domain_name = var.alb_dns_name
+    origin_id   = "alb"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+
+    custom_header {
+      name  = "Host"
+      value = var.host_header
+    }
+  }
+
+  # Default behavior: no cache (dynamic content)
+  default_cache_behavior {
+    target_origin_id       = "alb"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods         = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = true
+      headers      = ["Host", "Origin", "Authorization"]
+
+      cookies {
+        forward = "all"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
+  }
+
+  # Static assets: cache 1 year
+  ordered_cache_behavior {
+    path_pattern           = "/_next/static/*"
+    target_origin_id       = "alb"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 31536000
+    default_ttl = 31536000
+    max_ttl     = 31536000
+    compress    = true
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = local.common_tags
+}
