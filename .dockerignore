@@ -1,0 +1,35 @@
+node_modules
+.next
+.git
+.gitignore
+
+# Environment files
+.env
+.env.*
+.env.example
+
+# Test files
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+vitest.config.*
+coverage
+
+# Editor & OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Docs
+docs
+*.md
+!README.md
+
+# Dev tools
+biome.json
+lefthook.yml
+.github
