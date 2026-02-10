@@ -13,6 +13,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+ENV OPENAI_API_KEY="sk-placeholder"
+ENV STRIPE_SECRET_KEY="sk_test_placeholder"
+ENV NEXTAUTH_SECRET="placeholder"
+ENV NEXTAUTH_URL="http://localhost:3000"
 RUN npx prisma generate
 RUN npm run build
 
