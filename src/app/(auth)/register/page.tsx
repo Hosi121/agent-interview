@@ -97,7 +97,7 @@ function RegisterForm() {
     }
   };
 
-  const CommonFields = () => (
+  const commonFields = (
     <>
       <div className="space-y-2">
         <label className="text-sm font-medium">メールアドレス</label>
@@ -159,7 +159,7 @@ function RegisterForm() {
             </TabsList>
 
             <TabsContent value="user" className="space-y-4 mt-4">
-              <CommonFields />
+              {commonFields}
               <Button
                 onClick={() => handleRegister("USER")}
                 className="w-full"
@@ -174,7 +174,7 @@ function RegisterForm() {
             </TabsContent>
 
             <TabsContent value="recruiter" className="space-y-4 mt-4">
-              <CommonFields />
+              {commonFields}
               <div className="space-y-2">
                 <label className="text-sm font-medium">会社名</label>
                 <Input
