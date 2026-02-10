@@ -25,11 +25,6 @@ resource "aws_cloudfront_distribution" "main" {
       origin_protocol_policy = "http-only"
       origin_ssl_protocols   = ["TLSv1.2"]
     }
-
-    custom_header {
-      name  = "Host"
-      value = var.host_header
-    }
   }
 
   # Default behavior: no cache (dynamic content)

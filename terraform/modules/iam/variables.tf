@@ -26,6 +26,12 @@ variable "create_ecs_roles" {
   default     = true
 }
 
+variable "create_s3_access" {
+  description = "Whether to create S3 access resources (ECS task policy + IAM user)"
+  type        = bool
+  default     = false
+}
+
 variable "s3_bucket_arn" {
   description = "ARN of the S3 bucket for ECS task and user access"
   type        = string

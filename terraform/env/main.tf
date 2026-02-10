@@ -10,9 +10,10 @@ locals {
 data "terraform_remote_state" "shared" {
   backend = "s3"
   config = {
-    bucket = "metalk-terraform-state"
-    key    = "shared/terraform.tfstate"
-    region = "ap-northeast-1"
+    bucket  = "metalk-terraform-state"
+    key     = "shared/terraform.tfstate"
+    region  = "ap-northeast-1"
+    profile = "metalk"
   }
 }
 
@@ -73,6 +74,7 @@ module "iam" {
   project_name         = var.project_name
   environment          = var.environment
   create_github_oidc   = false
+  create_s3_access     = true
   s3_bucket_arn        = module.s3.bucket_arn
   ssm_parameter_prefix = "/metalk/${var.environment}"
 }

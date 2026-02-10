@@ -107,7 +107,7 @@ resource "aws_iam_role" "ecs_task" {
 }
 
 data "aws_iam_policy_document" "ecs_task_s3" {
-  count = (var.create_ecs_roles && var.s3_bucket_arn != "") ? 1 : 0
+  count = (var.create_ecs_roles && var.create_s3_access) ? 1 : 0
 
   statement {
     sid = "S3Access"
@@ -125,7 +125,7 @@ data "aws_iam_policy_document" "ecs_task_s3" {
 }
 
 resource "aws_iam_role_policy" "ecs_task_s3" {
-  count = (var.create_ecs_roles && var.s3_bucket_arn != "") ? 1 : 0
+  count = (var.create_ecs_roles && var.create_s3_access) ? 1 : 0
 
   name   = "${local.name_prefix}-ecs-task-s3"
   role   = aws_iam_role.ecs_task[0].id
@@ -137,7 +137,7 @@ resource "aws_iam_role_policy" "ecs_task_s3" {
 ################################################################################
 
 resource "aws_iam_user" "s3_access" {
-  count = var.s3_bucket_arn != "" ? 1 : 0
+  count = var.create_s3_access ? 1 : 0
 
   name = "${local.name_prefix}-s3-access"
 
@@ -147,13 +147,13 @@ resource "aws_iam_user" "s3_access" {
 }
 
 resource "aws_iam_access_key" "s3_access" {
-  count = var.s3_bucket_arn != "" ? 1 : 0
+  count = var.create_s3_access ? 1 : 0
 
   user = aws_iam_user.s3_access[0].name
 }
 
 data "aws_iam_policy_document" "s3_access_user" {
-  count = var.s3_bucket_arn != "" ? 1 : 0
+  count = var.create_s3_access ? 1 : 0
 
   statement {
     sid = "S3BucketAccess"
@@ -171,7 +171,7 @@ data "aws_iam_policy_document" "s3_access_user" {
 }
 
 resource "aws_iam_user_policy" "s3_access" {
-  count = var.s3_bucket_arn != "" ? 1 : 0
+  count = var.create_s3_access ? 1 : 0
 
   name   = "${local.name_prefix}-s3-access"
   user   = aws_iam_user.s3_access[0].name
