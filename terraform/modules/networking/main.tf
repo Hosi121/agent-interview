@@ -109,6 +109,74 @@ resource "aws_route_table_association" "public_1c" {
 }
 
 ################################################################################
+# NAT Gateway (single AZ — Lambda のインターネットアクセス用)
+################################################################################
+
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-nat-eip"
+  })
+}
+
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public_1a.id
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-nat"
+  })
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+################################################################################
+# Route Table (Private)
+################################################################################
+
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-private-rt"
+  })
+}
+
+resource "aws_route_table_association" "private_1a" {
+  subnet_id      = aws_subnet.private_1a.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_1c" {
+  subnet_id      = aws_subnet.private_1c.id
+  route_table_id = aws_route_table.private.id
+}
+
+################################################################################
+# S3 VPC Gateway Endpoint (NAT Gateway 経由の S3 トラフィック節約)
+################################################################################
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id       = aws_vpc.main.id
+  service_name = "com.amazonaws.ap-northeast-1.s3"
+
+  route_table_ids = [
+    aws_route_table.public.id,
+    aws_route_table.private.id,
+  ]
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-s3-endpoint"
+  })
+}
+
+################################################################################
 # DB Subnet Group
 ################################################################################
 

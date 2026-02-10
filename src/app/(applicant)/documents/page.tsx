@@ -1,6 +1,12 @@
 "use client";
 
-import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,16 +35,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+
+type AnalysisStatus = "PENDING" | "ANALYZING" | "COMPLETED" | "FAILED";
 
 interface Document {
   id: string;
   fileName: string;
   summary: string | null;
+  analysisStatus: AnalysisStatus;
+  analysisError: string | null;
+  analyzedAt: string | null;
   createdAt: string;
 }
-
-type AnalyzingState = { [key: string]: boolean };
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -46,13 +54,10 @@ export default function DocumentsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [analyzing, setAnalyzing] = useState<AnalyzingState>({});
-  const [analysisStatus, setAnalysisStatus] = useState<
-    Record<string, { type: "success" | "error"; message: string }>
-  >({});
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -71,6 +76,29 @@ export default function DocumentsPage() {
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
+
+  // ANALYZING 状態のドキュメントがある間、3秒ごとにポーリング
+  useEffect(() => {
+    const hasAnalyzing = documents.some(
+      (doc) => doc.analysisStatus === "ANALYZING",
+    );
+
+    if (hasAnalyzing && !pollingRef.current) {
+      pollingRef.current = setInterval(() => {
+        fetchDocuments();
+      }, 3000);
+    } else if (!hasAnalyzing && pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [documents, fetchDocuments]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,13 +155,6 @@ export default function DocumentsPage() {
   };
 
   const handleAnalyze = async (id: string) => {
-    setAnalyzing((prev) => ({ ...prev, [id]: true }));
-    setAnalysisStatus((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-
     try {
       const response = await fetch(`/api/documents/${id}/analyze`, {
         method: "POST",
@@ -141,30 +162,51 @@ export default function DocumentsPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "解析に失敗しました");
+        throw new Error(data.error || "解析の開始に失敗しました");
       }
 
-      const data = await response.json();
-      setAnalysisStatus((prev) => ({
-        ...prev,
-        [id]: {
-          type: "success",
-          message: `${data.fragmentsCount}件の記憶のかけらを抽出しました`,
-        },
-      }));
+      // サーバーから最新状態を取得（ANALYZING に遷移済み）
       await fetchDocuments();
     } catch (error) {
       console.error("Analyze error:", error);
-      setAnalysisStatus((prev) => ({
-        ...prev,
-        [id]: {
-          type: "error",
-          message:
-            error instanceof Error ? error.message : "解析に失敗しました",
-        },
-      }));
-    } finally {
-      setAnalyzing((prev) => ({ ...prev, [id]: false }));
+      // エラー時もサーバー側の最新状態を反映
+      await fetchDocuments();
+    }
+  };
+
+  const renderStatusBadge = (doc: Document) => {
+    switch (doc.analysisStatus) {
+      case "ANALYZING":
+        return (
+          <Badge variant="secondary" className="animate-pulse">
+            解析中...
+          </Badge>
+        );
+      case "COMPLETED":
+        return <Badge variant="secondary">解析済み</Badge>;
+      case "FAILED":
+        return (
+          <div className="flex items-center gap-2">
+            <Badge variant="destructive">エラー</Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleAnalyze(doc.id)}
+            >
+              再試行
+            </Button>
+          </div>
+        );
+      default:
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleAnalyze(doc.id)}
+          >
+            解析する
+          </Button>
+        );
     }
   };
 
@@ -293,18 +335,7 @@ export default function DocumentsPage() {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <div className="flex items-center gap-2">
-                      {doc.summary ? (
-                        <Badge variant="secondary">解析済み</Badge>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAnalyze(doc.id)}
-                          disabled={analyzing[doc.id]}
-                        >
-                          {analyzing[doc.id] ? "解析中..." : "解析する"}
-                        </Button>
-                      )}
+                      {renderStatusBadge(doc)}
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -329,21 +360,12 @@ export default function DocumentsPage() {
                         </svg>
                       </Button>
                     </div>
-                    {analysisStatus[doc.id] && (
+                    {doc.analysisStatus === "FAILED" && doc.analysisError && (
                       <p
-                        className={cn(
-                          "text-xs text-pretty tabular-nums",
-                          analysisStatus[doc.id].type === "error"
-                            ? "text-destructive"
-                            : "text-primary",
-                        )}
-                        role={
-                          analysisStatus[doc.id].type === "error"
-                            ? "alert"
-                            : undefined
-                        }
+                        className="text-xs text-destructive text-pretty tabular-nums"
+                        role="alert"
                       >
-                        {analysisStatus[doc.id].message}
+                        {doc.analysisError}
                       </p>
                     )}
                   </div>

@@ -7,6 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum AnalysisStatus {
+  PENDING
+  ANALYZING
+  COMPLETED
+  FAILED
+}
+
 enum AccountType {
   USER
   RECRUITER
@@ -165,13 +172,16 @@ model Invite {
 }
 
 model Document {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  fileName  String
-  filePath  String
-  summary   String?
-  createdAt DateTime @default(now())
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  fileName        String
+  filePath        String
+  summary         String?
+  analysisStatus  AnalysisStatus @default(PENDING)
+  analysisError   String?
+  analyzedAt      DateTime?
+  createdAt       DateTime       @default(now())
 }
 
 model Experience {

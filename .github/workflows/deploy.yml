@@ -75,6 +75,32 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.ENVIRONMENT }}-latest
 
+      - name: Build and push Lambda image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          LAMBDA_ECR_REPOSITORY: ${{ vars.LAMBDA_ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:$IMAGE_TAG \
+            -f lambda/document-analysis/Dockerfile .
+          docker tag $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:latest
+
+      - name: Update Lambda function
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          LAMBDA_ECR_REPOSITORY: ${{ vars.LAMBDA_ECR_REPOSITORY }}
+          LAMBDA_FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          aws lambda update-function-code \
+            --function-name $LAMBDA_FUNCTION_NAME \
+            --image-uri $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:$IMAGE_TAG
+          aws lambda wait function-updated \
+            --function-name $LAMBDA_FUNCTION_NAME
+
       - name: Run database migration
         env:
           MIGRATION_TASK_DEF: ${{ vars.MIGRATION_TASK_DEFINITION }}

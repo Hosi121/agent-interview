@@ -59,6 +59,7 @@ resource "aws_ecs_task_definition" "app" {
         { name = "AWS_REGION", valueFrom = "${local.ssm_prefix}/aws-region" },
         { name = "OPENAI_API_KEY", valueFrom = "${local.ssm_prefix}/openai-api-key" },
         { name = "STRIPE_SECRET_KEY", valueFrom = "${local.ssm_prefix}/stripe-secret-key" },
+        { name = "DOCUMENT_ANALYSIS_LAMBDA_ARN", valueFrom = "${local.ssm_prefix}/document-analysis-lambda-arn" },
       ]
 
       logConfiguration = {

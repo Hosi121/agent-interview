@@ -79,6 +79,41 @@ module "iam" {
   ssm_parameter_prefix = "/metalk/${var.environment}"
 }
 
+# --- Lambda (Document Analysis) ---
+module "lambda" {
+  source = "../modules/lambda"
+
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_id                = data.terraform_remote_state.shared.outputs.vpc_id
+  private_subnet_ids    = data.terraform_remote_state.shared.outputs.private_subnet_ids
+  rds_security_group_id = module.security_groups.rds_security_group_id
+  s3_bucket_arn         = module.s3.bucket_arn
+  database_url          = module.rds.database_url
+  minio_access_key      = module.iam.s3_access_key_id
+  minio_secret_key      = module.iam.s3_secret_access_key
+  minio_bucket_name     = module.s3.bucket_name
+  openai_api_key        = var.openai_api_key
+}
+
+# ECS タスクロールに Lambda invoke 権限を追加（循環依存回避のためモジュール外で定義）
+resource "aws_iam_role_policy" "ecs_task_lambda_invoke" {
+  name = "${local.name_prefix}-ecs-task-lambda-invoke"
+  role = module.iam.ecs_task_role_id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "LambdaInvoke"
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = [module.lambda.lambda_function_arn]
+      }
+    ]
+  })
+}
+
 # --- SSM Parameter Store ---
 resource "random_password" "nextauth_secret" {
   length  = 64
@@ -96,8 +131,9 @@ module "ssm" {
   minio_access_key = module.iam.s3_access_key_id
   minio_secret_key = module.iam.s3_secret_access_key
   minio_bucket_name = module.s3.bucket_name
-  openai_api_key    = var.openai_api_key
-  stripe_secret_key = var.stripe_secret_key
+  openai_api_key               = var.openai_api_key
+  stripe_secret_key            = var.stripe_secret_key
+  document_analysis_lambda_arn = module.lambda.lambda_function_arn
 }
 
 # --- ECS ---

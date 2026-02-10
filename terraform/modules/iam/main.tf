@@ -132,6 +132,7 @@ resource "aws_iam_role_policy" "ecs_task_s3" {
   policy = data.aws_iam_policy_document.ecs_task_s3[0].json
 }
 
+
 ################################################################################
 # S3 Access IAM User (for MinIO SDK)
 ################################################################################

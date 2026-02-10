@@ -311,56 +311,78 @@ export async function extractTextFromPdfWithVision(
 
   // 最大10ページまで処理（コスト制限）
   const maxPages = Math.min(pages.length, 10);
-  const extractedTexts: string[] = [];
+  const pagesToProcess = pages.slice(0, maxPages);
 
-  for (let i = 0; i < maxPages; i++) {
-    const base64Image = pages[i].toString("base64");
+  // 並行数制限付きで Vision API を並列呼び出し
+  const CONCURRENCY = 5;
+  const extractedTexts: (string | null)[] = new Array(
+    pagesToProcess.length,
+  ).fill(null);
 
-    const imageContent: ChatCompletionContentPart = {
-      type: "image_url",
-      image_url: {
-        url: `data:image/png;base64,${base64Image}`,
-        detail: "high",
-      },
-    };
+  for (
+    let batchStart = 0;
+    batchStart < pagesToProcess.length;
+    batchStart += CONCURRENCY
+  ) {
+    const batch = pagesToProcess.slice(batchStart, batchStart + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (page, batchIndex) => {
+        const pageIndex = batchStart + batchIndex;
+        const base64Image = page.toString("base64");
 
-    const messages: ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content: `あなたはOCRアシスタントです。画像内のすべてのテキストを正確に抽出してください。
+        const imageContent: ChatCompletionContentPart = {
+          type: "image_url",
+          image_url: {
+            url: `data:image/png;base64,${base64Image}`,
+            detail: "high",
+          },
+        };
+
+        const messages: ChatCompletionMessageParam[] = [
+          {
+            role: "system",
+            content: `あなたはOCRアシスタントです。画像内のすべてのテキストを正確に抽出してください。
 レイアウトや構造を可能な限り保持し、表がある場合はMarkdown形式で表現してください。
 テキストのみを出力し、説明や解釈は加えないでください。`,
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: `このページ（${i + 1}/${pages.length}ページ）のテキストを抽出してください。`,
           },
-          imageContent,
-        ],
-      },
-    ];
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `このページ（${pageIndex + 1}/${pages.length}ページ）のテキストを抽出してください。`,
+              },
+              imageContent,
+            ],
+          },
+        ];
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages,
-      max_tokens: 4000,
-      temperature: 0.1,
-    });
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages,
+          max_tokens: 4000,
+          temperature: 0.1,
+        });
 
-    const pageText = response.choices[0]?.message?.content || "";
-    if (pageText.trim()) {
-      extractedTexts.push(`--- ページ ${i + 1} ---\n${pageText}`);
+        return { pageIndex, text: response.choices[0]?.message?.content || "" };
+      }),
+    );
+
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value.text.trim()) {
+        extractedTexts[result.value.pageIndex] =
+          `--- ページ ${result.value.pageIndex + 1} ---\n${result.value.text}`;
+      }
     }
   }
 
+  const validTexts = extractedTexts.filter((t): t is string => t !== null);
+
   if (pages.length > maxPages) {
-    extractedTexts.push(
+    validTexts.push(
       `\n(注: ${pages.length}ページ中、最初の${maxPages}ページのみ処理しました)`,
     );
   }
 
-  return extractedTexts.join("\n\n");
+  return validTexts.join("\n\n");
 }

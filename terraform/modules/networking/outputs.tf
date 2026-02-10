@@ -23,3 +23,8 @@ output "db_subnet_group_name" {
   description = "Name of the DB subnet group"
   value       = aws_db_subnet_group.main.name
 }
+
+output "nat_gateway_id" {
+  description = "ID of the NAT Gateway"
+  value       = aws_nat_gateway.main.id
+}

@@ -76,7 +76,20 @@ data "aws_iam_policy_document" "github_actions" {
       "ecr:UploadLayerPart",
       "ecr:CompleteLayerUpload",
     ]
-    resources = [var.ecr_repository_arn]
+    resources = compact([var.ecr_repository_arn, var.lambda_ecr_repository_arn])
+  }
+
+  dynamic "statement" {
+    for_each = var.lambda_function_arn != "" ? [1] : []
+    content {
+      sid = "LambdaUpdate"
+      actions = [
+        "lambda:UpdateFunctionCode",
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+      ]
+      resources = [var.lambda_function_arn]
+    }
   }
 
   statement {
