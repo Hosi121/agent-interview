@@ -76,6 +76,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.ENVIRONMENT }}-latest
 
       - name: Build and push Lambda image
+        if: vars.LAMBDA_ECR_REPOSITORY != ''
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
           LAMBDA_ECR_REPOSITORY: ${{ vars.LAMBDA_ECR_REPOSITORY }}
@@ -89,6 +90,7 @@ jobs:
           docker push $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:latest
 
       - name: Update Lambda function
+        if: vars.LAMBDA_FUNCTION_NAME != ''
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
           LAMBDA_ECR_REPOSITORY: ${{ vars.LAMBDA_ECR_REPOSITORY }}
