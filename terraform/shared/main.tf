@@ -40,15 +40,24 @@ module "ecr" {
   project_name = var.project_name
 }
 
+# --- Lambda ECR (参照のみ — env レイヤーで作成済み) ---
+data "aws_ecr_repository" "lambda" {
+  name = "${var.project_name}-lambda-document-analysis"
+}
+
 # --- IAM (GitHub OIDC) ---
 module "iam" {
   source = "../modules/iam"
 
-  project_name         = var.project_name
-  environment          = "shared"
-  create_github_oidc   = true
-  create_ecs_roles     = false
-  github_repository    = var.github_repository
-  ecr_repository_arn   = module.ecr.repository_arn
-  ssm_parameter_prefix = "/metalk"
+  project_name             = var.project_name
+  environment              = "shared"
+  create_github_oidc       = true
+  create_ecs_roles         = false
+  github_repository        = var.github_repository
+  ecr_repository_arn       = module.ecr.repository_arn
+  lambda_ecr_repository_arn = data.aws_ecr_repository.lambda.arn
+  lambda_function_arn      = "arn:aws:lambda:ap-northeast-1:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-*-document-analysis"
+  ssm_parameter_prefix     = "/metalk"
 }
+
+data "aws_caller_identity" "current" {}

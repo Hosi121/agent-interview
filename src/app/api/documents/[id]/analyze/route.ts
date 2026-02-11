@@ -1,16 +1,28 @@
-import { FragmentType, SourceType } from "@prisma/client";
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { NextResponse } from "next/server";
 import { withUserAuth } from "@/lib/api-utils";
-import { NotFoundError, ValidationError } from "@/lib/errors";
-import { getFileBuffer } from "@/lib/minio";
-import { extractFragments, extractTextFromPdfWithVision } from "@/lib/openai";
+import { ConflictError, InternalError, NotFoundError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+const lambda = new LambdaClient({
+  region: process.env.AWS_REGION || "ap-northeast-1",
+});
+
 export const POST = withUserAuth<RouteContext>(
   async (req, session, context) => {
     const { id } = await context.params;
+
+    const lambdaArn = process.env.DOCUMENT_ANALYSIS_LAMBDA_ARN;
+    if (!lambdaArn) {
+      logger.error(
+        "DOCUMENT_ANALYSIS_LAMBDA_ARN is not configured",
+        new Error("Missing environment variable"),
+      );
+      throw new InternalError("ドキュメント解析サービスが設定されていません");
+    }
 
     const document = await prisma.document.findFirst({
       where: {
@@ -23,75 +35,46 @@ export const POST = withUserAuth<RouteContext>(
       throw new NotFoundError("ドキュメントが見つかりません");
     }
 
-    const fileBuffer = await getFileBuffer(document.filePath);
-    let textContent = "";
-
-    if (document.fileName.toLowerCase().endsWith(".pdf")) {
-      // GPT-4o VisionでOCR処理（スキャンPDFにも対応）
-      textContent = await extractTextFromPdfWithVision(fileBuffer);
-    } else if (
-      document.fileName.toLowerCase().endsWith(".txt") ||
-      document.fileName.toLowerCase().endsWith(".md")
-    ) {
-      textContent = fileBuffer.toString("utf-8");
-    } else if (document.fileName.toLowerCase().endsWith(".docx")) {
-      // Word(docx)をプレーンテキストに変換（動的インポートでサーバーのみ読み込み）
-      const mammothModule = await import("mammoth");
-      const mammoth = mammothModule.default || mammothModule;
-      const { value } = await mammoth.extractRawText({ buffer: fileBuffer });
-      textContent = value || "";
-    } else {
-      textContent = fileBuffer.toString("utf-8");
+    if (document.analysisStatus === "ANALYZING") {
+      throw new ConflictError("このドキュメントは現在解析中です");
     }
-
-    if (!textContent.trim()) {
-      throw new ValidationError(
-        "ドキュメントからテキストを抽出できませんでした",
-      );
-    }
-
-    const truncatedContent = textContent.slice(0, 10000);
-
-    const result = await extractFragments(truncatedContent);
-
-    const validFragmentTypes = Object.values(FragmentType);
-    const createdFragments = [];
-
-    for (const fragment of result.fragments || []) {
-      const fragmentType = validFragmentTypes.includes(
-        fragment.type as FragmentType,
-      )
-        ? (fragment.type as FragmentType)
-        : FragmentType.FACT;
-
-      const created = await prisma.fragment.create({
-        data: {
-          userId: session.user.userId,
-          type: fragmentType,
-          content: fragment.content,
-          skills: fragment.skills || [],
-          keywords: fragment.keywords || [],
-          sourceType: SourceType.DOCUMENT,
-          sourceId: document.id,
-        },
-      });
-      createdFragments.push(created);
-    }
-
-    const summary =
-      createdFragments.length > 0
-        ? `${createdFragments.length}件の記憶のかけらを抽出しました`
-        : "記憶のかけらが見つかりませんでした";
 
     await prisma.document.update({
-      where: { id: document.id },
-      data: { summary },
+      where: { id },
+      data: { analysisStatus: "ANALYZING", analysisError: null },
     });
 
-    return NextResponse.json({
-      success: true,
-      fragmentsCount: createdFragments.length,
-      summary,
-    });
+    try {
+      await lambda.send(
+        new InvokeCommand({
+          FunctionName: lambdaArn,
+          InvocationType: "Event",
+          Payload: JSON.stringify({
+            documentId: id,
+            userId: session.user.userId,
+            filePath: document.filePath,
+            fileName: document.fileName,
+          }),
+        }),
+      );
+    } catch (error) {
+      await prisma.document.update({
+        where: { id },
+        data: {
+          analysisStatus: "FAILED",
+          analysisError: "解析ジョブの開始に失敗しました",
+        },
+      });
+      throw error;
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "解析を開始しました",
+        analysisStatus: "ANALYZING",
+      },
+      { status: 202 },
+    );
   },
 );

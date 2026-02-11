@@ -85,3 +85,17 @@ resource "aws_ssm_parameter" "stripe_secret_key" {
     ignore_changes = [value]
   }
 }
+
+resource "aws_ssm_parameter" "document_analysis_lambda_arn" {
+  name  = "${local.prefix}/document-analysis-lambda-arn"
+  type  = "String"
+  value = var.document_analysis_lambda_arn
+  tags  = local.common_tags
+}
+
+resource "aws_ssm_parameter" "analysis_callback_secret" {
+  name  = "${local.prefix}/analysis-callback-secret"
+  type  = "SecureString"
+  value = var.analysis_callback_secret
+  tags  = local.common_tags
+}

@@ -79,7 +79,45 @@ module "iam" {
   ssm_parameter_prefix = "/metalk/${var.environment}"
 }
 
+# --- Lambda (Document Analysis) ---
+module "lambda" {
+  source = "../modules/lambda"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  s3_bucket_arn   = module.s3.bucket_arn
+  callback_url    = "${var.nextauth_url}/api/internal/analysis-callback"
+  callback_secret = random_password.analysis_callback_secret.result
+  minio_access_key  = module.iam.s3_access_key_id
+  minio_secret_key  = module.iam.s3_secret_access_key
+  minio_bucket_name = module.s3.bucket_name
+  openai_api_key    = var.openai_api_key
+}
+
+# ECS タスクロールに Lambda invoke 権限を追加（循環依存回避のためモジュール外で定義）
+resource "aws_iam_role_policy" "ecs_task_lambda_invoke" {
+  name = "${local.name_prefix}-ecs-task-lambda-invoke"
+  role = module.iam.ecs_task_role_id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "LambdaInvoke"
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = [module.lambda.lambda_function_arn]
+      }
+    ]
+  })
+}
+
 # --- SSM Parameter Store ---
+resource "random_password" "analysis_callback_secret" {
+  length  = 64
+  special = false
+}
+
 resource "random_password" "nextauth_secret" {
   length  = 64
   special = true
@@ -96,8 +134,10 @@ module "ssm" {
   minio_access_key = module.iam.s3_access_key_id
   minio_secret_key = module.iam.s3_secret_access_key
   minio_bucket_name = module.s3.bucket_name
-  openai_api_key    = var.openai_api_key
-  stripe_secret_key = var.stripe_secret_key
+  openai_api_key               = var.openai_api_key
+  stripe_secret_key            = var.stripe_secret_key
+  document_analysis_lambda_arn = module.lambda.lambda_function_arn
+  analysis_callback_secret     = random_password.analysis_callback_secret.result
 }
 
 # --- ECS ---

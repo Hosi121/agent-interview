@@ -308,51 +308,75 @@ export async function extractTextFromPdfWithVision(
   }
 
   const maxPages = Math.min(pages.length, 10);
-  const extractedTexts: string[] = [];
+  const pagesToProcess = pages.slice(0, maxPages);
 
-  for (let i = 0; i < maxPages; i++) {
-    const { text } = await generateText({
-      model: defaultModel,
-      messages: [
-        {
-          role: "system",
-          content: `あなたはOCRアシスタントです。画像内のすべてのテキストを正確に抽出してください。
+  // 並行数制限付きで Vision API を並列呼び出し
+  const CONCURRENCY = 5;
+  const extractedTexts: (string | null)[] = new Array(
+    pagesToProcess.length,
+  ).fill(null);
+
+  for (
+    let batchStart = 0;
+    batchStart < pagesToProcess.length;
+    batchStart += CONCURRENCY
+  ) {
+    const batch = pagesToProcess.slice(batchStart, batchStart + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (page, batchIndex) => {
+        const pageIndex = batchStart + batchIndex;
+
+        const { text } = await generateText({
+          model: defaultModel,
+          messages: [
+            {
+              role: "system",
+              content: `あなたはOCRアシスタントです。画像内のすべてのテキストを正確に抽出してください。
 レイアウトや構造を可能な限り保持し、表がある場合はMarkdown形式で表現してください。
 テキストのみを出力し、説明や解釈は加えないでください。`,
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `このページ（${i + 1}/${pages.length}ページ）のテキストを抽出してください。`,
             },
             {
-              type: "image",
-              image: pages[i],
-              providerOptions: {
-                openai: { imageDetail: "high" },
-              },
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `このページ（${pageIndex + 1}/${pages.length}ページ）のテキストを抽出してください。`,
+                },
+                {
+                  type: "image",
+                  image: page,
+                  providerOptions: {
+                    openai: { imageDetail: "high" },
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-      maxOutputTokens: 4000,
-      temperature: 0.1,
-    });
+          maxOutputTokens: 4000,
+          temperature: 0.1,
+        });
 
-    if (text.trim()) {
-      extractedTexts.push(`--- ページ ${i + 1} ---\n${text}`);
+        return { pageIndex, text };
+      }),
+    );
+
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value.text.trim()) {
+        extractedTexts[result.value.pageIndex] =
+          `--- ページ ${result.value.pageIndex + 1} ---\n${result.value.text}`;
+      }
     }
   }
 
+  const validTexts = extractedTexts.filter((t): t is string => t !== null);
+
   if (pages.length > maxPages) {
-    extractedTexts.push(
+    validTexts.push(
       `\n(注: ${pages.length}ページ中、最初の${maxPages}ページのみ処理しました)`,
     );
   }
 
-  return extractedTexts.join("\n\n");
+  return validTexts.join("\n\n");
 }
 
 const matchScoreSchema = z.object({

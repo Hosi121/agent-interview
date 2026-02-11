@@ -49,3 +49,15 @@ variable "ecr_repository_arn" {
   default     = ""
 }
 
+variable "lambda_ecr_repository_arn" {
+  description = "ARN of the Lambda ECR repository for GitHub Actions push access"
+  type        = string
+  default     = ""
+}
+
+variable "lambda_function_arn" {
+  description = "ARN of the Lambda function for GitHub Actions update permission"
+  type        = string
+  default     = ""
+}
+

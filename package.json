@@ -16,7 +16,8 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "lambda:build": "esbuild lambda/document-analysis/handler.ts --bundle --platform=node --target=node22 --outfile=lambda/document-analysis/dist/handler.js --external:pdf-to-img --external:mammoth --external:openai --external:minio --external:pdfjs-dist"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.26",
@@ -44,6 +45,7 @@
     "pdf-to-img": "^5.0.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "@aws-sdk/client-lambda": "^3.840.0",
     "stripe": "^20.2.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.3.5"
@@ -58,6 +60,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.2",
+    "esbuild": "^0.25.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "jsdom": "^27.4.0",

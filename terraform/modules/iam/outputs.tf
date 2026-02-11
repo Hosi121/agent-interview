@@ -23,3 +23,8 @@ output "s3_secret_access_key" {
   value       = try(aws_iam_access_key.s3_access[0].secret, "")
   sensitive   = true
 }
+
+output "ecs_task_role_id" {
+  description = "ID of the ECS task role"
+  value       = try(aws_iam_role.ecs_task[0].id, "")
+}
