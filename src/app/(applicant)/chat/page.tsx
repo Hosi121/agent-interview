@@ -21,7 +21,15 @@ interface Message {
   content: string;
 }
 
-const INITIAL_MESSAGE = `こんにちは！私はあなたのエージェントを作成するためのAIアシスタントです。
+function buildInitialMessage(
+  userName: string | undefined,
+  fragmentCount: number,
+  coverage: ChatCoverageState,
+): string {
+  const name = userName ? `${userName}さん` : "";
+
+  if (fragmentCount === 0) {
+    return `こんにちは${name ? `、${name}` : ""}！私はあなたのエージェントを作成するためのAIアシスタントです。
 
 あなたの経験やスキル、キャリアについて教えてください。以下のような質問に答えていただくことで、あなたを代理するAIエージェントを作成できます：
 
@@ -31,6 +39,37 @@ const INITIAL_MESSAGE = `こんにちは！私はあなたのエージェント�
 - 今後のキャリアの目標
 
 何でも気軽にお話しください！`;
+  }
+
+  const unfulfilledCategories = coverage.categories.filter((c) => !c.fulfilled);
+  const categoryList = unfulfilledCategories
+    .map((c) => `- ${c.label}（あと${c.required - c.current}件）`)
+    .join("\n");
+
+  if (coverage.percentage < 80) {
+    return `おかえりなさい${name ? `、${name}` : ""}！前回までの情報をもとに、続きからお話ししましょう。
+
+現在の情報収集の進捗は${coverage.percentage}%です。${
+      categoryList
+        ? `以下のカテゴリについてもう少し教えていただけると、より良いエージェントが作れます：
+
+${categoryList}
+
+どのトピックからでも構いません。お話しください！`
+        : "どのトピックからでも構いません。お話しください！"
+    }`;
+  }
+
+  const completionSection = categoryList
+    ? `あと少しで完成です。以下の情報があるとさらに良くなります：
+
+${categoryList}`
+    : "十分な情報が集まっています。さらに追加したいエピソードがあればお聞かせください。";
+
+  return `おかえりなさい${name ? `、${name}` : ""}！情報収集の進捗は${coverage.percentage}%で、かなり充実してきました。
+
+${completionSection}`;
+}
 
 const INITIAL_COVERAGE: ChatCoverageState = {
   percentage: 0,
@@ -67,40 +106,49 @@ async function* parseSSE(response: Response) {
 }
 
 export default function ChatPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fragmentCount, setFragmentCount] = useState(0);
   const [coverage, setCoverage] = useState<ChatCoverageState>(INITIAL_COVERAGE);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const fetchInitialData = useCallback(async () => {
+  const fetchInitialData = useCallback(async (userName: string | undefined) => {
     try {
       const response = await fetch("/api/agents/me");
       if (response.ok) {
         const data = await response.json();
         if (data.fragments) {
-          setFragmentCount(data.fragments.length);
-          if (data.coverage) {
-            setCoverage(data.coverage);
-          }
+          const count = data.fragments.length;
+          const cov: ChatCoverageState = data.coverage ?? INITIAL_COVERAGE;
+          setFragmentCount(count);
+          setCoverage(cov);
+          setMessages([
+            {
+              id: "initial",
+              role: "assistant",
+              content: buildInitialMessage(userName, count, cov),
+            },
+          ]);
+          return;
         }
       }
     } catch (error) {
       console.error("Failed to fetch initial data:", error);
     }
-  }, []);
-
-  useEffect(() => {
     setMessages([
       {
         id: "initial",
         role: "assistant",
-        content: INITIAL_MESSAGE,
+        content: buildInitialMessage(userName, 0, INITIAL_COVERAGE),
       },
     ]);
-    fetchInitialData();
-  }, [fetchInitialData]);
+  }, []);
+
+  useEffect(() => {
+    if (status === "loading") return;
+    fetchInitialData(session?.user?.name ?? undefined);
+  }, [fetchInitialData, status, session?.user?.name]);
 
   const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
