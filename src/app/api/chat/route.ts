@@ -104,6 +104,7 @@ export const POST = withUserValidation(
     const systemPrompt = buildSystemPrompt(existingFragments, coverage);
 
     const abortController = new AbortController();
+    req.signal.addEventListener("abort", () => abortController.abort());
     const result = streamChatResponse(systemPrompt, chatMessages, {
       abortSignal: abortController.signal,
     });
