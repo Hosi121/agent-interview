@@ -38,6 +38,15 @@ import {
 
 type AnalysisStatus = "PENDING" | "ANALYZING" | "COMPLETED" | "FAILED";
 
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+const ACCEPTED_EXTENSIONS = [".pdf", ".txt", ".md", ".docx"];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 interface Document {
   id: string;
   fileName: string;
@@ -87,14 +96,6 @@ export default function DocumentsPage() {
     };
   }, []);
 
-  const ACCEPTED_TYPES = [
-    "application/pdf",
-    "text/plain",
-    "text/markdown",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ];
-  const ACCEPTED_EXTENSIONS = [".pdf", ".txt", ".md", ".docx"];
-
   const uploadFile = async (file: File) => {
     const ext = `.${file.name.split(".").pop()?.toLowerCase()}`;
     if (
@@ -104,6 +105,11 @@ export default function DocumentsPage() {
       setUploadError(
         "対応していないファイル形式です。PDF、TXT、MD、DOCXのみアップロードできます。",
       );
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError("ファイルサイズは10MB以下にしてください。");
       return;
     }
 
@@ -125,6 +131,9 @@ export default function DocumentsPage() {
 
       await fetchDocuments();
       setIsDialogOpen(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     } catch (error) {
       console.error("Upload error:", error);
       setUploadError("アップロードに失敗しました");
@@ -148,6 +157,7 @@ export default function DocumentsPage() {
   const handleDragLeave = (e: DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragOver(false);
   };
 
