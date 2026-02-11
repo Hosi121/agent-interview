@@ -174,15 +174,24 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error("Chat error:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content:
-            "申し訳ありません。エラーが発生しました。もう一度お試しください。",
-        },
-      ]);
+      const errorContent =
+        "申し訳ありません。エラーが発生しました。もう一度お試しください。";
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && !last.content) {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...last, content: errorContent };
+          return updated;
+        }
+        return [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant" as const,
+            content: errorContent,
+          },
+        ];
+      });
     } finally {
       setIsLoading(false);
     }

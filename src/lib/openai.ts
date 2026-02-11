@@ -30,12 +30,26 @@ export function streamChatResponse(
   });
 }
 
+const FRAGMENT_TYPES = [
+  "ACHIEVEMENT",
+  "ACTION",
+  "CHALLENGE",
+  "LEARNING",
+  "VALUE",
+  "EMOTION",
+  "FACT",
+  "SKILL_USAGE",
+] as const;
+
+export const FRAGMENT_CONTENT_TRUNCATE = 100;
+
 const fragmentSchema = z.object({
   fragments: z.array(
     z.object({
       type: z
         .string()
         .transform((v) => v.toUpperCase())
+        .pipe(z.enum(FRAGMENT_TYPES))
         .describe(
           "ACHIEVEMENT | ACTION | CHALLENGE | LEARNING | VALUE | EMOTION | FACT | SKILL_USAGE",
         ),
@@ -51,8 +65,6 @@ interface ExtractFragmentsOptions {
   contextMessages?: string;
 }
 
-const EXTRACTION_CONTENT_TRUNCATE = 100;
-
 function buildExtractionInput(
   newMessages: string,
   options: ExtractFragmentsOptions,
@@ -63,8 +75,8 @@ function buildExtractionInput(
     const fragmentsList = options.existingFragments
       .map((f) => {
         const truncated =
-          f.content.length > EXTRACTION_CONTENT_TRUNCATE
-            ? `${f.content.slice(0, EXTRACTION_CONTENT_TRUNCATE)}…`
+          f.content.length > FRAGMENT_CONTENT_TRUNCATE
+            ? `${f.content.slice(0, FRAGMENT_CONTENT_TRUNCATE)}…`
             : f.content;
         return `- [${f.type}] ${truncated}`;
       })

@@ -4,7 +4,11 @@ import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
 import { logger } from "@/lib/logger";
-import { extractFragments, streamChatResponse } from "@/lib/openai";
+import {
+  extractFragments,
+  FRAGMENT_CONTENT_TRUNCATE,
+  streamChatResponse,
+} from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 import type { ChatCoverageState } from "@/types";
 
@@ -21,8 +25,6 @@ const BASE_SYSTEM_PROMPT = `あなたは求職者からキャリア情報を収�
 具体的なエピソードや数字を含む回答を促してください。
 日本語で回答してください。`;
 
-const FRAGMENT_CONTENT_MAX_LENGTH = 100;
-
 function buildSystemPrompt(
   fragments: { type: string; content: string }[],
   coverage: ChatCoverageState,
@@ -36,7 +38,7 @@ function buildSystemPrompt(
   const fragmentsSummary = fragments
     .map(
       (f) =>
-        `- [${f.type}] ${f.content.length > FRAGMENT_CONTENT_MAX_LENGTH ? `${f.content.slice(0, FRAGMENT_CONTENT_MAX_LENGTH)}…` : f.content}`,
+        `- [${f.type}] ${f.content.length > FRAGMENT_CONTENT_TRUNCATE ? `${f.content.slice(0, FRAGMENT_CONTENT_TRUNCATE)}…` : f.content}`,
     )
     .join("\n");
 
@@ -222,6 +224,7 @@ export const POST = withUserValidation(
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
       },
     });
   },
