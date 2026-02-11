@@ -35,6 +35,8 @@ jobs:
         run: npm ci
       - if: steps.deps-cache.outputs.cache-hit != 'true'
         run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
 
   # ============================================================================
   # Lint: biome lint + tsc 型チェック（testと並列）
