@@ -96,10 +96,22 @@ jobs:
           LAMBDA_ECR_REPOSITORY: ${{ vars.LAMBDA_ECR_REPOSITORY }}
           LAMBDA_FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME }}
           IMAGE_TAG: ${{ github.sha }}
+          SSM_PREFIX: /metalk/${{ env.ENVIRONMENT }}
         run: |
           aws lambda update-function-code \
             --function-name $LAMBDA_FUNCTION_NAME \
             --image-uri $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:$IMAGE_TAG
+          aws lambda wait function-updated \
+            --function-name $LAMBDA_FUNCTION_NAME
+
+          OPENAI_KEY=$(aws ssm get-parameter --name "$SSM_PREFIX/openai-api-key" --with-decryption --query 'Parameter.Value' --output text)
+          CURRENT_ENV=$(aws lambda get-function-configuration \
+            --function-name $LAMBDA_FUNCTION_NAME \
+            --query 'Environment.Variables' --output json)
+          UPDATED_ENV=$(echo "$CURRENT_ENV" | jq --arg KEY "$OPENAI_KEY" '. + {"OPENAI_API_KEY": $KEY}')
+          aws lambda update-function-configuration \
+            --function-name $LAMBDA_FUNCTION_NAME \
+            --environment "{\"Variables\": $UPDATED_ENV}" > /dev/null
           aws lambda wait function-updated \
             --function-name $LAMBDA_FUNCTION_NAME
 
