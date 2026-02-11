@@ -1,17 +1,23 @@
 # ==============================================================================
-# Stage 1: Install dependencies
+# Stage 1: Install all dependencies (for build)
 # ==============================================================================
 FROM node:22-slim AS deps
-
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # ==============================================================================
-# Stage 2: Build (esbuild bundle)
+# Stage 2: Install production dependencies only (for runtime)
+# ==============================================================================
+FROM node:22-slim AS prod-deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# ==============================================================================
+# Stage 3: Build (esbuild bundle)
 # ==============================================================================
 FROM deps AS builder
-
 WORKDIR /app
 COPY src ./src/
 COPY lambda ./lambda/
@@ -29,14 +35,14 @@ RUN npx esbuild lambda/document-analysis/handler.ts \
       --external:pdfjs-dist
 
 # ==============================================================================
-# Stage 3: Lambda runtime
+# Stage 4: Lambda runtime
 # ==============================================================================
 FROM public.ecr.aws/lambda/nodejs:22
 
 # Copy built handler
 COPY --from=builder /app/dist/handler.js ${LAMBDA_TASK_ROOT}/dist/handler.js
 
-# Copy node_modules (runtime deps)
-COPY --from=builder /app/node_modules ${LAMBDA_TASK_ROOT}/node_modules
+# Copy node_modules (production deps only)
+COPY --from=prod-deps /app/node_modules ${LAMBDA_TASK_ROOT}/node_modules
 
 CMD ["dist/handler.handler"]

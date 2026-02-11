@@ -16,7 +16,49 @@ env:
   AWS_REGION: ap-northeast-1
 
 jobs:
+  # ============================================================================
+  # Install: checkout + npm ci + prisma generate + cache保存
+  # ============================================================================
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/cache@v4
+        id: deps-cache
+        with:
+          path: node_modules
+          key: deps-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: npm ci
+      - if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: npx prisma generate
+
+  # ============================================================================
+  # Lint: biome lint + tsc 型チェック（testと並列）
+  # ============================================================================
+  lint:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: deps-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+      - run: npm run lint
+      - run: npx tsc --noEmit
+
+  # ============================================================================
+  # Test: Postgres service + prisma db push + vitest（lintと並列）
+  # ============================================================================
   test:
+    needs: install
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -38,21 +80,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx prisma generate
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: deps-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
       - run: npx prisma db push
-      - run: npm run lint
-      - run: npx tsc --noEmit
       - run: npm run test:run
 
-  deploy:
-    needs: test
+  # ============================================================================
+  # Build App: メインDockerイメージをビルド+ECRへpush（GHAキャッシュ）
+  # ============================================================================
+  build-app:
+    needs: [lint, test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     env:
       ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-      ECS_CLUSTER: ${{ github.ref == 'refs/heads/main' && 'metalk-production' || 'metalk-staging' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,33 +107,70 @@ jobs:
       - uses: aws-actions/amazon-ecr-login@v2
         id: ecr
 
-      - name: Build and push image
-        env:
-          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.ENVIRONMENT }}-latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.ENVIRONMENT }}-latest
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ env.ENVIRONMENT }}-latest
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+  # ============================================================================
+  # Build Lambda: LambdaイメージをECRへpush（build-appと並列）
+  # ============================================================================
+  build-lambda:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    if: (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') && vars.LAMBDA_ECR_REPOSITORY != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - uses: docker/setup-buildx-action@v3
 
       - name: Build and push Lambda image
-        if: vars.LAMBDA_ECR_REPOSITORY != ''
-        env:
-          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-          LAMBDA_ECR_REPOSITORY: ${{ vars.LAMBDA_ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build \
-            -t $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:$IMAGE_TAG \
-            -f lambda/document-analysis/Dockerfile .
-          docker tag $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$LAMBDA_ECR_REPOSITORY:latest
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: lambda/document-analysis/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ vars.LAMBDA_ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ vars.LAMBDA_ECR_REPOSITORY }}:latest
+          cache-from: type=gha,scope=lambda
+          cache-to: type=gha,mode=max,scope=lambda
+
+  # ============================================================================
+  # Update Lambda: 関数コード更新 + 環境変数同期
+  # ============================================================================
+  update-lambda:
+    needs: build-lambda
+    runs-on: ubuntu-latest
+    if: vars.LAMBDA_FUNCTION_NAME != ''
+    env:
+      ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
 
       - name: Update Lambda function
-        if: vars.LAMBDA_FUNCTION_NAME != ''
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
           LAMBDA_ECR_REPOSITORY: ${{ vars.LAMBDA_ECR_REPOSITORY }}
@@ -115,6 +195,20 @@ jobs:
           aws lambda wait function-updated \
             --function-name $LAMBDA_FUNCTION_NAME
 
+  # ============================================================================
+  # Migrate DB: ECSマイグレーションタスク実行
+  # ============================================================================
+  migrate-db:
+    needs: build-app
+    runs-on: ubuntu-latest
+    env:
+      ECS_CLUSTER: ${{ github.ref == 'refs/heads/main' && 'metalk-production' || 'metalk-staging' }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Run database migration
         env:
           MIGRATION_TASK_DEF: ${{ vars.MIGRATION_TASK_DEFINITION }}
@@ -135,6 +229,24 @@ jobs:
             echo "Migration failed with exit code $EXIT_CODE"
             exit 1
           fi
+
+  # ============================================================================
+  # Deploy ECS: タスク定義更新 + ECSサービス更新
+  # ============================================================================
+  deploy-ecs:
+    needs: [build-app, migrate-db]
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      ECS_CLUSTER: ${{ github.ref == 'refs/heads/main' && 'metalk-production' || 'metalk-staging' }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
 
       - name: Update task definition image
         id: task-def
