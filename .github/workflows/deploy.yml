@@ -51,6 +51,7 @@ jobs:
         with:
           path: node_modules
           key: deps-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+          fail-on-cache-miss: true
       - run: npm run lint
       - run: npx tsc --noEmit
 
@@ -84,6 +85,7 @@ jobs:
         with:
           path: node_modules
           key: deps-${{ hashFiles('package-lock.json', 'prisma/schema.prisma') }}
+          fail-on-cache-miss: true
       - run: npx prisma db push
       - run: npm run test:run
 
