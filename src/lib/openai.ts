@@ -25,7 +25,7 @@ export function streamChatResponse(
     model: defaultModel,
     messages: [{ role: "system", content: systemPrompt }, ...messages],
     temperature: 0.7,
-    maxOutputTokens: 1000,
+    maxOutputTokens: 500,
     frequencyPenalty: 0.4,
     abortSignal: options?.abortSignal,
   });
