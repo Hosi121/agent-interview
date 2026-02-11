@@ -107,13 +107,31 @@ export const POST = withUserValidation(
     let fragmentsExtracted = 0;
 
     const userMessages = messages.filter((m) => m.role === "user");
-    if (userMessages.length > 0 && userMessages.length % 3 === 0) {
+    if (userMessages.length > 0 && userMessages.length % 2 === 0) {
       try {
-        const conversationText = messages
+        const NEW_MESSAGE_COUNT = 4; // 直近2ターン分（user + assistant）
+        const CONTEXT_MESSAGE_COUNT = 4;
+        const newMessages = messages.slice(-NEW_MESSAGE_COUNT);
+        const newMessagesText = newMessages
           .map((m) => `${m.role}: ${m.content}`)
           .join("\n");
 
-        const extractedData = await extractFragments(conversationText);
+        const contextStart = Math.max(
+          0,
+          messages.length - NEW_MESSAGE_COUNT - CONTEXT_MESSAGE_COUNT,
+        );
+        const contextEnd = messages.length - NEW_MESSAGE_COUNT;
+        const contextMessages = messages.slice(contextStart, contextEnd);
+        const contextMessagesText =
+          contextMessages.length > 0
+            ? contextMessages.map((m) => `${m.role}: ${m.content}`).join("\n")
+            : undefined;
+
+        const extractedData = await extractFragments(newMessagesText, {
+          existingFragments,
+          contextMessages: contextMessagesText,
+          newMessages: newMessagesText,
+        });
 
         if (extractedData.fragments && extractedData.fragments.length > 0) {
           for (const fragment of extractedData.fragments) {

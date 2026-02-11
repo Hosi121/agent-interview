@@ -32,7 +32,52 @@ const fragmentSchema = z.object({
   ),
 });
 
-export async function extractFragments(conversationHistory: string): Promise<{
+interface ExtractFragmentsOptions {
+  existingFragments?: { type: string; content: string }[];
+  contextMessages?: string;
+  newMessages: string;
+}
+
+const EXTRACTION_CONTENT_TRUNCATE = 100;
+
+function buildExtractionInput(options: ExtractFragmentsOptions): string {
+  const sections: string[] = [];
+
+  if (options.existingFragments && options.existingFragments.length > 0) {
+    const fragmentsList = options.existingFragments
+      .map((f) => {
+        const truncated =
+          f.content.length > EXTRACTION_CONTENT_TRUNCATE
+            ? `${f.content.slice(0, EXTRACTION_CONTENT_TRUNCATE)}…`
+            : f.content;
+        return `- [${f.type}] ${truncated}`;
+      })
+      .join("\n");
+
+    sections.push(
+      `## 既存Fragment一覧（重複排除用）\n以下は既に抽出済みの情報です。これらと重複する情報は抽出しないでください。\n${fragmentsList}`,
+    );
+  }
+
+  if (options.contextMessages) {
+    sections.push(`## 文脈メッセージ（参考情報）\n${options.contextMessages}`);
+  }
+
+  sections.push(
+    `## 【新規メッセージ】★ ここから新しい情報を抽出してください ★\n${options.newMessages}`,
+  );
+
+  sections.push(
+    "指示: 上記の【新規メッセージ】部分から、既存Fragment一覧と重複しない新しい情報のみを抽出してください。",
+  );
+
+  return sections.join("\n\n");
+}
+
+export async function extractFragments(
+  conversationHistory: string,
+  options?: ExtractFragmentsOptions,
+): Promise<{
   fragments: {
     type: string;
     content: string;
@@ -40,7 +85,7 @@ export async function extractFragments(conversationHistory: string): Promise<{
     keywords: string[];
   }[];
 }> {
-  const systemPrompt = `あなたは求職者との会話から重要な経験や能力を抽出するアシスタントです。
+  const baseSystemPrompt = `あなたは求職者との会話から重要な経験や能力を抽出するアシスタントです。
 会話から以下のカテゴリに分類できる「記憶のかけら（Fragment）」を抽出してください：
 
 - ACHIEVEMENT: 達成したこと、成果
@@ -54,12 +99,20 @@ export async function extractFragments(conversationHistory: string): Promise<{
 
 各Fragmentには関連するスキルとキーワードも抽出してください。`;
 
+  const systemPrompt = options
+    ? `${baseSystemPrompt}\n\n重要: 既存Fragmentと意味的に重複する情報は抽出しないでください。同じ事実を別の言い回しで表現しただけのものも重複とみなしてください。`
+    : baseSystemPrompt;
+
+  const userContent = options
+    ? buildExtractionInput(options)
+    : conversationHistory;
+
   try {
     const { output } = await generateText({
       model: defaultModel,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: conversationHistory },
+        { role: "user", content: userContent },
       ],
       output: Output.object({ schema: fragmentSchema }),
       temperature: 0.3,
