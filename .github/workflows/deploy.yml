@@ -113,7 +113,7 @@ jobs:
             --cluster $ECS_CLUSTER \
             --task-definition $MIGRATION_TASK_DEF \
             --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_IDS],securityGroups=[$SECURITY_GROUP_IDS],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_IDS],securityGroups=[$SECURITY_GROUP_IDS],assignPublicIp=DISABLED}" \
             --overrides '{"containerOverrides":[{"name":"migration","command":["npx","prisma","migrate","deploy"]}]}' \
             --query 'tasks[0].taskArn' --output text)
           echo "Waiting for migration task: $TASK_ARN"

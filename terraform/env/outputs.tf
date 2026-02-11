@@ -26,8 +26,8 @@ output "migration_task_definition" {
 }
 
 output "subnet_ids" {
-  description = "Public subnet IDs comma-separated (Variable: SUBNET_IDS)"
-  value       = join(",", data.terraform_remote_state.shared.outputs.public_subnet_ids)
+  description = "Private subnet IDs comma-separated (Variable: SUBNET_IDS)"
+  value       = join(",", data.terraform_remote_state.shared.outputs.private_subnet_ids)
 }
 
 output "security_group_ids" {

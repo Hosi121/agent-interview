@@ -145,7 +145,7 @@ module "ecs" {
   ecr_repository_url         = data.terraform_remote_state.shared.outputs.ecr_repository_url
   ecs_task_execution_role_arn = module.iam.ecs_task_execution_role_arn
   ecs_task_role_arn           = module.iam.ecs_task_role_arn
-  public_subnet_ids          = data.terraform_remote_state.shared.outputs.public_subnet_ids
+  private_subnet_ids         = data.terraform_remote_state.shared.outputs.private_subnet_ids
   ecs_security_group_id      = module.security_groups.ecs_security_group_id
   target_group_arn           = module.alb.target_group_arn
 }
