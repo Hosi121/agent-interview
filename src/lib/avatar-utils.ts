@@ -51,9 +51,9 @@ export async function stripImageMetadata(
   buffer: Buffer,
   contentType: string,
 ): Promise<Buffer> {
-  const sharp = (await import("sharp")).default;
   // GIFはEXIFメタデータを持たないため処理不要
   if (contentType === "image/gif") return buffer;
+  const sharp = (await import("sharp")).default;
   try {
     // rotate() で EXIF の回転情報を適用してからメタデータを除去
     const image = sharp(buffer).rotate();

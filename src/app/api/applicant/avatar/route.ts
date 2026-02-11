@@ -24,9 +24,9 @@ const ALLOWED_MIME_TYPES = [
 
 export const POST = withUserAuth(async (req, session) => {
   const formData = await req.formData();
-  const file = formData.get("file") as File;
+  const file = formData.get("file");
 
-  if (!file) {
+  if (!file || !(file instanceof File)) {
     throw new ValidationError("ファイルが指定されていません");
   }
 
@@ -97,26 +97,32 @@ export const POST = withUserAuth(async (req, session) => {
 });
 
 export const DELETE = withUserAuth(async (_req, session) => {
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.userId },
-    select: { avatarPath: true },
+  // トランザクションで読み取りと更新をアトミックに実行（レースコンディション対策）
+  const avatarPath = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: session.user.userId },
+      select: { avatarPath: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError("ユーザーが見つかりません");
+    }
+
+    if (!user.avatarPath) {
+      return null;
+    }
+
+    await tx.user.update({
+      where: { id: session.user.userId },
+      data: { avatarPath: null },
+    });
+
+    return user.avatarPath;
   });
 
-  if (!user) {
-    throw new NotFoundError("ユーザーが見つかりません");
-  }
-
-  if (!user.avatarPath) {
+  if (!avatarPath) {
     return NextResponse.json({ message: "アバターは設定されていません" });
   }
-
-  const { avatarPath } = user;
-
-  // DB更新を先に行い、S3削除失敗時も孤立ファイルが残るだけで済むようにする
-  await prisma.user.update({
-    where: { id: session.user.userId },
-    data: { avatarPath: null },
-  });
 
   invalidateUrlCache(avatarPath);
 
