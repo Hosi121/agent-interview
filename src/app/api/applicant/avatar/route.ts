@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { withUserAuth } from "@/lib/api-utils";
 import {
   detectContentType,
+  processImage,
   sanitizeFileName,
-  stripImageMetadata,
 } from "@/lib/avatar-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import {
@@ -13,6 +13,20 @@ import {
   uploadFile,
 } from "@/lib/minio";
 import { prisma } from "@/lib/prisma";
+
+export const GET = withUserAuth(async (_req, session) => {
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.userId },
+    select: { avatarPath: true },
+  });
+
+  if (!user?.avatarPath) {
+    return NextResponse.json(null, { status: 404 });
+  }
+
+  const url = await getFileUrl(user.avatarPath);
+  return NextResponse.redirect(url);
+});
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_MIME_TYPES = [
@@ -48,8 +62,8 @@ export const POST = withUserAuth(async (req, session) => {
     throw new ValidationError("ファイルの内容が画像形式と一致しません");
   }
 
-  // EXIFメタデータ（GPS座標等）を除去
-  const processedBuffer = await stripImageMetadata(buffer, detectedType);
+  // EXIFメタデータ除去 + 512x512リサイズ
+  const processedBuffer = await processImage(buffer, detectedType);
 
   const sanitizedFileName = sanitizeFileName(file.name);
   const avatarPath = await uploadFile(
@@ -89,6 +103,19 @@ export const POST = withUserAuth(async (req, session) => {
       console.error("Failed to rollback uploaded avatar:", avatarPath);
     }
     throw e;
+  }
+
+  // 同時アップロードで上書きされた場合、孤立ファイルをクリーンアップ
+  const freshUser = await prisma.user.findUnique({
+    where: { id: session.user.userId },
+    select: { avatarPath: true },
+  });
+  if (freshUser?.avatarPath && freshUser.avatarPath !== avatarPath) {
+    try {
+      await deleteFile(avatarPath);
+    } catch {}
+    const avatarUrl = await getFileUrl(freshUser.avatarPath);
+    return NextResponse.json({ avatarUrl }, { status: 201 });
   }
 
   const avatarUrl = await getFileUrl(avatarPath);

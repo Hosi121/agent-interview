@@ -1,17 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   detectContentType,
+  processImage,
   sanitizeFileName,
-  stripImageMetadata,
 } from "../avatar-utils";
 
 const mockToBuffer = vi.fn().mockResolvedValue(Buffer.from("processed"));
 const mockJpeg = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
 const mockPng = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
 const mockWebp = vi.fn().mockReturnValue({ toBuffer: mockToBuffer });
-const mockRotate = vi
+const mockResize = vi
   .fn()
   .mockReturnValue({ jpeg: mockJpeg, png: mockPng, webp: mockWebp });
+const mockRotate = vi.fn().mockReturnValue({ resize: mockResize });
 const mockSharp = vi.fn().mockReturnValue({ rotate: mockRotate });
 
 vi.mock("sharp", () => ({ default: mockSharp }));
@@ -92,48 +93,56 @@ describe("sanitizeFileName", () => {
   });
 });
 
-describe("stripImageMetadata", () => {
+describe("processImage", () => {
   it("GIFはそのまま返す", async () => {
     const gif = Buffer.from("gif-data");
-    const result = await stripImageMetadata(gif, "image/gif");
+    const result = await processImage(gif, "image/gif");
     expect(result).toBe(gif);
   });
 
-  it("JPEGのメタデータを除去する", async () => {
+  it("JPEGのメタデータを除去しリサイズする", async () => {
     const input = Buffer.from("jpeg-data");
-    const result = await stripImageMetadata(input, "image/jpeg");
+    const result = await processImage(input, "image/jpeg");
 
     expect(mockSharp).toHaveBeenCalledWith(input);
     expect(mockRotate).toHaveBeenCalled();
+    expect(mockResize).toHaveBeenCalledWith(512, 512, {
+      fit: "cover",
+      withoutEnlargement: true,
+    });
     expect(mockJpeg).toHaveBeenCalled();
     expect(result).toEqual(Buffer.from("processed"));
   });
 
-  it("PNGのメタデータを除去する", async () => {
-    await stripImageMetadata(Buffer.from("png-data"), "image/png");
+  it("PNGのメタデータを除去しリサイズする", async () => {
+    await processImage(Buffer.from("png-data"), "image/png");
+    expect(mockResize).toHaveBeenCalled();
     expect(mockPng).toHaveBeenCalled();
   });
 
-  it("WebPのメタデータを除去する", async () => {
-    await stripImageMetadata(Buffer.from("webp-data"), "image/webp");
+  it("WebPのメタデータを除去しリサイズする", async () => {
+    await processImage(Buffer.from("webp-data"), "image/webp");
+    expect(mockResize).toHaveBeenCalled();
     expect(mockWebp).toHaveBeenCalled();
   });
 
   it("不明なContent-Typeはそのまま返す", async () => {
     const input = Buffer.from("unknown");
-    const result = await stripImageMetadata(input, "image/bmp");
+    const result = await processImage(input, "image/bmp");
     expect(result).toBe(input);
   });
 
   it("sharpが失敗した場合はValidationErrorをスローする", async () => {
     mockRotate.mockReturnValueOnce({
-      jpeg: vi.fn().mockReturnValue({
-        toBuffer: vi.fn().mockRejectedValue(new Error("corrupt")),
+      resize: vi.fn().mockReturnValue({
+        jpeg: vi.fn().mockReturnValue({
+          toBuffer: vi.fn().mockRejectedValue(new Error("corrupt")),
+        }),
       }),
     });
 
     await expect(
-      stripImageMetadata(Buffer.from("bad"), "image/jpeg"),
+      processImage(Buffer.from("bad"), "image/jpeg"),
     ).rejects.toThrow("画像の処理に失敗しました");
   });
 });

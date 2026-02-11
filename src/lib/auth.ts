@@ -1,7 +1,6 @@
 import { compare } from "bcryptjs";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { getFileUrl } from "./minio";
 import { prisma } from "./prisma";
 
 export const authOptions: NextAuthOptions = {
@@ -67,7 +66,9 @@ export const authOptions: NextAuthOptions = {
             session.user.userId = account.user.id;
             session.user.name = account.user.name;
             if (account.user.avatarPath) {
-              session.user.image = await getFileUrl(account.user.avatarPath);
+              // アバター変更時にURLが変わるようavatarPathの末尾をキャッシュバスターに使用
+              const v = account.user.avatarPath.slice(-8);
+              session.user.image = `/api/applicant/avatar?v=${v}`;
             }
           }
           if (account.recruiter) {

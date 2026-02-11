@@ -47,16 +47,18 @@ export function sanitizeFileName(name: string): string {
   return sanitized || "avatar";
 }
 
-export async function stripImageMetadata(
+export async function processImage(
   buffer: Buffer,
   contentType: string,
 ): Promise<Buffer> {
-  // GIFはEXIFメタデータを持たないため処理不要
+  // GIFはアニメーション対応が複雑なため処理をスキップ
   if (contentType === "image/gif") return buffer;
   const sharp = (await import("sharp")).default;
   try {
-    // rotate() で EXIF の回転情報を適用してからメタデータを除去
-    const image = sharp(buffer).rotate();
+    // rotate() で EXIF の回転情報を適用し、512x512にリサイズしてメタデータを除去
+    const image = sharp(buffer)
+      .rotate()
+      .resize(512, 512, { fit: "cover", withoutEnlargement: true });
     switch (contentType) {
       case "image/jpeg":
         return await image.jpeg().toBuffer();
