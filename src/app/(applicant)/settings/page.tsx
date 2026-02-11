@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,20 +19,26 @@ interface Settings {
   name: string;
   email: string | null;
   phone: string | null;
+  avatarUrl: string | null;
 }
 
 export default function SettingsPage() {
+  const { update: updateSession } = useSession();
   const [settings, setSettings] = useState<Settings>({
     name: "",
     email: null,
     phone: null,
+    avatarUrl: null,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -58,12 +66,16 @@ export default function SettingsPage() {
       const response = await fetch("/api/applicant/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          name: settings.name,
+          email: settings.email,
+          phone: settings.phone,
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setSettings(data.settings);
+        setSettings((prev) => ({ ...prev, ...data.settings }));
         setMessage({ type: "success", text: "設定を保存しました" });
       } else {
         const data = await response.json();
@@ -74,6 +86,84 @@ export default function SettingsPage() {
       setMessage({ type: "error", text: "保存に失敗しました" });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage({
+        type: "error",
+        text: "ファイルサイズは5MB以下にしてください",
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    setMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/applicant/avatar", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSettings((prev) => ({ ...prev, avatarUrl: data.avatarUrl }));
+        setMessage({ type: "success", text: "アバター画像を更新しました" });
+        await updateSession();
+      } else {
+        const data = await response.json();
+        setMessage({
+          type: "error",
+          text: data.error || "アップロードに失敗しました",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to upload avatar:", error);
+      setMessage({ type: "error", text: "アップロードに失敗しました" });
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    setIsDeletingAvatar(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/applicant/avatar", {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setSettings((prev) => ({ ...prev, avatarUrl: null }));
+        setMessage({ type: "success", text: "アバター画像を削除しました" });
+        await updateSession();
+      } else {
+        const data = await response.json();
+        setMessage({
+          type: "error",
+          text: data.error || "削除に失敗しました",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete avatar:", error);
+      setMessage({ type: "error", text: "削除に失敗しました" });
+    } finally {
+      setIsDeletingAvatar(false);
     }
   };
 
@@ -115,7 +205,48 @@ export default function SettingsPage() {
             基本的なプロフィール情報を設定します
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
+          <div className="flex items-center gap-6">
+            <Avatar className="size-20">
+              <AvatarImage src={settings.avatarUrl ?? undefined} />
+              <AvatarFallback className="text-2xl">
+                {settings.name?.[0] || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploadingAvatar || isDeletingAvatar}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {isUploadingAvatar ? "アップロード中..." : "画像を変更"}
+                </Button>
+                {settings.avatarUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={isUploadingAvatar || isDeletingAvatar}
+                    onClick={handleAvatarDelete}
+                  >
+                    {isDeletingAvatar ? "削除中..." : "削除"}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground text-pretty">
+                JPEG、PNG、WebP、GIF（5MB以下）
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name">名前</Label>
             <Input

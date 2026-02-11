@@ -65,6 +65,13 @@ export const authOptions: NextAuthOptions = {
           if (account.user) {
             session.user.userId = account.user.id;
             session.user.name = account.user.name;
+            if (account.user.avatarPath) {
+              // アバター変更時にURLが変わるようavatarPathの末尾をキャッシュバスターに使用
+              const v = account.user.avatarPath.slice(-8);
+              session.user.image = `/api/applicant/avatar?v=${v}`;
+            } else {
+              session.user.image = null;
+            }
           }
           if (account.recruiter) {
             session.user.recruiterId = account.recruiter.id;

@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["pdf-to-img", "pdfjs-dist"],
+  serverExternalPackages: ["pdf-to-img", "pdfjs-dist", "sharp"],
 };
 
 export default nextConfig;

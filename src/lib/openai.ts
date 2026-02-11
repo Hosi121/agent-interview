@@ -25,7 +25,7 @@ export function streamChatResponse(
     model: defaultModel,
     messages: [{ role: "system", content: systemPrompt }, ...messages],
     temperature: 0.7,
-    maxOutputTokens: 1000,
+    maxOutputTokens: 500,
     frequencyPenalty: 0.4,
     abortSignal: options?.abortSignal,
   });
@@ -308,7 +308,7 @@ export async function extractTextFromPdfWithVision(
     throw new Error("PDFからページを抽出できませんでした");
   }
 
-  const maxPages = Math.min(pages.length, 10);
+  const maxPages = Math.min(pages.length, 30);
   const pagesToProcess = pages.slice(0, maxPages);
 
   // 並行数制限付きで Vision API を並列呼び出し

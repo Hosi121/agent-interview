@@ -118,6 +118,7 @@ jobs:
         with:
           context: .
           push: true
+          provenance: false
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}
             ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ env.ENVIRONMENT }}-latest
@@ -150,6 +151,7 @@ jobs:
           context: .
           file: lambda/document-analysis/Dockerfile
           push: true
+          provenance: false
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ vars.LAMBDA_ECR_REPOSITORY }}:${{ github.sha }}
             ${{ steps.ecr.outputs.registry }}/${{ vars.LAMBDA_ECR_REPOSITORY }}:latest
@@ -160,7 +162,7 @@ jobs:
   # Update Lambda: 関数コード更新 + 環境変数同期
   # ============================================================================
   update-lambda:
-    needs: build-lambda
+    needs: [build-lambda, migrate-db]
     runs-on: ubuntu-latest
     if: (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') && vars.LAMBDA_FUNCTION_NAME != ''
     env:
