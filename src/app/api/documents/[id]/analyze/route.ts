@@ -1,7 +1,8 @@
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { NextResponse } from "next/server";
 import { withUserAuth } from "@/lib/api-utils";
-import { ConflictError, NotFoundError } from "@/lib/errors";
+import { ConflictError, InternalError, NotFoundError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -13,6 +14,15 @@ const lambda = new LambdaClient({
 export const POST = withUserAuth<RouteContext>(
   async (req, session, context) => {
     const { id } = await context.params;
+
+    const lambdaArn = process.env.DOCUMENT_ANALYSIS_LAMBDA_ARN;
+    if (!lambdaArn) {
+      logger.error(
+        "DOCUMENT_ANALYSIS_LAMBDA_ARN is not configured",
+        new Error("Missing environment variable"),
+      );
+      throw new InternalError("ドキュメント解析サービスが設定されていません");
+    }
 
     const document = await prisma.document.findFirst({
       where: {
@@ -37,7 +47,7 @@ export const POST = withUserAuth<RouteContext>(
     try {
       await lambda.send(
         new InvokeCommand({
-          FunctionName: process.env.DOCUMENT_ANALYSIS_LAMBDA_ARN,
+          FunctionName: lambdaArn,
           InvocationType: "Event",
           Payload: JSON.stringify({
             documentId: id,
