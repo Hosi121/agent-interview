@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import * as Minio from "minio";
 
 const isS3 = process.env.STORAGE_PROVIDER === "s3";
@@ -42,15 +43,35 @@ export async function uploadFile(
   contentType: string,
 ): Promise<string> {
   await ensureBucket();
-  const objectName = `${Date.now()}-${fileName}`;
+  const lastSlash = fileName.lastIndexOf("/");
+  const dir = lastSlash === -1 ? "" : fileName.slice(0, lastSlash + 1);
+  const base = lastSlash === -1 ? fileName : fileName.slice(lastSlash + 1);
+  const objectName = `${dir}${crypto.randomUUID()}-${base}`;
   await minioClient.putObject(BUCKET_NAME, objectName, buffer, buffer.length, {
     "Content-Type": contentType,
   });
   return objectName;
 }
 
+const URL_CACHE_TTL = 30 * 60 * 1000; // 30分
+const urlCache = new Map<string, { url: string; expiresAt: number }>();
+
 export async function getFileUrl(objectName: string): Promise<string> {
-  return await minioClient.presignedGetObject(BUCKET_NAME, objectName, 60 * 60);
+  const cached = urlCache.get(objectName);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
+  }
+  const url = await minioClient.presignedGetObject(
+    BUCKET_NAME,
+    objectName,
+    60 * 60,
+  );
+  urlCache.set(objectName, { url, expiresAt: Date.now() + URL_CACHE_TTL });
+  return url;
+}
+
+export function invalidateUrlCache(objectName: string): void {
+  urlCache.delete(objectName);
 }
 
 export async function deleteFile(objectName: string): Promise<void> {

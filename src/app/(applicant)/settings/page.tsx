@@ -33,6 +33,7 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -128,7 +129,7 @@ export default function SettingsPage() {
   };
 
   const handleAvatarDelete = async () => {
-    setIsUploadingAvatar(true);
+    setIsDeletingAvatar(true);
     setMessage(null);
 
     try {
@@ -151,7 +152,7 @@ export default function SettingsPage() {
       console.error("Failed to delete avatar:", error);
       setMessage({ type: "error", text: "削除に失敗しました" });
     } finally {
-      setIsUploadingAvatar(false);
+      setIsDeletingAvatar(false);
     }
   };
 
@@ -206,19 +207,19 @@ export default function SettingsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={isUploadingAvatar}
+                  disabled={isUploadingAvatar || isDeletingAvatar}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  {isUploadingAvatar ? "処理中..." : "画像を変更"}
+                  {isUploadingAvatar ? "アップロード中..." : "画像を変更"}
                 </Button>
                 {settings.avatarUrl && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={isUploadingAvatar}
+                    disabled={isUploadingAvatar || isDeletingAvatar}
                     onClick={handleAvatarDelete}
                   >
-                    削除
+                    {isDeletingAvatar ? "削除中..." : "削除"}
                   </Button>
                 )}
               </div>
