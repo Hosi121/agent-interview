@@ -13,9 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -24,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 interface Match {
   id: string;
@@ -69,6 +68,13 @@ const statusLabels: Record<string, string> = {
   ACTIVE: "募集中",
   PAUSED: "一時停止",
   CLOSED: "募集終了",
+};
+
+const statusColorMap: Record<string, string> = {
+  ACTIVE: "bg-emerald-500/10 text-emerald-600",
+  PAUSED: "bg-amber-500/10 text-amber-600",
+  CLOSED: "bg-destructive/10 text-destructive",
+  DRAFT: "bg-secondary text-secondary-foreground",
 };
 
 export default function JobDetailPage() {
@@ -169,7 +175,11 @@ export default function JobDetailPage() {
   };
 
   if (isLoading) {
-    return <p className="text-muted-foreground text-pretty">読み込み中...</p>;
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
   }
 
   if (!job) {
@@ -179,7 +189,7 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-2">
@@ -190,8 +200,21 @@ export default function JobDetailPage() {
               ← 求人一覧
             </Link>
           </div>
-          <h1 className="text-3xl font-bold text-balance">{job.title}</h1>
-          <p className="text-muted-foreground mt-1 text-pretty tabular-nums">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-balance">
+              {job.title}
+            </h1>
+            <span
+              className={cn(
+                "text-[10px] font-medium px-2 py-0.5 rounded-md",
+                statusColorMap[job.status] ||
+                  "bg-secondary text-secondary-foreground",
+              )}
+            >
+              {statusLabels[job.status] || job.status}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1 text-pretty tabular-nums">
             {job.location || "勤務地未設定"}
             {job.isRemote && " ・ リモート可"}
             {job.salaryMin &&
@@ -234,11 +257,11 @@ export default function JobDetailPage() {
         </TabsList>
 
         <TabsContent value="details" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>求人内容</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="px-5 py-4 border-b">
+              <h3 className="text-sm font-medium">求人内容</h3>
+            </div>
+            <div className="px-5 py-4 space-y-5">
               <div>
                 <h4 className="font-medium mb-2 text-balance">詳細</h4>
                 <p className="text-sm whitespace-pre-wrap text-pretty">
@@ -266,15 +289,18 @@ export default function JobDetailPage() {
                   <h4 className="font-medium mb-2 text-balance">必須スキル</h4>
                   <div className="flex flex-wrap gap-1">
                     {job.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary">
+                      <span
+                        key={skill}
+                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-secondary-foreground"
+                      >
                         {skill}
-                      </Badge>
+                      </span>
                     ))}
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="matches" className="space-y-4">
@@ -288,54 +314,81 @@ export default function JobDetailPage() {
           </div>
 
           {job.matches.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground mb-4 text-pretty">
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="py-16 space-y-3 flex flex-col items-center text-center">
+                <div className="size-10 rounded-lg bg-secondary flex items-center justify-center">
+                  <svg
+                    className="size-5 text-muted-foreground"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128H5.228A2 2 0 0 1 3.24 17.1a4.125 4.125 0 0 1 3.135-5.354M12.75 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm8.25 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"
+                    />
+                  </svg>
+                </div>
+                <div className="h-px w-16 bg-gradient-to-r from-transparent via-border to-transparent" />
+                <p className="text-muted-foreground text-sm text-pretty">
                   まだマッチング候補がいません
                 </p>
                 <Button onClick={handleRunMatching} disabled={isMatching}>
                   マッチングを実行
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {job.matches.map((match) => (
-                <Card key={match.id}>
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{match.agent.user.name}</p>
-                        <div className="flex gap-4 text-sm text-muted-foreground mt-1 tabular-nums">
-                          <span>総合: {Math.round(match.score * 100)}%</span>
-                          <span>
-                            スキル: {Math.round(match.scoreDetails.skill * 100)}
-                            %
-                          </span>
-                          <span>
-                            経験:{" "}
-                            {Math.round(match.scoreDetails.experience * 100)}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/recruiter/interview/${match.agent.id}?jobId=${jobId}`}
-                        >
-                          <Button variant="outline" size="sm">
-                            面接
-                          </Button>
-                        </Link>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddToPipeline(match.agent.id)}
-                        >
-                          パイプラインに追加
-                        </Button>
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="px-5 py-3 border-b">
+                <span className="text-[10px] tracking-widest text-muted-foreground uppercase">
+                  マッチ候補
+                </span>
+                <span className="text-[10px] tracking-widest text-muted-foreground ml-2 tabular-nums">
+                  {job.matches.length}
+                </span>
+              </div>
+              {job.matches.map((match, index) => (
+                <div
+                  key={match.id}
+                  className={cn(
+                    "px-5 py-4 hover:bg-secondary/30 transition-colors",
+                    index < job.matches.length - 1 && "border-b",
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{match.agent.user.name}</p>
+                      <div className="flex gap-4 text-sm text-muted-foreground mt-1 tabular-nums">
+                        <span>総合: {Math.round(match.score * 100)}%</span>
+                        <span>
+                          スキル: {Math.round(match.scoreDetails.skill * 100)}%
+                        </span>
+                        <span>
+                          経験:{" "}
+                          {Math.round(match.scoreDetails.experience * 100)}%
+                        </span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="flex gap-2">
+                      <Link
+                        href={`/recruiter/interview/${match.agent.id}?jobId=${jobId}`}
+                      >
+                        <Button variant="outline" size="sm">
+                          面接
+                        </Button>
+                      </Link>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAddToPipeline(match.agent.id)}
+                      >
+                        パイプラインに追加
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           )}
