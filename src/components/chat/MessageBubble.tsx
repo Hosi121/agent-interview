@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -21,6 +21,8 @@ interface MessageBubbleProps {
   content: string;
   role: "user" | "assistant";
   senderName?: string;
+  assistantName?: string;
+  assistantAvatarPath?: string | null;
   references?: FragmentReference[];
   messageId?: string;
 }
@@ -40,6 +42,8 @@ export function MessageBubble({
   content,
   role,
   senderName,
+  assistantName,
+  assistantAvatarPath,
   references,
   messageId,
 }: MessageBubbleProps) {
@@ -56,10 +60,16 @@ export function MessageBubble({
       data-message-id={messageId}
     >
       <Avatar className="h-8 w-8 flex-shrink-0">
+        {!isUser && assistantAvatarPath && (
+          <AvatarImage
+            src={`/api/applicant/avatar/${assistantAvatarPath}`}
+            alt={assistantName || "AI"}
+          />
+        )}
         <AvatarFallback
           className={cn(isUser ? "bg-primary text-white" : "bg-gray-200")}
         >
-          {isUser ? senderName?.[0] || "U" : "AI"}
+          {isUser ? senderName?.[0] || "U" : assistantName?.[0] || "AI"}
         </AvatarFallback>
       </Avatar>
       <div className="space-y-2">

@@ -37,6 +37,8 @@ export default function AgentPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [userName, setUserName] = useState<string>("");
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
 
   const fetchAgent = useCallback(async () => {
     try {
@@ -53,9 +55,23 @@ export default function AgentPage() {
     }
   }, []);
 
+  const fetchUserProfile = useCallback(async () => {
+    try {
+      const response = await fetch("/api/applicant/settings");
+      if (response.ok) {
+        const data = await response.json();
+        setUserName(data.settings.name);
+        setAvatarPath(data.settings.avatarPath);
+      }
+    } catch (error) {
+      console.error("Failed to fetch user profile:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAgent();
-  }, [fetchAgent]);
+    fetchUserProfile();
+  }, [fetchAgent, fetchUserProfile]);
 
   const handleGeneratePrompt = async () => {
     setIsGenerating(true);
@@ -282,6 +298,8 @@ export default function AgentPage() {
       <AgentPreviewDialog
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
+        userName={userName}
+        avatarPath={avatarPath}
       />
     </div>
   );

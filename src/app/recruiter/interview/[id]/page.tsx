@@ -550,6 +550,8 @@ export default function InterviewPage({
                 onSendMessage={handleSendMessage}
                 isLoading={isLoading}
                 userName={session?.user?.companyName || undefined}
+                assistantName={agentInfo.user.name}
+                assistantAvatarPath={agentInfo.user.avatarPath}
                 placeholder={`${agentInfo.user.name}さんのエージェントに質問...`}
                 draftMessage={draftMessage}
                 onDraftChange={setDraftMessage}
