@@ -12,7 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -22,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 interface Pipeline {
   id: string;
@@ -63,13 +63,13 @@ const stageLabels: Record<string, string> = {
 };
 
 const stageColors: Record<string, string> = {
-  INTERESTED: "bg-blue-100 text-blue-800",
-  CONTACTED: "bg-purple-100 text-purple-800",
-  SCREENING: "bg-yellow-100 text-yellow-800",
-  INTERVIEWING: "bg-orange-100 text-orange-800",
-  OFFER: "bg-green-100 text-green-800",
-  HIRED: "bg-emerald-100 text-emerald-800",
-  REJECTED: "bg-red-100 text-red-800",
+  INTERESTED: "bg-blue-500/10 text-blue-600",
+  CONTACTED: "bg-purple-500/10 text-purple-600",
+  SCREENING: "bg-amber-500/10 text-amber-600",
+  INTERVIEWING: "bg-orange-500/10 text-orange-600",
+  OFFER: "bg-emerald-500/10 text-emerald-600",
+  HIRED: "bg-emerald-500/10 text-emerald-600",
+  REJECTED: "bg-destructive/10 text-destructive",
   WITHDRAWN: "bg-secondary text-secondary-foreground",
 };
 
@@ -172,12 +172,20 @@ export default function PipelinePage() {
     0,
   );
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-balance">パイプライン</h1>
-          <p className="text-muted-foreground mt-1 text-pretty tabular-nums">
+          <h1 className="text-2xl font-bold tracking-tight">パイプライン</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             候補者の選考状況を管理します（アクティブ: {totalActive}名）
           </p>
         </div>
@@ -198,22 +206,41 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <p className="text-muted-foreground text-pretty">読み込み中...</p>
-      ) : (
-        <div className="grid grid-cols-5 gap-4">
-          {activeStages.map((stage) => (
-            <div key={stage} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-balance">
-                  {stageLabels[stage]}
-                  <Badge variant="secondary" className="ml-2 tabular-nums">
-                    {counts[stage] || 0}
-                  </Badge>
-                </h3>
-              </div>
-              <div className="space-y-2 min-h-96 bg-muted/30 rounded-lg p-2">
-                {(grouped[stage] || []).map((pipeline) => (
+      <div className="grid grid-cols-5 gap-4">
+        {activeStages.map((stage) => (
+          <div key={stage} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm text-balance">
+                {stageLabels[stage]}
+                <span className="ml-2 text-[10px] font-medium px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground tabular-nums">
+                  {counts[stage] || 0}
+                </span>
+              </h3>
+            </div>
+            <div className="space-y-2 min-h-96 bg-muted/30 rounded-lg p-2">
+              {(grouped[stage] || []).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 space-y-3">
+                  <div className="size-10 rounded-full bg-gradient-to-b from-muted to-muted/50 flex items-center justify-center">
+                    <svg
+                      className="size-5 text-muted-foreground"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    候補者がいません
+                  </p>
+                </div>
+              ) : (
+                (grouped[stage] || []).map((pipeline) => (
                   <Card key={pipeline.id} className="cursor-pointer">
                     <CardHeader className="p-3 pb-2">
                       <CardTitle className="text-sm font-medium">
@@ -236,13 +263,12 @@ export default function PipelinePage() {
                         ]
                           .slice(0, 3)
                           .map((skill) => (
-                            <Badge
+                            <span
                               key={skill}
-                              variant="outline"
-                              className="text-xs"
+                              className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-secondary-foreground"
                             >
                               {skill}
-                            </Badge>
+                            </span>
                           ))}
                       </div>
                       <Select
@@ -293,12 +319,12 @@ export default function PipelinePage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                ))
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
 
       {/* Archived/Closed stages */}
       <div className="mt-8">
@@ -308,9 +334,14 @@ export default function PipelinePage() {
             <Card key={stage}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Badge className={stageColors[stage]}>
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium px-2 py-0.5 rounded-md",
+                      stageColors[stage],
+                    )}
+                  >
                     {stageLabels[stage]}
-                  </Badge>
+                  </span>
                   <span className="text-muted-foreground tabular-nums">
                     {counts[stage] || 0}名
                   </span>
