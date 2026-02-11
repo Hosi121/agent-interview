@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,6 +18,7 @@ interface Settings {
   name: string;
   email: string | null;
   phone: string | null;
+  avatarPath: string | null;
 }
 
 export default function SettingsPage() {
@@ -24,13 +26,16 @@ export default function SettingsPage() {
     name: "",
     email: null,
     phone: null,
+    avatarPath: null,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -49,6 +54,76 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingAvatar(true);
+    setMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/applicant/avatar", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSettings((prev) => ({ ...prev, avatarPath: data.avatarPath }));
+        setMessage({ type: "success", text: "アバターを更新しました" });
+      } else {
+        const data = await response.json();
+        setMessage({
+          type: "error",
+          text: data.error || "アバターのアップロードに失敗しました",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to upload avatar:", error);
+      setMessage({
+        type: "error",
+        text: "アバターのアップロードに失敗しました",
+      });
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    setIsUploadingAvatar(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/applicant/avatar", {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setSettings((prev) => ({ ...prev, avatarPath: null }));
+        setMessage({ type: "success", text: "アバターを削除しました" });
+      } else {
+        setMessage({
+          type: "error",
+          text: "アバターの削除に失敗しました",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete avatar:", error);
+      setMessage({
+        type: "error",
+        text: "アバターの削除に失敗しました",
+      });
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -116,6 +191,83 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>アバター画像</Label>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                className="relative group cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+              >
+                <Avatar className="size-20">
+                  {settings.avatarPath && (
+                    <AvatarImage
+                      src={`/api/applicant/avatar/${settings.avatarPath}`}
+                      alt="アバター"
+                    />
+                  )}
+                  <AvatarFallback className="text-2xl">
+                    {settings.name[0] || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <svg
+                    className="size-6 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                </div>
+              </button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                  >
+                    {isUploadingAvatar ? "処理中..." : "画像を変更"}
+                  </Button>
+                  {settings.avatarPath && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAvatarDelete}
+                      disabled={isUploadingAvatar}
+                    >
+                      削除
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground text-pretty">
+                  JPEG、PNG、WebP形式（最大2MB）
+                </p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name">名前</Label>
             <Input

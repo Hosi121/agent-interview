@@ -12,7 +12,7 @@ import {
   MissingInfoAlert,
 } from "@/components/interview";
 import type { EvidenceFragment } from "@/components/interview/EvidencePack";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +44,7 @@ interface AgentInfo {
   user: {
     id: string;
     name: string;
+    avatarPath: string | null;
   };
   fragments: {
     type: string;
@@ -457,6 +458,12 @@ export default function InterviewPage({
         </Link>
         <div className="flex items-center gap-3">
           <Avatar className="size-10">
+            {agentInfo.user.avatarPath && (
+              <AvatarImage
+                src={`/api/applicant/avatar/${agentInfo.user.avatarPath}`}
+                alt={agentInfo.user.name}
+              />
+            )}
             <AvatarFallback className="bg-primary text-white">
               {agentInfo.user.name[0]}
             </AvatarFallback>
