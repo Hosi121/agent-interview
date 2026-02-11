@@ -85,11 +85,22 @@ data "aws_iam_policy_document" "github_actions" {
       sid = "LambdaUpdate"
       actions = [
         "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
         "lambda:GetFunction",
         "lambda:GetFunctionConfiguration",
       ]
       resources = [var.lambda_function_arn]
     }
+  }
+
+  statement {
+    sid = "SSMGetParameter"
+    actions = [
+      "ssm:GetParameter",
+    ]
+    resources = [
+      "arn:aws:ssm:ap-northeast-1:${local.account_id}:parameter${var.ssm_parameter_prefix}/*",
+    ]
   }
 
   statement {
