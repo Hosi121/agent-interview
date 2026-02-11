@@ -1,6 +1,7 @@
 import { compare } from "bcryptjs";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { getFileUrl } from "./minio";
 import { prisma } from "./prisma";
 
 export const authOptions: NextAuthOptions = {
@@ -65,6 +66,9 @@ export const authOptions: NextAuthOptions = {
           if (account.user) {
             session.user.userId = account.user.id;
             session.user.name = account.user.name;
+            if (account.user.avatarPath) {
+              session.user.image = await getFileUrl(account.user.avatarPath);
+            }
           }
           if (account.recruiter) {
             session.user.recruiterId = account.recruiter.id;

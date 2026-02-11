@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -197,6 +197,7 @@ export default function ApplicantLayout({
                     aria-label="アカウントメニュー"
                   >
                     <Avatar className="size-8">
+                      <AvatarImage src={session.user?.image ?? undefined} />
                       <AvatarFallback>
                         {session.user?.name?.[0] || "U"}
                       </AvatarFallback>
