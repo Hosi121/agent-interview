@@ -26,6 +26,7 @@ export function streamChatResponse(
     messages: [{ role: "system", content: systemPrompt }, ...messages],
     temperature: 0.7,
     maxOutputTokens: 1000,
+    frequencyPenalty: 0.4,
     abortSignal: options?.abortSignal,
   });
 }
