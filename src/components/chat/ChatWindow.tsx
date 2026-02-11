@@ -90,7 +90,7 @@ export function ChatWindow({
               references={message.references}
             />
           ))}
-          {isLoading && (
+          {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-3">
               <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
                 <span className="text-xs">AI</span>

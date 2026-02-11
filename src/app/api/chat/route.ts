@@ -4,7 +4,7 @@ import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
 import { logger } from "@/lib/logger";
-import { extractFragments, generateChatResponse } from "@/lib/openai";
+import { extractFragments, streamChatResponse } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 import type { ChatCoverageState } from "@/types";
 
@@ -90,83 +90,133 @@ export const POST = withUserValidation(
       content: m.content,
     }));
 
-    // 既存Fragmentを取得してカバレッジを計算し、動的プロンプトを構築
     const existingFragments = await prisma.fragment.findMany({
       where: { userId: session.user.userId },
       select: { type: true, content: true },
     });
 
-    let coverage = calculateCoverage(existingFragments);
+    const coverage = calculateCoverage(existingFragments);
     const systemPrompt = buildSystemPrompt(existingFragments, coverage);
 
-    const responseMessage = await generateChatResponse(
-      systemPrompt,
-      chatMessages,
-    );
+    const result = streamChatResponse(systemPrompt, chatMessages);
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+    const encoder = new TextEncoder();
 
-    let fragmentsExtracted = 0;
+    const writeSSE = (event: string, data: string) =>
+      writer.write(encoder.encode(`event: ${event}\ndata: ${data}\n\n`));
 
-    const userMessages = messages.filter((m) => m.role === "user");
-    if (userMessages.length > 0 && userMessages.length % 2 === 0) {
+    (async () => {
       try {
-        const NEW_MESSAGE_COUNT = 4; // 直近2ターン分（user + assistant）
-        const CONTEXT_MESSAGE_COUNT = 4;
-        const newMessages = messages.slice(-NEW_MESSAGE_COUNT);
-        const newMessagesText = newMessages
-          .map((m) => `${m.role}: ${m.content}`)
-          .join("\n");
-
-        const contextStart = Math.max(
-          0,
-          messages.length - NEW_MESSAGE_COUNT - CONTEXT_MESSAGE_COUNT,
-        );
-        const contextEnd = messages.length - NEW_MESSAGE_COUNT;
-        const contextMessages = messages.slice(contextStart, contextEnd);
-        const contextMessagesText =
-          contextMessages.length > 0
-            ? contextMessages.map((m) => `${m.role}: ${m.content}`).join("\n")
-            : undefined;
-
-        const extractedData = await extractFragments(newMessagesText, {
-          existingFragments,
-          contextMessages: contextMessagesText,
-          newMessages: newMessagesText,
-        });
-
-        if (extractedData.fragments && extractedData.fragments.length > 0) {
-          for (const fragment of extractedData.fragments) {
-            await prisma.fragment.create({
-              data: {
-                userId: session.user.userId,
-                type: (fragment.type as FragmentType) || "FACT",
-                content: fragment.content,
-                skills: fragment.skills || [],
-                keywords: fragment.keywords || [],
-                sourceType: SourceType.CONVERSATION,
-                confidence: 0.8,
-              },
-            });
-            fragmentsExtracted++;
-          }
-
-          // 新規Fragmentが追加された場合のみカバレッジを再計算
-          const allFragments = await prisma.fragment.findMany({
-            where: { userId: session.user.userId },
-            select: { type: true },
-          });
-          coverage = calculateCoverage(allFragments);
+        let fullText = "";
+        for await (const chunk of result.textStream) {
+          fullText += chunk;
+          await writeSSE("text", JSON.stringify(chunk));
         }
-      } catch (extractError) {
-        logger.error("Fragment extraction error", extractError as Error, {
+        await writeSSE("text_done", "");
+
+        let fragmentsExtracted = 0;
+        let currentCoverage = coverage;
+
+        const userMessages = messages.filter((m) => m.role === "user");
+        if (userMessages.length > 0 && userMessages.length % 2 === 0) {
+          try {
+            const allMessages = [
+              ...messages,
+              { role: "assistant" as const, content: fullText },
+            ];
+
+            const NEW_MESSAGE_COUNT = 4;
+            const CONTEXT_MESSAGE_COUNT = 4;
+            const newMessages = allMessages.slice(-NEW_MESSAGE_COUNT);
+            const newMessagesText = newMessages
+              .map((m) => `${m.role}: ${m.content}`)
+              .join("\n");
+
+            const contextStart = Math.max(
+              0,
+              allMessages.length - NEW_MESSAGE_COUNT - CONTEXT_MESSAGE_COUNT,
+            );
+            const contextEnd = allMessages.length - NEW_MESSAGE_COUNT;
+            const contextMessages = allMessages.slice(contextStart, contextEnd);
+            const contextMessagesText =
+              contextMessages.length > 0
+                ? contextMessages
+                    .map((m) => `${m.role}: ${m.content}`)
+                    .join("\n")
+                : undefined;
+
+            const extractedData = await extractFragments(newMessagesText, {
+              existingFragments,
+              contextMessages: contextMessagesText,
+              newMessages: newMessagesText,
+            });
+
+            if (extractedData.fragments && extractedData.fragments.length > 0) {
+              for (const fragment of extractedData.fragments) {
+                await prisma.fragment.create({
+                  data: {
+                    userId: session.user.userId,
+                    type: (fragment.type as FragmentType) || "FACT",
+                    content: fragment.content,
+                    skills: fragment.skills || [],
+                    keywords: fragment.keywords || [],
+                    sourceType: SourceType.CONVERSATION,
+                    confidence: 0.8,
+                  },
+                });
+                fragmentsExtracted++;
+              }
+
+              const allFragments = await prisma.fragment.findMany({
+                where: { userId: session.user.userId },
+                select: { type: true },
+              });
+              currentCoverage = calculateCoverage(allFragments);
+            }
+          } catch (extractError) {
+            logger.error("Fragment extraction error", extractError as Error, {
+              userId: session.user.userId,
+            });
+          }
+        }
+
+        await writeSSE(
+          "metadata",
+          JSON.stringify({
+            fragmentsExtracted,
+            coverage: currentCoverage,
+          }),
+        );
+      } catch (error) {
+        logger.error("Streaming error", error as Error, {
           userId: session.user.userId,
         });
+        try {
+          await writeSSE(
+            "error",
+            JSON.stringify({
+              message: "ストリーミング中にエラーが発生しました",
+            }),
+          );
+        } catch {
+          // client disconnected
+        }
+      } finally {
+        try {
+          await writer.close();
+        } catch {
+          // already closed
+        }
       }
-    }
+    })();
 
-    return NextResponse.json({
-      message: responseMessage,
-      fragmentsExtracted,
-      coverage,
+    return new NextResponse(stream.readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
     });
   },
 );

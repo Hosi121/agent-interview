@@ -1,4 +1,4 @@
-import { generateText, Output } from "ai";
+import { generateText, Output, streamText } from "ai";
 import { z } from "zod";
 import { defaultModel } from "./ai";
 
@@ -14,6 +14,18 @@ export async function generateChatResponse(
   });
 
   return text;
+}
+
+export function streamChatResponse(
+  systemPrompt: string,
+  messages: { role: "user" | "assistant"; content: string }[],
+) {
+  return streamText({
+    model: defaultModel,
+    messages: [{ role: "system", content: systemPrompt }, ...messages],
+    temperature: 0.7,
+    maxOutputTokens: 1000,
+  });
 }
 
 const fragmentSchema = z.object({
