@@ -50,7 +50,7 @@ export function InterviewNotes({ notes, onAddNote }: InterviewNotesProps) {
       {notes.length > 0 && (
         <div className="space-y-2 max-h-[200px] overflow-y-auto">
           {notes.map((note) => (
-            <div key={note.id} className="p-2 bg-gray-50 rounded text-sm">
+            <div key={note.id} className="p-2 bg-secondary rounded text-sm">
               <p>{note.content}</p>
               <p className="text-xs text-muted-foreground mt-1">
                 {new Date(note.createdAt).toLocaleString("ja-JP")}

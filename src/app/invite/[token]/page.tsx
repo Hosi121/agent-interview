@@ -106,7 +106,7 @@ export default function InviteAcceptPage() {
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-dvh flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">招待を受け付ける</CardTitle>

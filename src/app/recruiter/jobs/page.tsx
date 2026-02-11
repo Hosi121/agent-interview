@@ -56,7 +56,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-800",
+  DRAFT: "bg-secondary text-secondary-foreground",
   ACTIVE: "bg-green-100 text-green-800",
   PAUSED: "bg-yellow-100 text-yellow-800",
   CLOSED: "bg-red-100 text-red-800",

@@ -31,7 +31,9 @@ export function RatingInput({
             onClick={() => onChange(n)}
             className={cn(
               "size-8 rounded tabular-nums",
-              n <= value ? "bg-primary text-white" : "bg-gray-200",
+              n <= value
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary",
             )}
           >
             {n}

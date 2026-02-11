@@ -270,7 +270,7 @@ export function InterestsView({ onSwitchToAll }: InterestsViewProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               {interest.status === "CONTACT_DISCLOSED" && (
-                <div className="space-y-2 p-3 bg-gray-50 rounded-lg">
+                <div className="space-y-2 p-3 bg-secondary rounded-lg">
                   <div className="flex items-center gap-2 text-sm">
                     <svg
                       className="size-4 text-muted-foreground"
@@ -385,7 +385,7 @@ export function InterestsView({ onSwitchToAll }: InterestsViewProps) {
                         "max-w-[80%] rounded-lg px-4 py-2",
                         message.senderType === "RECRUITER"
                           ? "bg-primary text-white"
-                          : "bg-gray-100",
+                          : "bg-secondary",
                       )}
                     >
                       <p className="text-sm text-pretty">{message.content}</p>

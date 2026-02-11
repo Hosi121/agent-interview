@@ -255,7 +255,7 @@ export default function RecruiterDashboard() {
               {recentSessions.map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-colors"
                 >
                   <div>
                     <p className="font-medium">{s.agent.user.name}</p>

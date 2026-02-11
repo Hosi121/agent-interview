@@ -488,7 +488,7 @@ export default function InboxPage() {
                         "max-w-[80%] rounded-lg px-4 py-2",
                         message.senderType === "USER"
                           ? "bg-primary text-white"
-                          : "bg-gray-100",
+                          : "bg-secondary",
                       )}
                     >
                       <p className="text-sm text-pretty">{message.content}</p>

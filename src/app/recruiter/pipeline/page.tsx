@@ -70,7 +70,7 @@ const stageColors: Record<string, string> = {
   OFFER: "bg-green-100 text-green-800",
   HIRED: "bg-emerald-100 text-emerald-800",
   REJECTED: "bg-red-100 text-red-800",
-  WITHDRAWN: "bg-gray-100 text-gray-800",
+  WITHDRAWN: "bg-secondary text-secondary-foreground",
 };
 
 const activeStages = [
