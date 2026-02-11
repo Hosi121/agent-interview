@@ -124,7 +124,6 @@ export const POST = withUserValidation(
           fullText += chunk;
           await writeSSE("text", JSON.stringify(chunk));
         }
-        await writeSSE("text_done", "");
 
         let fragmentsExtracted = 0;
         let currentCoverage = coverage;
@@ -163,20 +162,18 @@ export const POST = withUserValidation(
             });
 
             if (extractedData.fragments && extractedData.fragments.length > 0) {
-              for (const fragment of extractedData.fragments) {
-                await prisma.fragment.create({
-                  data: {
-                    userId: session.user.userId,
-                    type: (fragment.type as FragmentType) || "FACT",
-                    content: fragment.content,
-                    skills: fragment.skills || [],
-                    keywords: fragment.keywords || [],
-                    sourceType: SourceType.CONVERSATION,
-                    confidence: 0.8,
-                  },
-                });
-                fragmentsExtracted++;
-              }
+              await prisma.fragment.createMany({
+                data: extractedData.fragments.map((fragment) => ({
+                  userId: session.user.userId,
+                  type: (fragment.type as FragmentType) || "FACT",
+                  content: fragment.content,
+                  skills: fragment.skills || [],
+                  keywords: fragment.keywords || [],
+                  sourceType: SourceType.CONVERSATION,
+                  confidence: 0.8,
+                })),
+              });
+              fragmentsExtracted = extractedData.fragments.length;
 
               const allFragments = await prisma.fragment.findMany({
                 where: { userId: session.user.userId },

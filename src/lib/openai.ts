@@ -427,23 +427,25 @@ const comparisonSchema = z.object({
 export async function generateCandidateComparison(
   comparisonPrompt: string,
 ): Promise<z.infer<typeof comparisonSchema> | { summary: string }> {
+  const comparisonMessages = [
+    {
+      role: "system" as const,
+      content:
+        "あなたは採用担当者をサポートするアシスタントです。客観的かつ公平に候補者を分析してください。",
+    },
+    {
+      role: "user" as const,
+      content: comparisonPrompt,
+    },
+  ];
+  const comparisonOptions = { temperature: 0.5, maxOutputTokens: 2000 };
+
   try {
     const { output } = await generateText({
       model: defaultModel,
-      messages: [
-        {
-          role: "system",
-          content:
-            "あなたは採用担当者をサポートするアシスタントです。客観的かつ公平に候補者を分析してください。",
-        },
-        {
-          role: "user",
-          content: comparisonPrompt,
-        },
-      ],
+      messages: comparisonMessages,
       output: Output.object({ schema: comparisonSchema }),
-      temperature: 0.5,
-      maxOutputTokens: 2000,
+      ...comparisonOptions,
     });
 
     return output ?? { summary: "分析結果を取得できませんでした" };
@@ -451,19 +453,8 @@ export async function generateCandidateComparison(
     try {
       const { text } = await generateText({
         model: defaultModel,
-        messages: [
-          {
-            role: "system",
-            content:
-              "あなたは採用担当者をサポートするアシスタントです。客観的かつ公平に候補者を分析してください。",
-          },
-          {
-            role: "user",
-            content: comparisonPrompt,
-          },
-        ],
-        temperature: 0.5,
-        maxOutputTokens: 2000,
+        messages: comparisonMessages,
+        ...comparisonOptions,
       });
 
       return { summary: text };

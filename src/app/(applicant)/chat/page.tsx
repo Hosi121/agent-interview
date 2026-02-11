@@ -128,7 +128,7 @@ export default function ChatPage() {
         throw new Error("Failed to send message");
       }
 
-      const assistantId = (Date.now() + 1).toString();
+      const assistantId = crypto.randomUUID();
       let accumulatedText = "";
 
       setMessages((prev) => [
@@ -137,35 +137,39 @@ export default function ChatPage() {
       ]);
 
       for await (const { event, data } of parseSSE(response)) {
-        if (event === "text") {
-          accumulatedText += JSON.parse(data);
-          const currentText = accumulatedText;
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              content: currentText,
-            };
-            return updated;
-          });
-        } else if (event === "metadata") {
-          const meta = JSON.parse(data);
-          if (meta.fragmentsExtracted) {
-            setFragmentCount((prev) => prev + meta.fragmentsExtracted);
+        try {
+          if (event === "text") {
+            accumulatedText += JSON.parse(data);
+            const currentText = accumulatedText;
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                content: currentText,
+              };
+              return updated;
+            });
+          } else if (event === "metadata") {
+            const meta = JSON.parse(data);
+            if (meta.fragmentsExtracted) {
+              setFragmentCount((prev) => prev + meta.fragmentsExtracted);
+            }
+            if (meta.coverage) {
+              setCoverage(meta.coverage);
+            }
+          } else if (event === "error") {
+            const errorData = JSON.parse(data);
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                content: errorData.message,
+              };
+              return updated;
+            });
           }
-          if (meta.coverage) {
-            setCoverage(meta.coverage);
-          }
-        } else if (event === "error") {
-          const errorData = JSON.parse(data);
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              content: errorData.message,
-            };
-            return updated;
-          });
+        } catch (e) {
+          console.error("SSE event parse error:", e);
         }
       }
     } catch (error) {
