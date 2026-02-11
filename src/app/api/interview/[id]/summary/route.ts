@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
-import { openai } from "@/lib/openai";
+import { generateConversationSummary } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -60,33 +60,10 @@ export const GET = withRecruiterAuth<RouteContext>(
       })
       .join("\n\n");
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "system",
-          content:
-            "あなたは採用面接の会話を要約するアシスタントです。日本語で簡潔にまとめてください。",
-        },
-        {
-          role: "user",
-          content: `以下は採用担当者と候補者（${agent.user.name}）のAIエージェントとの会話です。
-この会話を要約し、以下の観点で整理してください：
-
-1. **会話の概要**: 何について話し合われたか（2-3文）
-2. **候補者の強み**: 会話から見えた強みやスキル
-3. **確認済み事項**: 会話で確認できた重要な情報
-4. **未確認事項**: まだ確認が必要そうな事項（あれば）
-5. **全体的な印象**: 候補者の印象（1-2文）
-
-会話内容:
-${conversationText}`,
-        },
-      ],
-    });
-
-    const summary = response.choices[0]?.message?.content || "";
+    const summary = await generateConversationSummary(
+      conversationText,
+      agent.user.name,
+    );
 
     const references = await prisma.messageReference.findMany({
       where: {

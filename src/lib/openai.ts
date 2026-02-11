@@ -1,28 +1,111 @@
-import OpenAI from "openai";
-import type {
-  ChatCompletionContentPart,
-  ChatCompletionMessageParam,
-} from "openai/resources/chat/completions";
-
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { generateText, Output, streamText } from "ai";
+import { z } from "zod";
+import { defaultModel } from "./ai";
 
 export async function generateChatResponse(
   systemPrompt: string,
   messages: { role: "user" | "assistant"; content: string }[],
 ): Promise<string> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
+  const { text } = await generateText({
+    model: defaultModel,
     messages: [{ role: "system", content: systemPrompt }, ...messages],
     temperature: 0.7,
-    max_tokens: 1000,
+    maxOutputTokens: 1000,
   });
 
-  return response.choices[0]?.message?.content || "";
+  return text;
 }
 
-export async function extractFragments(conversationHistory: string): Promise<{
+export function streamChatResponse(
+  systemPrompt: string,
+  messages: { role: "user" | "assistant"; content: string }[],
+  options?: { abortSignal?: AbortSignal },
+) {
+  return streamText({
+    model: defaultModel,
+    messages: [{ role: "system", content: systemPrompt }, ...messages],
+    temperature: 0.7,
+    maxOutputTokens: 1000,
+    abortSignal: options?.abortSignal,
+  });
+}
+
+const FRAGMENT_TYPES = [
+  "ACHIEVEMENT",
+  "ACTION",
+  "CHALLENGE",
+  "LEARNING",
+  "VALUE",
+  "EMOTION",
+  "FACT",
+  "SKILL_USAGE",
+] as const;
+
+export const FRAGMENT_CONTENT_TRUNCATE = 100;
+
+const fragmentSchema = z.object({
+  fragments: z.array(
+    z.object({
+      type: z
+        .string()
+        .transform((v) => v.toUpperCase())
+        .pipe(z.enum(FRAGMENT_TYPES))
+        .describe(
+          "ACHIEVEMENT | ACTION | CHALLENGE | LEARNING | VALUE | EMOTION | FACT | SKILL_USAGE",
+        ),
+      content: z.string().describe("Fragmentの具体的な内容"),
+      skills: z.array(z.string()).default([]).describe("関連スキル"),
+      keywords: z.array(z.string()).default([]).describe("関連キーワード"),
+    }),
+  ),
+});
+
+interface ExtractFragmentsOptions {
+  existingFragments?: { type: string; content: string }[];
+  contextMessages?: string;
+}
+
+function buildExtractionInput(
+  newMessages: string,
+  options: ExtractFragmentsOptions,
+): string {
+  const sections: string[] = [];
+
+  if (options.existingFragments && options.existingFragments.length > 0) {
+    const fragmentsList = options.existingFragments
+      .map((f) => {
+        const truncated =
+          f.content.length > FRAGMENT_CONTENT_TRUNCATE
+            ? `${f.content.slice(0, FRAGMENT_CONTENT_TRUNCATE)}…`
+            : f.content;
+        return `- [${f.type}] ${truncated}`;
+      })
+      .join("\n");
+
+    sections.push(
+      `## 既存Fragment一覧（重複排除用）\n以下は既に抽出済みの情報です。これらと重複する情報は抽出しないでください。\n${fragmentsList}`,
+    );
+  }
+
+  if (options.contextMessages) {
+    sections.push(`## 文脈メッセージ（参考情報）\n${options.contextMessages}`);
+  }
+
+  sections.push(
+    `## 【新規メッセージ】★ ここから新しい情報を抽出してください ★\n${newMessages}`,
+  );
+
+  sections.push(
+    "指示: 上記の【新規メッセージ】部分から、既存Fragment一覧と重複しない新しい情報のみを抽出してください。",
+  );
+
+  return sections.join("\n\n");
+}
+
+export async function extractFragments(
+  conversationHistory: string,
+  options?: ExtractFragmentsOptions,
+): Promise<{
   fragments: {
     type: string;
     content: string;
@@ -30,7 +113,7 @@ export async function extractFragments(conversationHistory: string): Promise<{
     keywords: string[];
   }[];
 }> {
-  const systemPrompt = `あなたは求職者との会話から重要な経験や能力を抽出するアシスタントです。
+  const baseSystemPrompt = `あなたは求職者との会話から重要な経験や能力を抽出するアシスタントです。
 会話から以下のカテゴリに分類できる「記憶のかけら（Fragment）」を抽出してください：
 
 - ACHIEVEMENT: 達成したこと、成果
@@ -42,95 +125,29 @@ export async function extractFragments(conversationHistory: string): Promise<{
 - FACT: 事実情報（学歴、職歴など）
 - SKILL_USAGE: スキルの使用例
 
-各Fragmentには関連するスキルとキーワードも抽出してください。
-JSON形式で返してください。`;
+各Fragmentには関連するスキルとキーワードも抽出してください。`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: conversationHistory },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.3,
-  });
+  const systemPrompt = options
+    ? `${baseSystemPrompt}\n\n重要: 既存Fragmentと意味的に重複する情報は抽出しないでください。同じ事実を別の言い回しで表現しただけのものも重複とみなしてください。`
+    : baseSystemPrompt;
 
-  const content = response.choices[0]?.message?.content || "{}";
+  const userContent = options
+    ? buildExtractionInput(conversationHistory, options)
+    : conversationHistory;
 
   try {
-    const parsed: Record<string, unknown> = JSON.parse(content);
+    const { output } = await generateText({
+      model: defaultModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+      output: Output.object({ schema: fragmentSchema }),
+      temperature: 0.3,
+    });
 
-    // ① 想定形 fragments/Fragments
-    let rawFragments =
-      (Array.isArray(parsed.fragments) && parsed.fragments) ||
-      (Array.isArray(parsed.Fragments) && parsed.Fragments);
-
-    // ② カテゴリ名をキーに持つオブジェクト（例: { FACT: [...], ACHIEVEMENT: [...] }）
-    if (!rawFragments && parsed && typeof parsed === "object") {
-      const keys = Object.keys(parsed);
-      const candidateKeys = keys.filter((k) =>
-        [
-          "ACHIEVEMENT",
-          "ACTION",
-          "CHALLENGE",
-          "LEARNING",
-          "VALUE",
-          "EMOTION",
-          "FACT",
-          "SKILL_USAGE",
-        ].includes(k.toUpperCase()),
-      );
-      if (candidateKeys.length > 0) {
-        rawFragments = candidateKeys.flatMap((k) => {
-          const arr = parsed[k];
-          return Array.isArray(arr)
-            ? arr.map((item: Record<string, unknown>) => ({
-                ...(item || {}),
-                Category: k,
-              }))
-            : [];
-        });
-      }
-    }
-
-    if (!rawFragments) {
-      rawFragments = [];
-    }
-
-    // FragmentType列挙に合わせた型名へ変換（未知は FACT にフォールバック）
-    const normalizedFragments = rawFragments.map(
-      (f: Record<string, unknown>) => ({
-        type: String(
-          f.type || f.Type || f.Category || f.category || "FACT",
-        ).toUpperCase(),
-        content: String(
-          f.content ||
-            f.Content ||
-            f.Detail ||
-            f.description ||
-            f.Description ||
-            "",
-        ),
-        skills: Array.isArray(f.skills)
-          ? f.skills
-          : f.Related_Skill
-            ? [f.Related_Skill]
-            : f.related_skills && Array.isArray(f.related_skills)
-              ? f.related_skills
-              : [],
-        keywords: Array.isArray(f.keywords)
-          ? f.keywords
-          : Array.isArray(f.Keywords)
-            ? f.Keywords
-            : f.key_words && Array.isArray(f.key_words)
-              ? f.key_words
-              : [],
-      }),
-    );
-
-    return { fragments: normalizedFragments };
-  } catch (_error) {
-    // 失敗時は空の結果を返してAPIを落とさない
+    return output ?? { fragments: [] };
+  } catch {
     return { fragments: [] };
   }
 }
@@ -143,8 +160,8 @@ export async function generateAgentSystemPrompt(
     .map((f) => `[${f.type}]: ${f.content}`)
     .join("\n");
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
+  const { text } = await generateText({
+    model: defaultModel,
     messages: [
       {
         role: "system",
@@ -156,8 +173,14 @@ export async function generateAgentSystemPrompt(
     temperature: 0.5,
   });
 
-  return response.choices[0]?.message?.content || "";
+  return text;
 }
+
+const interviewGuideSchema = z.object({
+  questions: z.array(z.string()).default([]),
+  missingInfo: z.array(z.string()).default([]),
+  focusAreas: z.array(z.string()).default([]),
+});
 
 export async function generateInterviewGuide(input: {
   job: {
@@ -177,20 +200,21 @@ export async function generateInterviewGuide(input: {
     ? `求人タイトル: ${input.job.title}\n求人概要: ${input.job.description}\n必須スキル: ${input.job.skills.join(", ") || "なし"}\n経験レベル: ${input.job.experienceLevel}`
     : "求人情報は未設定";
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-    temperature: 0.4,
-    max_tokens: 1000,
-    messages: [
-      {
-        role: "system",
-        content:
-          "あなたは採用面接の設計者です。求人と候補者情報に基づき、面接で聞くべき質問テンプレと不足情報を整理してください。",
-      },
-      {
-        role: "user",
-        content: `以下の情報をもとにJSONで回答してください。
+  try {
+    const { output } = await generateText({
+      model: defaultModel,
+      output: Output.object({ schema: interviewGuideSchema }),
+      temperature: 0.4,
+      maxOutputTokens: 1000,
+      messages: [
+        {
+          role: "system",
+          content:
+            "あなたは採用面接の設計者です。求人と候補者情報に基づき、面接で聞くべき質問テンプレと不足情報を整理してください。",
+        },
+        {
+          role: "user",
+          content: `以下の情報をもとに回答してください。
 
 ## 求人情報
 ${jobContext}
@@ -199,35 +223,20 @@ ${jobContext}
 ${input.candidateSummary}
 
 ## 不足情報のヒント
-${input.missingInfoHints.length > 0 ? input.missingInfoHints.join("\n") : "特になし"}
+${input.missingInfoHints.length > 0 ? input.missingInfoHints.join("\n") : "特になし"}`,
+        },
+      ],
+    });
 
-以下の形式でJSONを返してください:
-{
-  "questions": ["質問テンプレ1", "質問テンプレ2", ...],
-  "missingInfo": ["不足情報1", "不足情報2", ...],
-  "focusAreas": ["重点観点1", "重点観点2", ...]
-}
-`,
-      },
-    ],
-  });
-
-  const content = response.choices[0]?.message?.content || "{}";
-  try {
-    const parsed = JSON.parse(content);
-    return {
-      questions: Array.isArray(parsed.questions) ? parsed.questions : [],
-      missingInfo: Array.isArray(parsed.missingInfo) ? parsed.missingInfo : [],
-      focusAreas: Array.isArray(parsed.focusAreas) ? parsed.focusAreas : [],
-    };
+    return output ?? { questions: [], missingInfo: [], focusAreas: [] };
   } catch {
-    return {
-      questions: [],
-      missingInfo: [],
-      focusAreas: [],
-    };
+    return { questions: [], missingInfo: [], focusAreas: [] };
   }
 }
+
+const followUpSchema = z.object({
+  followUps: z.array(z.string()).default([]),
+});
 
 export async function generateFollowUpQuestions(input: {
   job: {
@@ -240,20 +249,21 @@ export async function generateFollowUpQuestions(input: {
   answer: string;
   missingInfo: string[];
 }): Promise<string[]> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    response_format: { type: "json_object" },
-    temperature: 0.4,
-    max_tokens: 400,
-    messages: [
-      {
-        role: "system",
-        content:
-          "あなたは採用担当者のアシスタントです。直前の回答を深掘りする追加質問を2-3件、簡潔に提案してください。",
-      },
-      {
-        role: "user",
-        content: `求人タイトル: ${input.job.title}
+  try {
+    const { output } = await generateText({
+      model: defaultModel,
+      output: Output.object({ schema: followUpSchema }),
+      temperature: 0.4,
+      maxOutputTokens: 400,
+      messages: [
+        {
+          role: "system",
+          content:
+            "あなたは採用担当者のアシスタントです。直前の回答を深掘りする追加質問を2-3件、簡潔に提案してください。",
+        },
+        {
+          role: "user",
+          content: `求人タイトル: ${input.job.title}
 求人概要: ${input.job.description}
 必須スキル: ${input.job.skills.join(", ") || "なし"}
 経験レベル: ${input.job.experienceLevel}
@@ -265,21 +275,12 @@ ${input.missingInfo.length > 0 ? input.missingInfo.join("\n") : "特になし"}
 ${input.question}
 
 候補者の回答:
-${input.answer}
+${input.answer}`,
+        },
+      ],
+    });
 
-以下の形式でJSONを返してください:
-{
-  "followUps": ["追加質問1", "追加質問2", ...]
-}
-`,
-      },
-    ],
-  });
-
-  const content = response.choices[0]?.message?.content || "{}";
-  try {
-    const parsed = JSON.parse(content);
-    return Array.isArray(parsed.followUps) ? parsed.followUps : [];
+    return output?.followUps ?? [];
   } catch {
     return [];
   }
@@ -291,15 +292,12 @@ ${input.answer}
 export async function extractTextFromPdfWithVision(
   pdfBuffer: Buffer,
 ): Promise<string> {
-  // pdf-to-imgでPDFを画像に変換
   const { pdf } = await import("pdf-to-img");
   const pages: Buffer[] = [];
 
-  // BufferをData URL形式に変換（pdf-to-imgはファイルパスまたはdata URLを受け付ける）
   const base64Pdf = pdfBuffer.toString("base64");
   const pdfDataUrl = `data:application/pdf;base64,${base64Pdf}`;
 
-  // PDFの各ページを画像として取得
   const document = await pdf(pdfDataUrl, { scale: 2.0 });
   for await (const page of document) {
     pages.push(page);
@@ -309,7 +307,6 @@ export async function extractTextFromPdfWithVision(
     throw new Error("PDFからページを抽出できませんでした");
   }
 
-  // 最大10ページまで処理（コスト制限）
   const maxPages = Math.min(pages.length, 10);
   const pagesToProcess = pages.slice(0, maxPages);
 
@@ -328,43 +325,38 @@ export async function extractTextFromPdfWithVision(
     const results = await Promise.allSettled(
       batch.map(async (page, batchIndex) => {
         const pageIndex = batchStart + batchIndex;
-        const base64Image = page.toString("base64");
 
-        const imageContent: ChatCompletionContentPart = {
-          type: "image_url",
-          image_url: {
-            url: `data:image/png;base64,${base64Image}`,
-            detail: "high",
-          },
-        };
-
-        const messages: ChatCompletionMessageParam[] = [
-          {
-            role: "system",
-            content: `あなたはOCRアシスタントです。画像内のすべてのテキストを正確に抽出してください。
+        const { text } = await generateText({
+          model: defaultModel,
+          messages: [
+            {
+              role: "system",
+              content: `あなたはOCRアシスタントです。画像内のすべてのテキストを正確に抽出してください。
 レイアウトや構造を可能な限り保持し、表がある場合はMarkdown形式で表現してください。
 テキストのみを出力し、説明や解釈は加えないでください。`,
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `このページ（${pageIndex + 1}/${pages.length}ページ）のテキストを抽出してください。`,
-              },
-              imageContent,
-            ],
-          },
-        ];
-
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages,
-          max_tokens: 4000,
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `このページ（${pageIndex + 1}/${pages.length}ページ）のテキストを抽出してください。`,
+                },
+                {
+                  type: "image",
+                  image: page,
+                  providerOptions: {
+                    openai: { imageDetail: "high" },
+                  },
+                },
+              ],
+            },
+          ],
+          maxOutputTokens: 4000,
           temperature: 0.1,
         });
 
-        return { pageIndex, text: response.choices[0]?.message?.content || "" };
+        return { pageIndex, text };
       }),
     );
 
@@ -385,4 +377,129 @@ export async function extractTextFromPdfWithVision(
   }
 
   return validTexts.join("\n\n");
+}
+
+const matchScoreSchema = z.object({
+  score: z.number(),
+  reason: z.string(),
+});
+
+export async function generateMatchScore(
+  conversationSummary: string,
+  fragmentsSummary: string,
+): Promise<number | null> {
+  try {
+    const { output } = await generateText({
+      model: defaultModel,
+      messages: [
+        {
+          role: "system",
+          content: `あなたは採用のマッチング評価を行うアシスタントです。
+面接の会話内容と候補者のプロフィール情報を分析し、マッチ度を0-100のスコアで評価してください。`,
+        },
+        {
+          role: "user",
+          content: `面接会話:\n${conversationSummary}\n\n候補者情報:\n${fragmentsSummary}`,
+        },
+      ],
+      output: Output.object({ schema: matchScoreSchema }),
+      temperature: 0.3,
+    });
+
+    return output?.score ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function generateConversationSummary(
+  conversationText: string,
+  candidateName: string,
+): Promise<string> {
+  try {
+    const { text } = await generateText({
+      model: defaultModel,
+      maxOutputTokens: 1000,
+      messages: [
+        {
+          role: "system",
+          content:
+            "あなたは採用面接の会話を要約するアシスタントです。日本語で簡潔にまとめてください。",
+        },
+        {
+          role: "user",
+          content: `以下は採用担当者と候補者（${candidateName}）のAIエージェントとの会話です。
+この会話を要約し、以下の観点で整理してください：
+
+1. **会話の概要**: 何について話し合われたか（2-3文）
+2. **候補者の強み**: 会話から見えた強みやスキル
+3. **確認済み事項**: 会話で確認できた重要な情報
+4. **未確認事項**: まだ確認が必要そうな事項（あれば）
+5. **全体的な印象**: 候補者の印象（1-2文）
+
+会話内容:
+${conversationText}`,
+        },
+      ],
+    });
+
+    return text;
+  } catch {
+    return "";
+  }
+}
+
+const comparisonSchema = z.object({
+  summary: z.string(),
+  comparison: z.object({
+    skills: z.string(),
+    experience: z.string(),
+    fit: z.string(),
+  }),
+  recommendation: z.string(),
+  rankings: z.object({
+    overall: z.array(z.string()),
+    technical: z.array(z.string()),
+    communication: z.array(z.string()),
+  }),
+});
+
+export async function generateCandidateComparison(
+  comparisonPrompt: string,
+): Promise<z.infer<typeof comparisonSchema> | { summary: string }> {
+  const comparisonMessages = [
+    {
+      role: "system" as const,
+      content:
+        "あなたは採用担当者をサポートするアシスタントです。客観的かつ公平に候補者を分析してください。",
+    },
+    {
+      role: "user" as const,
+      content: comparisonPrompt,
+    },
+  ];
+  const comparisonOptions = { temperature: 0.5, maxOutputTokens: 2000 };
+
+  try {
+    const { output } = await generateText({
+      model: defaultModel,
+      messages: comparisonMessages,
+      output: Output.object({ schema: comparisonSchema }),
+      ...comparisonOptions,
+    });
+
+    return output ?? { summary: "分析結果を取得できませんでした" };
+  } catch {
+    try {
+      const { text } = await generateText({
+        model: defaultModel,
+        messages: comparisonMessages,
+        ...comparisonOptions,
+      });
+
+      return { summary: text };
+    } catch {
+      return { summary: "分析結果を取得できませんでした" };
+    }
+  }
 }

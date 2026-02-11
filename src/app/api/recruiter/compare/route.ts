@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import { openai } from "@/lib/openai";
+import { generateCandidateComparison } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
 const compareSchema = z.object({
@@ -163,35 +163,7 @@ ${c.evaluation ? `- 面接評価: 総合${c.evaluation.overall}/5, 技術${c.eva
 }
 `;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "system",
-        content:
-          "あなたは採用担当者をサポートするアシスタントです。客観的かつ公平に候補者を分析してください。",
-      },
-      {
-        role: "user",
-        content: comparisonPrompt,
-      },
-    ],
-    temperature: 0.5,
-    max_tokens: 2000,
-  });
-
-  const aiResponse = response.choices[0]?.message?.content || "";
-
-  let analysis = null;
-  try {
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      analysis = JSON.parse(jsonMatch[0]);
-    }
-  } catch {
-    // JSON解析失敗時はテキストのまま
-    analysis = { summary: aiResponse };
-  }
+  const analysis = await generateCandidateComparison(comparisonPrompt);
 
   return NextResponse.json({
     candidates: candidatesData,

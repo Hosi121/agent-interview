@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { openai } from "@/lib/openai";
+import { generateMatchScore } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -132,28 +132,10 @@ export const POST = withRecruiterAuth<RouteContext>(
           .map((f) => `[${f.type}]: ${f.content}`)
           .join("\n");
 
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "system",
-              content: `あなたは採用のマッチング評価を行うアシスタントです。
-面接の会話内容と候補者のプロフィール情報を分析し、マッチ度を0-100のスコアで評価してください。
-JSONで{"score": 数値, "reason": "理由"}の形式で回答してください。`,
-            },
-            {
-              role: "user",
-              content: `面接会話:\n${conversationSummary}\n\n候補者情報:\n${fragmentsSummary}`,
-            },
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.3,
-        });
-
-        const result = JSON.parse(
-          response.choices[0]?.message?.content || "{}",
+        matchScore = await generateMatchScore(
+          conversationSummary,
+          fragmentsSummary,
         );
-        matchScore = result.score || null;
       } catch {
         // マッチスコア計算の失敗は無視（メイン機能ではない）
       }

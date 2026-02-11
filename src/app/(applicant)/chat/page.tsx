@@ -39,6 +39,33 @@ const INITIAL_COVERAGE: ChatCoverageState = {
   categories: [],
 };
 
+async function* parseSSE(response: Response) {
+  if (!response.body) return;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+
+    for (const eventStr of events) {
+      const lines = eventStr.split("\n");
+      let event = "";
+      const dataLines: string[] = [];
+      for (const line of lines) {
+        if (line.startsWith("event: ")) event = line.slice(7);
+        if (line.startsWith("data: ")) dataLines.push(line.slice(6));
+      }
+      if (event) yield { event, data: dataLines.join("\n") };
+    }
+  }
+}
+
 export default function ChatPage() {
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,7 +81,6 @@ export default function ChatPage() {
         const data = await response.json();
         if (data.fragments) {
           setFragmentCount(data.fragments.length);
-          // 初期網羅度を計算（APIからcoverageが返ってくる場合に対応）
           if (data.coverage) {
             setCoverage(data.coverage);
           }
@@ -102,32 +128,79 @@ export default function ChatPage() {
         throw new Error("Failed to send message");
       }
 
-      const data = await response.json();
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.message,
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      if (data.fragmentsExtracted) {
-        setFragmentCount((prev) => prev + data.fragmentsExtracted);
+      if (
+        !response.headers.get("content-type")?.includes("text/event-stream")
+      ) {
+        throw new Error("Unexpected response format");
       }
 
-      if (data.coverage) {
-        setCoverage(data.coverage);
+      const assistantId = crypto.randomUUID();
+      let accumulatedText = "";
+
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: "assistant", content: "" },
+      ]);
+
+      for await (const { event, data } of parseSSE(response)) {
+        try {
+          if (event === "text") {
+            accumulatedText += JSON.parse(data);
+            const currentText = accumulatedText;
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                content: currentText,
+              };
+              return updated;
+            });
+          } else if (event === "metadata") {
+            const meta = JSON.parse(data);
+            if (meta.fragmentsExtracted) {
+              setFragmentCount((prev) => prev + meta.fragmentsExtracted);
+            }
+            if (meta.coverage) {
+              setCoverage(meta.coverage);
+            }
+          } else if (event === "error") {
+            const errorData = JSON.parse(data);
+            setMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              updated[updated.length - 1] = {
+                ...last,
+                content: accumulatedText
+                  ? `${accumulatedText}\n\n${errorData.message}`
+                  : errorData.message,
+              };
+              return updated;
+            });
+          }
+        } catch (e) {
+          console.error("SSE event parse error:", e);
+        }
       }
     } catch (error) {
       console.error("Chat error:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content:
-          "申し訳ありません。エラーが発生しました。もう一度お試しください。",
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      const errorContent =
+        "申し訳ありません。エラーが発生しました。もう一度お試しください。";
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && !last.content) {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...last, content: errorContent };
+          return updated;
+        }
+        return [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant" as const,
+            content: errorContent,
+          },
+        ];
+      });
     } finally {
       setIsLoading(false);
     }
