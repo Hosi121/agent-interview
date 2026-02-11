@@ -1,6 +1,13 @@
 "use client";
 
-import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import {
+  type DragEvent,
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +35,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface Document {
@@ -53,6 +59,8 @@ export default function DocumentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -72,10 +80,7 @@ export default function DocumentsPage() {
     fetchDocuments();
   }, [fetchDocuments]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadFile = async (file: File) => {
     setIsUploading(true);
     setUploadError(null);
 
@@ -100,6 +105,51 @@ export default function DocumentsPage() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+
+    const allowedTypes = [
+      "application/pdf",
+      "text/plain",
+      "text/markdown",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+    const allowedExtensions = [".pdf", ".txt", ".md", ".docx"];
+    const ext = `.${file.name.split(".").pop()?.toLowerCase()}`;
+
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(ext)) {
+      setUploadError(
+        "対応していないファイル形式です。PDF、テキスト、Markdown、Word（docx）ファイルのみアップロードできます。",
+      );
+      return;
+    }
+
+    await uploadFile(file);
   };
 
   const handleDelete = async (id: string) => {
@@ -183,6 +233,7 @@ export default function DocumentsPage() {
             setIsDialogOpen(open);
             if (!open) {
               setUploadError(null);
+              setIsDragOver(false);
             }
           }}
         >
@@ -212,17 +263,75 @@ export default function DocumentsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <Input
+              <button
+                type="button"
+                className={cn(
+                  "relative w-full rounded-lg border-2 border-dashed p-8 transition-colors cursor-pointer bg-transparent",
+                  isDragOver
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-muted-foreground/50",
+                  isUploading && "pointer-events-none opacity-60",
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="flex flex-col items-center gap-3 text-center">
+                  {isUploading ? (
+                    <>
+                      <svg
+                        className="size-10 text-muted-foreground animate-pulse"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                        />
+                      </svg>
+                      <p className="text-sm text-muted-foreground text-pretty">
+                        アップロード中...
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="size-10 text-muted-foreground"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                        />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-pretty">
+                          ファイルをドラッグ&ドロップ、またはクリックして選択
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 text-pretty">
+                          PDF, TXT, Markdown, DOCX（最大10MB）
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </button>
+              <input
+                ref={fileInputRef}
                 type="file"
                 accept=".pdf,.txt,.md,.docx"
                 onChange={handleFileUpload}
+                className="hidden"
                 disabled={isUploading}
               />
-              {isUploading && (
-                <p className="text-sm text-muted-foreground text-pretty">
-                  アップロード中...
-                </p>
-              )}
               {uploadError && (
                 <p
                   className="text-sm text-destructive text-pretty"
