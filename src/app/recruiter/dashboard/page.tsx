@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { MembersResponse } from "@/lib/types/recruiter";
+import { cn } from "@/lib/utils";
 
 interface InterviewSession {
   id: string;
@@ -79,13 +79,23 @@ export default function RecruiterDashboard() {
     [membersData?.members],
   );
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">ダッシュボード</h1>
-        <p className="text-muted-foreground mt-2">
-          {session?.user?.companyName}様、ようこそ
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">ダッシュボード</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {session?.user?.companyName}様、ようこそ
+          </p>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
@@ -110,9 +120,7 @@ export default function RecruiterDashboard() {
             <CardDescription>面接可能なエージェントの数</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold text-primary">
-              {isLoading ? "-" : agentCount}
-            </p>
+            <p className="text-4xl font-bold text-primary">{agentCount}</p>
             <Link href="/recruiter/agents">
               <Button variant="outline" className="mt-4">
                 一覧を見る
@@ -143,7 +151,7 @@ export default function RecruiterDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-4xl font-bold text-primary">
-              {isLoading ? "-" : totalSessionCount}
+              {totalSessionCount}
             </p>
           </CardContent>
         </Card>
@@ -174,15 +182,11 @@ export default function RecruiterDashboard() {
             <div className="flex items-center gap-6">
               <div>
                 <p className="text-sm text-muted-foreground">メンバー</p>
-                <p className="text-3xl font-bold">
-                  {isLoading ? "-" : activeMemberCount}
-                </p>
+                <p className="text-3xl font-bold">{activeMemberCount}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">招待中</p>
-                <p className="text-3xl font-bold">
-                  {isLoading ? "-" : inviteCount}
-                </p>
+                <p className="text-3xl font-bold">{inviteCount}</p>
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -222,7 +226,9 @@ export default function RecruiterDashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center gap-2 text-sm">
-              <Badge variant="outline">あなたの権限</Badge>
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-md border">
+                あなたの権限
+              </span>
               <span className="font-medium">{membersData?.myRole ?? "-"}</span>
             </div>
             <p className="text-sm text-muted-foreground text-pretty">
@@ -233,48 +239,64 @@ export default function RecruiterDashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>最近の面接</CardTitle>
-          <CardDescription>最近実施した面接セッション</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-muted-foreground">読み込み中...</p>
-          ) : recentSessions.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">
-                まだ面接を実施していません
-              </p>
-              <Link href="/recruiter/agents">
-                <Button>エージェント一覧を見る</Button>
-              </Link>
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="px-5 py-3 border-b">
+          <span className="text-[10px] tracking-widest text-muted-foreground uppercase">
+            最近の面接
+          </span>
+        </div>
+        {recentSessions.length === 0 ? (
+          <div className="py-16 space-y-3 text-center">
+            <div className="mx-auto h-[2px] w-12 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+            <div className="mx-auto size-10 rounded-lg bg-secondary flex items-center justify-center">
+              <svg
+                className="w-5 h-5 text-muted-foreground"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                />
+              </svg>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {recentSessions.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-colors"
-                >
-                  <div>
-                    <p className="font-medium">{s.agent.user.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(s.createdAt).toLocaleDateString("ja-JP")} ・{" "}
-                      {s.messages.length}メッセージ
-                    </p>
-                  </div>
-                  <Link href={`/recruiter/interview/${s.agent.id}`}>
-                    <Button variant="outline" size="sm">
-                      続ける
-                    </Button>
-                  </Link>
+            <p className="text-sm text-muted-foreground">
+              まだ面接を実施していません
+            </p>
+            <Link href="/recruiter/agents">
+              <Button className="mt-2">エージェント一覧を見る</Button>
+            </Link>
+          </div>
+        ) : (
+          <div>
+            {recentSessions.map((s, i) => (
+              <Link
+                key={s.id}
+                href={`/recruiter/interview/${s.agent.id}`}
+                className={cn(
+                  "flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors",
+                  i < recentSessions.length - 1 && "border-b",
+                )}
+              >
+                <div>
+                  <p className="font-medium text-sm">{s.agent.user.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Date(s.createdAt).toLocaleDateString("ja-JP")}
+                    <span className="mx-1.5 text-border">|</span>
+                    {s.messages.length}メッセージ
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <Button variant="outline" size="sm">
+                  続ける
+                </Button>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
