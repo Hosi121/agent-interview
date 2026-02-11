@@ -9,6 +9,8 @@ let mockOndataavailable: ((e: { data: Blob }) => void) | null = null;
 let mockOnstop: (() => void) | null = null;
 
 class MockMediaRecorder {
+  static isTypeSupported = vi.fn().mockReturnValue(true);
+
   state = "recording";
   start = mockStart;
   stop = mockStop;

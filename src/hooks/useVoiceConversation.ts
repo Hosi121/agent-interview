@@ -173,7 +173,7 @@ export function useVoiceConversation({
       isActiveRef.current = false;
       setVoiceState("inactive");
     });
-  }, [mode, recording]);
+  }, [mode, recording.startRecording]);
 
   // Push-to-talk: ボタン離す→録音停止→文字起こし→送信
   const onPressEnd = useCallback(() => {
@@ -181,7 +181,7 @@ export function useVoiceConversation({
     isActiveRef.current = false;
     setIsActive(false);
     recording.stopRecording().then(handleRecordingComplete);
-  }, [mode, recording, handleRecordingComplete]);
+  }, [mode, recording.stopRecording, handleRecordingComplete]);
 
   // 連続会話: トグル
   const toggleContinuous = useCallback(() => {
@@ -206,7 +206,13 @@ export function useVoiceConversation({
         setVoiceState("inactive");
       });
     }
-  }, [mode, isActive, tts, recording]);
+  }, [
+    mode,
+    isActive,
+    tts.stop,
+    recording.startRecording,
+    recording.stopRecording,
+  ]);
 
   return {
     mode,

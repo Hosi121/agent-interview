@@ -18,6 +18,19 @@ interface UseVoiceRecordingReturn {
   stopRecording: () => Promise<Blob | null>;
 }
 
+const PREFERRED_MIME_TYPES = [
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/mp4",
+  "audio/ogg;codecs=opus",
+];
+
+function getSupportedMimeType(): string | undefined {
+  return PREFERRED_MIME_TYPES.find((type) =>
+    MediaRecorder.isTypeSupported(type),
+  );
+}
+
 export function useVoiceRecording(
   options: UseVoiceRecordingOptions = {},
 ): UseVoiceRecordingReturn {
@@ -128,8 +141,9 @@ export function useVoiceRecording(
         analyserRef.current = analyser;
       }
 
+      const mimeType = getSupportedMimeType();
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
+        ...(mimeType ? { mimeType } : {}),
       });
       mediaRecorderRef.current = mediaRecorder;
 
@@ -140,7 +154,9 @@ export function useVoiceRecording(
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, {
+          type: mimeType ?? "audio/webm",
+        });
         cleanup();
         if (resolveStopRef.current) {
           resolveStopRef.current(blob);
