@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "Interview" DROP COLUMN "matchScore";
+ALTER TABLE "InterviewEvaluation" DROP COLUMN "matchScore";
