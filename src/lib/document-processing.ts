@@ -13,16 +13,20 @@ export interface ProcessResult {
   summary: string;
 }
 
-const CHUNK_SIZE = 8000;
-const CHUNK_OVERLAP = 500;
+export const CHUNK_SIZE = 8000;
+export const CHUNK_OVERLAP = 500;
 const MAX_EXISTING_FRAGMENTS = 50;
 
 /**
  * 指定位置より手前で最も近い自然な区切り（改行・句点）を探す。
  * 見つからなければ元の位置をそのまま返す。
  */
-function findNaturalBreak(text: string, position: number): number {
-  const searchStart = Math.max(position - CHUNK_OVERLAP, 0);
+export function findNaturalBreak(
+  text: string,
+  position: number,
+  searchRange: number = CHUNK_OVERLAP,
+): number {
+  const searchStart = Math.max(position - searchRange, 0);
   const segment = text.slice(searchStart, position);
 
   const lastNewline = segment.lastIndexOf("\n");
@@ -38,7 +42,7 @@ function findNaturalBreak(text: string, position: number): number {
  * テキストをチャンクに分割する。
  * 改行や句点の位置で区切りを調整し、文脈の断絶を最小化する。
  */
-function splitTextIntoChunks(
+export function splitTextIntoChunks(
   text: string,
   chunkSize: number,
   overlap: number,
@@ -56,11 +60,15 @@ function splitTextIntoChunks(
   while (start < text.length) {
     let end = Math.min(start + chunkSize, text.length);
     if (end < text.length) {
-      end = findNaturalBreak(text, end);
+      end = findNaturalBreak(text, end, overlap);
+      // findNaturalBreak が start 以前の位置を返した場合、強制的に進める
+      if (end <= start) {
+        end = start + chunkSize;
+      }
     }
     chunks.push(text.slice(start, end));
     if (end >= text.length) break;
-    start = end - overlap;
+    start = Math.max(end - overlap, start + 1);
   }
   return chunks;
 }
@@ -100,27 +108,37 @@ export async function processDocument(
   const chunks = splitTextIntoChunks(textContent, CHUNK_SIZE, CHUNK_OVERLAP);
   const allFragments: ProcessedFragment[] = [];
 
-  for (const chunk of chunks) {
-    const recentFragments = allFragments.slice(-MAX_EXISTING_FRAGMENTS);
-    const result = await extractFragments(
-      chunk,
-      recentFragments.length > 0
-        ? {
-            existingFragments: recentFragments.map((f) => ({
-              type: f.type,
-              content: f.content,
-            })),
-          }
-        : undefined,
-    );
+  for (const [i, chunk] of chunks.entries()) {
+    try {
+      const recentFragments = allFragments.slice(-MAX_EXISTING_FRAGMENTS);
+      const result = await extractFragments(
+        chunk,
+        recentFragments.length > 0
+          ? {
+              existingFragments: recentFragments.map((f) => ({
+                type: f.type,
+                content: f.content,
+              })),
+            }
+          : undefined,
+      );
 
-    for (const fragment of result.fragments || []) {
-      allFragments.push({
-        type: fragment.type,
-        content: fragment.content,
-        skills: fragment.skills || [],
-        keywords: fragment.keywords || [],
-      });
+      for (const fragment of result.fragments || []) {
+        allFragments.push({
+          type: fragment.type,
+          content: fragment.content,
+          skills: fragment.skills || [],
+          keywords: fragment.keywords || [],
+        });
+      }
+    } catch (error) {
+      console.warn(
+        `チャンク ${i + 1}/${chunks.length} の処理に失敗しました:`,
+        error,
+      );
+      if (allFragments.length === 0 && i === chunks.length - 1) {
+        throw error;
+      }
     }
   }
 
