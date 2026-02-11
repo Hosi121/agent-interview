@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -48,27 +48,43 @@ export function ChatWindow({
   inputRef,
 }: ChatWindowProps) {
   const [internalInput, setInternalInput] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputValue = draftMessage ?? internalInput;
   const setInputValue = onDraftChange ?? setInternalInput;
 
   useEffect(() => {
+    const mql = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
-    onSendMessage(inputValue.trim());
-    setInputValue("");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
       e.preventDefault();
-      handleSubmit(e);
-    }
-  };
+      if (!inputValue.trim() || isLoading) return;
+      onSendMessage(inputValue.trim());
+      setInputValue("");
+    },
+    [inputValue, isLoading, onSendMessage, setInputValue],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (isMobile) return;
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit(e);
+      }
+    },
+    [isMobile, handleSubmit],
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -129,7 +145,7 @@ export function ChatWindow({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          Shift+Enterで改行、Enterで送信
+          {isMobile ? "送信ボタンで送信" : "Shift+Enterで改行、Enterで送信"}
         </p>
       </form>
     </div>
