@@ -1,6 +1,8 @@
 "use client";
 
+import { CloudUpload, FileText, Plus, Trash2 } from "lucide-react";
 import {
+  type DragEvent,
   type MouseEvent,
   useCallback,
   useEffect,
@@ -34,9 +36,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 
 type AnalysisStatus = "PENDING" | "ANALYZING" | "COMPLETED" | "FAILED";
+
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+const ACCEPTED_EXTENSIONS = [".pdf", ".txt", ".md", ".docx"];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 interface Document {
   id: string;
@@ -57,6 +67,8 @@ export default function DocumentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const eventSourcesRef = useRef<Map<string, EventSource>>(new Map());
 
   const fetchDocuments = useCallback(async () => {
@@ -85,9 +97,22 @@ export default function DocumentsPage() {
     };
   }, []);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadFile = async (file: File) => {
+    const ext = `.${file.name.split(".").pop()?.toLowerCase()}`;
+    if (
+      !ACCEPTED_TYPES.includes(file.type) &&
+      !ACCEPTED_EXTENSIONS.includes(ext)
+    ) {
+      setUploadError(
+        "対応していないファイル形式です。PDF、TXT、MD、DOCXのみアップロードできます。",
+      );
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError("ファイルサイズは10MB以下にしてください。");
+      return;
+    }
 
     setIsUploading(true);
     setUploadError(null);
@@ -107,12 +132,44 @@ export default function DocumentsPage() {
 
       await fetchDocuments();
       setIsDialogOpen(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     } catch (error) {
       console.error("Upload error:", error);
       setUploadError("アップロードに失敗しました");
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: DragEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    await uploadFile(file);
   };
 
   const handleDelete = async (id: string) => {
@@ -260,19 +317,7 @@ export default function DocumentsPage() {
         >
           <DialogTrigger asChild>
             <Button>
-              <svg
-                className="size-4 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
+              <Plus className="size-4 mr-2" />
               アップロード
             </Button>
           </DialogTrigger>
@@ -284,17 +329,46 @@ export default function DocumentsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <Input
-                type="file"
-                accept=".pdf,.txt,.md,.docx"
-                onChange={handleFileUpload}
+              <button
+                type="button"
+                aria-label="ファイルを選択またはドラッグ&ドロップ"
+                onClick={() => !isUploading && fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
                 disabled={isUploading}
-              />
-              {isUploading && (
-                <p className="text-sm text-muted-foreground text-pretty">
-                  アップロード中...
-                </p>
-              )}
+                className={`flex w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors ${
+                  isDragOver
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
+                } ${isUploading ? "pointer-events-none opacity-50" : "cursor-pointer"}`}
+              >
+                <div className="rounded-full bg-muted p-3">
+                  <CloudUpload className="size-6 text-muted-foreground" />
+                </div>
+                {isUploading ? (
+                  <p className="text-sm text-muted-foreground text-pretty">
+                    アップロード中...
+                  </p>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm font-medium">
+                      クリックまたはドラッグ&ドロップ
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      PDF, TXT, MD, DOCX（最大10MB）
+                    </p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,.md,.docx"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="hidden"
+                />
+              </button>
               {uploadError && (
                 <p
                   className="text-sm text-destructive text-pretty"
@@ -315,19 +389,7 @@ export default function DocumentsPage() {
       ) : documents.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <svg
-              className="size-12 mx-auto text-muted-foreground mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
+            <FileText className="size-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground mb-4 text-pretty">
               まだドキュメントがありません
             </p>
@@ -344,19 +406,7 @@ export default function DocumentsPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      <svg
-                        className="size-5 text-primary"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
+                      <FileText className="size-5 text-primary" />
                       {doc.fileName}
                     </CardTitle>
                     <CardDescription className="tabular-nums">
@@ -375,19 +425,7 @@ export default function DocumentsPage() {
                           setDeleteError(null);
                         }}
                       >
-                        <svg
-                          className="size-4 text-destructive"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
+                        <Trash2 className="size-4 text-destructive" />
                       </Button>
                     </div>
                     {doc.analysisStatus === "FAILED" && doc.analysisError && (
