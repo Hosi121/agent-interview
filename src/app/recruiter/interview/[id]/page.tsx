@@ -351,7 +351,7 @@ export default function InterviewPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: content,
-          jobId: selectedJobId || null,
+          jobId: selectedJobId || undefined,
           missingInfo: guide?.missingInfo || [],
         }),
       });
