@@ -19,15 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 type AnalysisStatus = "PENDING" | "ANALYZING" | "COMPLETED" | "FAILED";
 
@@ -261,23 +254,30 @@ export default function DocumentsPage() {
     }
   };
 
-  const renderStatusBadge = (doc: Document) => {
+  const renderStatus = (doc: Document) => {
     switch (doc.analysisStatus) {
       case "ANALYZING":
         return (
-          <Badge variant="secondary" className="animate-pulse">
-            解析中...
-          </Badge>
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 animate-pulse">
+            解析中
+          </span>
         );
       case "COMPLETED":
-        return <Badge variant="secondary">解析済み</Badge>;
+        return (
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600">
+            解析済み
+          </span>
+        );
       case "FAILED":
         return (
           <div className="flex items-center gap-2">
-            <Badge variant="destructive">エラー</Badge>
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-destructive/10 text-destructive">
+              エラー
+            </span>
             <Button
               variant="outline"
               size="sm"
+              className="h-7 text-xs px-3"
               onClick={() => handleAnalyze(doc.id)}
             >
               再試行
@@ -289,6 +289,7 @@ export default function DocumentsPage() {
           <Button
             variant="outline"
             size="sm"
+            className="h-7 text-xs px-3"
             onClick={() => handleAnalyze(doc.id)}
           >
             解析する
@@ -297,12 +298,22 @@ export default function DocumentsPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-balance">ドキュメント管理</h1>
-          <p className="text-muted-foreground mt-2 text-pretty">
+          <h1 className="text-2xl font-bold tracking-tight">
+            ドキュメント管理
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
             履歴書やポートフォリオをアップロードして、エージェントに統合しましょう
           </p>
         </div>
@@ -337,11 +348,14 @@ export default function DocumentsPage() {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 disabled={isUploading}
-                className={`flex w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors ${
+                className={cn(
+                  "flex w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors",
                   isDragOver
                     ? "border-primary bg-primary/5"
-                    : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
-                } ${isUploading ? "pointer-events-none opacity-50" : "cursor-pointer"}`}
+                    : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50",
+                  isUploading && "pointer-events-none opacity-50",
+                  !isUploading && "cursor-pointer",
+                )}
               >
                 <div className="rounded-full bg-muted p-3">
                   <CloudUpload className="size-6 text-muted-foreground" />
@@ -382,71 +396,82 @@ export default function DocumentsPage() {
         </Dialog>
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground text-pretty">読み込み中...</p>
-        </div>
-      ) : documents.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <FileText className="size-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-4 text-pretty">
+      {documents.length === 0 ? (
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="h-[2px] bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+          <div className="flex flex-col items-center justify-center py-16 space-y-3">
+            <div className="size-10 rounded-lg bg-secondary flex items-center justify-center">
+              <FileText className="size-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">
               まだドキュメントがありません
             </p>
             <Button onClick={() => setIsDialogOpen(true)}>
               最初のドキュメントをアップロード
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
-        <div className="grid gap-4">
-          {documents.map((doc) => (
-            <Card key={doc.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="size-5 text-primary" />
-                      {doc.fileName}
-                    </CardTitle>
-                    <CardDescription className="tabular-nums">
-                      {new Date(doc.createdAt).toLocaleDateString("ja-JP")}
-                    </CardDescription>
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b">
+            <p className="text-[10px] tracking-widest text-muted-foreground uppercase">
+              ドキュメント
+            </p>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {documents.length}件
+            </p>
+          </div>
+          {documents.map((doc, index) => (
+            <div
+              key={doc.id}
+              className={cn(
+                "px-5 py-4 hover:bg-secondary/30 transition-colors",
+                index < documents.length - 1 && "border-b",
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <FileText className="size-4" />
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="flex items-center gap-2">
-                      {renderStatusBadge(doc)}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="ドキュメントを削除"
-                        onClick={() => {
-                          setDeleteTarget(doc);
-                          setDeleteError(null);
-                        }}
-                      >
-                        <Trash2 className="size-4 text-destructive" />
-                      </Button>
-                    </div>
-                    {doc.analysisStatus === "FAILED" && doc.analysisError && (
-                      <p
-                        className="text-xs text-destructive text-pretty tabular-nums"
-                        role="alert"
-                      >
-                        {doc.analysisError}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{doc.fileName}</p>
+                    <p className="text-[10px] text-muted-foreground tabular-nums">
+                      {new Date(doc.createdAt).toLocaleDateString("ja-JP")}
+                    </p>
+                    {doc.summary && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {doc.summary}
                       </p>
                     )}
                   </div>
                 </div>
-              </CardHeader>
-              {doc.summary && (
-                <CardContent>
-                  <p className="text-sm text-muted-foreground text-pretty">
-                    {doc.summary}
-                  </p>
-                </CardContent>
-              )}
-            </Card>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="flex items-center gap-2">
+                    {renderStatus(doc)}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="ドキュメントを削除"
+                      onClick={() => {
+                        setDeleteTarget(doc);
+                        setDeleteError(null);
+                      }}
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                  </div>
+                  {doc.analysisStatus === "FAILED" && doc.analysisError && (
+                    <p
+                      className="text-xs text-destructive text-pretty tabular-nums"
+                      role="alert"
+                    >
+                      {doc.analysisError}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       )}
