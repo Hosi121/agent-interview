@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.26",
+    "@aws-sdk/client-lambda": "^3.840.0",
     "@prisma/client": "^6.19.2",
     "@radix-ui/react-alert-dialog": "^1.0.0",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -41,11 +42,11 @@
     "minio": "^8.0.6",
     "next": "16.1.4",
     "next-auth": "^4.24.13",
+    "openai": "^6.21.0",
     "pdf-parse": "^2.4.5",
     "pdf-to-img": "^5.0.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "@aws-sdk/client-lambda": "^3.840.0",
     "stripe": "^20.2.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.3.5"

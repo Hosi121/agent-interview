@@ -1,11 +1,13 @@
 "use client";
 
+import { Mic, MicOff, Square, Volume2 } from "lucide-react";
 import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { MessageBubble } from "./MessageBubble";
 
 interface FragmentReference {
@@ -35,6 +37,12 @@ interface ChatWindowProps {
   inputRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export function ChatWindow({
   messages,
   onSendMessage,
@@ -52,6 +60,12 @@ export function ChatWindow({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputValue = draftMessage ?? internalInput;
   const setInputValue = onDraftChange ?? setInternalInput;
+
+  const voice = useVoiceConversation({
+    onSendMessage,
+    messages,
+    isLoading: isLoading ?? false,
+  });
 
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 768px)");
@@ -85,6 +99,9 @@ export function ChatWindow({
     },
     [isMobile, handleSubmit],
   );
+
+  const isVoiceBusy =
+    voice.voiceState !== "inactive" && voice.voiceState !== "recording";
 
   return (
     <div className="flex flex-col h-full">
@@ -129,6 +146,41 @@ export function ChatWindow({
           onSelect={onFollowUpSelect}
         />
       )}
+      {/* 音声状態インジケーター */}
+      {voice.voiceState !== "inactive" && (
+        <div className="flex items-center gap-2 px-4 py-2 text-sm">
+          {voice.voiceState === "recording" && (
+            <>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
+              <span className="text-red-600">
+                録音中 {formatDuration(voice.duration)}
+              </span>
+            </>
+          )}
+          {voice.voiceState === "transcribing" && (
+            <span className="text-muted-foreground">文字起こし中...</span>
+          )}
+          {voice.voiceState === "waiting" && (
+            <span className="text-muted-foreground">
+              AI応答を待っています...
+            </span>
+          )}
+          {voice.voiceState === "speaking" && (
+            <span className="flex items-center gap-1.5 text-blue-600">
+              <Volume2 className="size-4 animate-pulse" />
+              音声を再生中...
+            </span>
+          )}
+        </div>
+      )}
+      {voice.error && (
+        <div className="px-4 py-1">
+          <p className="text-xs text-destructive">{voice.error}</p>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="border-t p-4">
         <div className="flex gap-2">
           <Textarea
@@ -138,11 +190,81 @@ export function ChatWindow({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             className="min-h-[60px] resize-none"
-            disabled={isLoading}
+            disabled={isLoading || isVoiceBusy}
           />
-          <Button type="submit" disabled={!inputValue.trim() || isLoading}>
-            送信
-          </Button>
+          <div className="flex flex-col gap-1">
+            {voice.mode === "push-to-talk" ? (
+              <Button
+                type="button"
+                size="icon"
+                variant={
+                  voice.voiceState === "recording" ? "destructive" : "outline"
+                }
+                disabled={isVoiceBusy}
+                onPointerDown={voice.onPressStart}
+                onPointerUp={voice.onPressEnd}
+                onPointerLeave={
+                  voice.voiceState === "recording"
+                    ? voice.onPressEnd
+                    : undefined
+                }
+                title="押して話す"
+              >
+                <Mic className="size-4" />
+              </Button>
+            ) : voice.isActive ? (
+              <Button
+                type="button"
+                size="icon"
+                variant="destructive"
+                onClick={voice.toggleContinuous}
+                title="音声会話を停止"
+              >
+                <Square className="size-4" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={voice.toggleContinuous}
+                disabled={isVoiceBusy}
+                title="連続会話を開始"
+              >
+                <Mic className="size-4" />
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-6 w-9 text-[10px]"
+              onClick={() =>
+                voice.setMode(
+                  voice.mode === "push-to-talk" ? "continuous" : "push-to-talk",
+                )
+              }
+              disabled={voice.isActive}
+              title={
+                voice.mode === "push-to-talk"
+                  ? "連続会話モードに切替"
+                  : "Push-to-talkモードに切替"
+              }
+            >
+              {voice.mode === "push-to-talk" ? (
+                <Mic className="size-3" />
+              ) : (
+                <MicOff className="size-3" />
+              )}
+            </Button>
+            <Button
+              type="submit"
+              size="icon"
+              disabled={!inputValue.trim() || isLoading || isVoiceBusy}
+            >
+              送信
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
           {isMobile ? "送信ボタンで送信" : "Shift+Enterで改行、Enterで送信"}
