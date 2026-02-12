@@ -5,16 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { use, useCallback, useEffect, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
-import {
-  EvaluationForm,
-  EvidencePack,
-  InterviewNotes,
-  MissingInfoAlert,
-} from "@/components/interview";
+import { InterviewSidebar } from "@/components/interview";
 import type { EvidenceFragment } from "@/components/interview/EvidencePack";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -22,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface FragmentReference {
   id: string;
@@ -561,208 +555,31 @@ export default function InterviewPage({
             </CardContent>
           </Card>
         </div>
-        <div className="space-y-4 overflow-y-auto">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">候補者情報</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">スキル</p>
-                <div className="flex flex-wrap gap-1">
-                  {allSkills.size > 0 ? (
-                    Array.from(allSkills).map((skill) => (
-                      <span
-                        key={skill}
-                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-secondary-foreground"
-                      >
-                        {skill}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">情報なし</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">メモ・評価</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="notes">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="notes">メモ</TabsTrigger>
-                  <TabsTrigger value="evaluation">評価</TabsTrigger>
-                  <TabsTrigger
-                    value="summary"
-                    onClick={() => !summary && fetchSummary()}
-                  >
-                    要約
-                  </TabsTrigger>
-                  <TabsTrigger value="guide">面接設計</TabsTrigger>
-                </TabsList>
-                <TabsContent value="notes" className="mt-3">
-                  <InterviewNotes notes={notes} onAddNote={handleAddNote} />
-                </TabsContent>
-                <TabsContent value="evaluation" className="mt-3">
-                  <EvaluationForm
-                    initialData={evalForm}
-                    onSave={handleSaveEvaluation}
-                  />
-                </TabsContent>
-                <TabsContent value="summary" className="mt-3">
-                  {isSummaryLoading ? (
-                    <div className="flex items-center justify-center py-20">
-                      <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                    </div>
-                  ) : summary?.summary ? (
-                    <div className="space-y-3">
-                      <div className="text-xs text-muted-foreground text-pretty tabular-nums">
-                        {summary.messageCount}件のメッセージを分析
-                      </div>
-                      <div className="prose prose-sm max-w-none">
-                        <div className="whitespace-pre-wrap text-sm text-pretty">
-                          {summary.summary}
-                        </div>
-                      </div>
-                      {summary.evidence && summary.evidence.length > 0 && (
-                        <EvidencePack
-                          evidence={summary.evidence}
-                          onScrollToMessage={(messageId) => {
-                            const element = document.querySelector(
-                              `[data-message-id="${messageId}"]`,
-                            );
-                            element?.scrollIntoView({
-                              behavior: "smooth",
-                              block: "center",
-                            });
-                          }}
-                        />
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs px-3 w-full"
-                        onClick={fetchSummary}
-                      >
-                        要約を更新
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 space-y-2">
-                      <p className="text-sm text-muted-foreground text-pretty">
-                        {messages.length === 0
-                          ? "会話を開始すると要約を生成できます"
-                          : "会話の要約を生成します"}
-                      </p>
-                      {messages.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs px-3"
-                          onClick={fetchSummary}
-                        >
-                          要約を生成
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </TabsContent>
-                <TabsContent value="guide" className="mt-3">
-                  {!selectedJobId ? (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground text-pretty">
-                        求人を選択すると面接設計を表示します
-                      </p>
-                    </div>
-                  ) : isGuideLoading ? (
-                    <div className="flex items-center justify-center py-20">
-                      <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                    </div>
-                  ) : guide ? (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-balance">
-                          質問テンプレ
-                        </p>
-                        <div className="space-y-2">
-                          {guide.questions.map((question) => (
-                            <div
-                              key={question}
-                              className="rounded-md border border-muted p-2"
-                            >
-                              <p className="text-sm text-pretty">{question}</p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="mt-2 h-8 text-xs px-3"
-                                onClick={() => setDraftMessage(question)}
-                              >
-                                入力に挿入
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {guide.missingInfo.length > 0 && (
-                        <MissingInfoAlert
-                          items={guide.missingInfo}
-                          onAskAbout={(item) =>
-                            setDraftMessage(`${item}について教えてください。`)
-                          }
-                        />
-                      )}
-
-                      {guide.focusAreas && guide.focusAreas.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-balance">
-                            重点観点
-                          </p>
-                          <ul className="space-y-1 text-sm text-muted-foreground text-pretty">
-                            {guide.focusAreas.map((item) => (
-                              <li key={item}>・{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {followUps.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-balance">
-                            直近回答の深掘り候補
-                          </p>
-                          <div className="space-y-2">
-                            {followUps.map((item) => (
-                              <Button
-                                key={item}
-                                size="sm"
-                                variant="secondary"
-                                className="w-full justify-start"
-                                onClick={() => setDraftMessage(item)}
-                              >
-                                {item}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground text-pretty">
-                        面接設計を取得できませんでした
-                      </p>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
+        <InterviewSidebar
+          skills={allSkills}
+          notes={notes}
+          onAddNote={handleAddNote}
+          evalForm={evalForm}
+          onSaveEvaluation={handleSaveEvaluation}
+          summary={summary}
+          isSummaryLoading={isSummaryLoading}
+          messageCount={messages.length}
+          onFetchSummary={fetchSummary}
+          onScrollToMessage={(messageId) => {
+            const element = document.querySelector(
+              `[data-message-id="${messageId}"]`,
+            );
+            element?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }}
+          selectedJobId={selectedJobId}
+          isGuideLoading={isGuideLoading}
+          guide={guide}
+          followUps={followUps}
+          onInsertMessage={setDraftMessage}
+        />
       </div>
     </div>
   );
