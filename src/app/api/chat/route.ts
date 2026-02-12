@@ -142,7 +142,7 @@ export const POST = withUserValidation(
         let currentCoverage = coverage;
 
         const userMessages = messages.filter((m) => m.role === "user");
-        if (userMessages.length > 0 && userMessages.length % 2 === 0) {
+        if (userMessages.length > 0) {
           try {
             const allMessages = [
               ...messages,
