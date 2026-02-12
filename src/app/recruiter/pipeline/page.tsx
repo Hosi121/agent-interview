@@ -203,9 +203,12 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="flex gap-4 overflow-x-auto pb-2">
         {activeStages.map((stage) => (
-          <div key={stage} className="space-y-2">
+          <div
+            key={stage}
+            className="min-w-[220px] shrink-0 lg:min-w-0 lg:shrink lg:flex-1 space-y-2"
+          >
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-sm text-balance">
                 {stageLabels[stage]}

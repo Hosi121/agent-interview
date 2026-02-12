@@ -169,9 +169,12 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-destructive text-pretty" role="alert">
+              <div
+                className="text-sm rounded-md px-3 py-2 bg-destructive/10 text-destructive"
+                role="alert"
+              >
                 {error}
-              </p>
+              </div>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
