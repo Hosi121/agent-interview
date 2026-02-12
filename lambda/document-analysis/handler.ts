@@ -19,11 +19,11 @@ export const handler = async (event: AnalysisEvent) => {
   });
 
   const callbackUrl = process.env.CALLBACK_URL;
-  const callbackSecret = process.env.CALLBACK_SECRET;
+  const callbackSecret = process.env.ANALYSIS_CALLBACK_SECRET;
 
   if (!callbackUrl || !callbackSecret) {
     logger.error(
-      "Missing CALLBACK_URL or CALLBACK_SECRET",
+      "Missing CALLBACK_URL or ANALYSIS_CALLBACK_SECRET",
       new Error("Missing callback configuration"),
     );
     return {

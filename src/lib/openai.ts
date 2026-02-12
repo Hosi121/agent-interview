@@ -1,6 +1,7 @@
 import { generateText, Output, streamText } from "ai";
 import { z } from "zod";
 import { defaultModel } from "./ai";
+import { logger } from "./logger";
 
 export async function generateChatResponse(
   systemPrompt: string,
@@ -148,7 +149,8 @@ export async function extractFragments(
     });
 
     return output ?? { fragments: [] };
-  } catch {
+  } catch (error) {
+    logger.error("Fragment extraction failed", error as Error);
     return { fragments: [] };
   }
 }
