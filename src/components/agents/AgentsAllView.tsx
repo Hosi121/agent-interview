@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +57,7 @@ export function AgentsAllView({ onSwitchToWatches }: AgentsAllViewProps) {
   const [interestErrors, setInterestErrors] = useState<Record<string, string>>(
     {},
   );
+  const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -145,9 +146,42 @@ export function AgentsAllView({ onSwitchToWatches }: AgentsAllViewProps) {
     return interests.find((i) => i.agentId === agentId);
   };
 
-  const filteredAgents = agents.filter((agent) =>
-    agent.user.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const allSkills = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const agent of agents) {
+      for (const skill of agent.skills ?? []) {
+        counts.set(skill, (counts.get(skill) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([skill]) => skill);
+  }, [agents]);
+
+  const toggleSkill = (skill: string) => {
+    setSelectedSkills((prev) => {
+      const next = new Set(prev);
+      if (next.has(skill)) {
+        next.delete(skill);
+      } else {
+        next.add(skill);
+      }
+      return next;
+    });
+  };
+
+  const filteredAgents = agents.filter((agent) => {
+    if (!agent.user.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    if (selectedSkills.size > 0) {
+      const agentSkills = new Set(agent.skills ?? []);
+      for (const skill of selectedSkills) {
+        if (!agentSkills.has(skill)) return false;
+      }
+    }
+    return true;
+  });
 
   return (
     <>
@@ -170,16 +204,53 @@ export function AgentsAllView({ onSwitchToWatches }: AgentsAllViewProps) {
             </option>
           ))}
         </select>
-        {selectedJobId && (
+        {(selectedJobId || selectedSkills.size > 0) && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setSelectedJobId("")}
+            onClick={() => {
+              setSelectedJobId("");
+              setSelectedSkills(new Set());
+            }}
           >
             フィルターをクリア
           </Button>
         )}
       </div>
+
+      {allSkills.length > 0 && (
+        <div className="rounded-lg border p-3 space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">
+            スキルタグ
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {allSkills.map((skill) => (
+              <button
+                key={skill}
+                type="button"
+                onClick={() => toggleSkill(skill)}
+                className={cn(
+                  "text-xs px-2 py-0.5 rounded-md transition-colors",
+                  selectedSkills.has(skill)
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+                )}
+              >
+                {skill}
+              </button>
+            ))}
+            {selectedSkills.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedSkills(new Set())}
+                className="text-xs px-2 py-0.5 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                タグをクリア
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
@@ -208,13 +279,14 @@ export function AgentsAllView({ onSwitchToWatches }: AgentsAllViewProps) {
               : "現在公開されているエージェントはありません"}
           </p>
           <div className="mt-4">
-            {searchQuery || selectedJobId ? (
+            {searchQuery || selectedJobId || selectedSkills.size > 0 ? (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setSearchQuery("");
                   setSelectedJobId("");
+                  setSelectedSkills(new Set());
                 }}
               >
                 検索条件をクリア
