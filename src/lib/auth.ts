@@ -42,6 +42,7 @@ export const authOptions: NextAuthOptions = {
           id: account.id,
           email: account.email,
           name: account.user?.name || account.recruiter?.company?.name || "",
+          accountType: account.accountType,
         };
       },
     }),
@@ -87,6 +88,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user && user.email) {
         token.email = user.email;
+        token.accountType = user.accountType;
       }
       return token;
     },

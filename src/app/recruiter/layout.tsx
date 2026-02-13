@@ -56,7 +56,10 @@ export default function RecruiterLayout({
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status, router]);
+    if (status === "authenticated" && session?.user?.accountType === "USER") {
+      router.push("/dashboard");
+    }
+  }, [status, session, router]);
 
   useEffect(() => {
     if (status === "authenticated") {

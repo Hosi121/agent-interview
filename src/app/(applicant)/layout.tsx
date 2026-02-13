@@ -63,7 +63,13 @@ export default function ApplicantLayout({
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status, router]);
+    if (
+      status === "authenticated" &&
+      session?.user?.accountType === "RECRUITER"
+    ) {
+      router.push("/recruiter/dashboard");
+    }
+  }, [status, session, router]);
 
   useEffect(() => {
     if (status === "authenticated") {
