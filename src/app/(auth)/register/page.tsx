@@ -93,7 +93,6 @@ function RegisterForm() {
       } else {
         router.push("/dashboard");
       }
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
     } finally {

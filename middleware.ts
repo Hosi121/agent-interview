@@ -18,7 +18,9 @@ export async function middleware(request: NextRequest) {
   // 公開ルート・APIルート・静的ファイルはスキップ
   if (
     publicRoutes.some(
-      (route) => pathname === route || pathname.startsWith(`${route}/`),
+      (route) =>
+        pathname === route ||
+        (route !== "/" && pathname.startsWith(`${route}/`)),
     ) ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
