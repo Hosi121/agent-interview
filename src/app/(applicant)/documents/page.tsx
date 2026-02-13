@@ -123,11 +123,15 @@ export default function DocumentsPage() {
         throw new Error("Upload failed");
       }
 
+      const data = await response.json();
       await fetchDocuments();
       setIsDialogOpen(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+
+      // アップロード完了後、自動で解析を開始
+      handleAnalyze(data.document.id).catch(() => {});
     } catch (error) {
       console.error("Upload error:", error);
       setUploadError("アップロードに失敗しました");
