@@ -1,7 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import {
+  CreateWatchDialog,
+  type CreateWatchFormData,
+} from "@/components/agents/CreateWatchDialog";
+import {
+  type WatchNotification,
+  WatchNotificationList,
+} from "@/components/agents/WatchNotificationList";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,15 +20,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 interface Watch {
@@ -37,24 +35,6 @@ interface Watch {
   };
 }
 
-interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  isRead: boolean;
-  createdAt: string;
-  watch: {
-    name: string;
-  } | null;
-  relatedAgent: {
-    id: string;
-    user: {
-      name: string;
-    };
-  } | null;
-}
-
 const experienceLabels: Record<string, string> = {
   ENTRY: "未経験可",
   JUNIOR: "1-3年",
@@ -65,20 +45,12 @@ const experienceLabels: Record<string, string> = {
 
 export function WatchesView() {
   const [watches, setWatches] = useState<Watch[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<WatchNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Watch | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [newWatch, setNewWatch] = useState({
-    name: "",
-    skills: "",
-    keywords: "",
-    experienceLevel: "",
-  });
 
   const fetchWatches = useCallback(async () => {
     try {
@@ -111,45 +83,19 @@ export function WatchesView() {
     fetchNotifications();
   }, [fetchWatches, fetchNotifications]);
 
-  const handleCreateWatch = async () => {
-    setIsCreating(true);
-    setCreateError(null);
-    try {
-      const res = await fetch("/api/recruiter/watches", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newWatch,
-          skills: newWatch.skills
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          keywords: newWatch.keywords
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          experienceLevel: newWatch.experienceLevel || null,
-        }),
-      });
+  const handleCreateWatch = async (data: CreateWatchFormData) => {
+    const res = await fetch("/api/recruiter/watches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
 
-      if (res.ok) {
-        setIsDialogOpen(false);
-        setNewWatch({
-          name: "",
-          skills: "",
-          keywords: "",
-          experienceLevel: "",
-        });
-        fetchWatches();
-      } else {
-        const data = await res.json();
-        setCreateError(data.error || "作成に失敗しました");
-      }
-    } catch (error) {
-      console.error("Failed to create watch:", error);
-      setCreateError("作成に失敗しました");
-    } finally {
-      setIsCreating(false);
+    if (res.ok) {
+      setIsDialogOpen(false);
+      fetchWatches();
+    } else {
+      const responseData = await res.json();
+      throw new Error(responseData.error || "作成に失敗しました");
     }
   };
 
@@ -203,104 +149,20 @@ export function WatchesView() {
     }
   };
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
   return (
     <>
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground mt-1">
           条件に合う新規候補者を自動で通知します
         </p>
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) {
-              setCreateError(null);
-            }
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>新規ウォッチ作成</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>新規ウォッチ作成</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div>
-                <Label htmlFor="name">ウォッチ名</Label>
-                <Input
-                  id="name"
-                  value={newWatch.name}
-                  onChange={(e) =>
-                    setNewWatch({ ...newWatch, name: e.target.value })
-                  }
-                  placeholder="例: シニアバックエンド候補"
-                />
-              </div>
-              <div>
-                <Label htmlFor="skills">スキル（カンマ区切り）</Label>
-                <Input
-                  id="skills"
-                  value={newWatch.skills}
-                  onChange={(e) =>
-                    setNewWatch({ ...newWatch, skills: e.target.value })
-                  }
-                  placeholder="例: TypeScript, Go, Kubernetes"
-                />
-              </div>
-              <div>
-                <Label htmlFor="keywords">キーワード（カンマ区切り）</Label>
-                <Input
-                  id="keywords"
-                  value={newWatch.keywords}
-                  onChange={(e) =>
-                    setNewWatch({ ...newWatch, keywords: e.target.value })
-                  }
-                  placeholder="例: マイクロサービス, CI/CD"
-                />
-              </div>
-              <div>
-                <Label htmlFor="experienceLevel">経験レベル（任意）</Label>
-                <select
-                  id="experienceLevel"
-                  value={newWatch.experienceLevel}
-                  onChange={(e) =>
-                    setNewWatch({
-                      ...newWatch,
-                      experienceLevel: e.target.value,
-                    })
-                  }
-                  className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-                >
-                  <option value="">指定なし</option>
-                  {Object.entries(experienceLabels).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Button
-                onClick={handleCreateWatch}
-                className="w-full"
-                disabled={isCreating}
-              >
-                {isCreating ? "作成中..." : "作成"}
-              </Button>
-              {createError && (
-                <p
-                  className="text-sm text-destructive text-pretty"
-                  role="alert"
-                >
-                  {createError}
-                </p>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => setIsDialogOpen(true)}>新規ウォッチ作成</Button>
       </div>
+
+      <CreateWatchDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        onSubmit={handleCreateWatch}
+      />
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Watches List */}
@@ -420,69 +282,10 @@ export function WatchesView() {
         </div>
 
         {/* Notifications */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            通知
-            {unreadCount > 0 && (
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-destructive text-destructive-foreground tabular-nums">
-                {unreadCount}
-              </span>
-            )}
-          </h2>
-
-          <div className="rounded-xl border bg-card overflow-hidden">
-            {notifications.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground text-center">
-                通知はありません
-              </p>
-            ) : (
-              notifications.map((notification, index) => (
-                <div
-                  key={notification.id}
-                  className={cn(
-                    "p-4",
-                    index > 0 && "border-t",
-                    !notification.isRead && "bg-muted/50",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {notification.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {notification.message}
-                      </p>
-                      {notification.relatedAgent && (
-                        <Link
-                          href={`/recruiter/interview/${notification.relatedAgent.id}`}
-                          className="text-xs text-primary hover:underline mt-1 inline-block"
-                        >
-                          {notification.relatedAgent.user.name} を見る
-                        </Link>
-                      )}
-                    </div>
-                    {!notification.isRead && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs shrink-0"
-                        onClick={() => handleMarkAsRead(notification.id)}
-                      >
-                        既読
-                      </Button>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2 tabular-nums">
-                    {new Date(notification.createdAt).toLocaleDateString(
-                      "ja-JP",
-                    )}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        <WatchNotificationList
+          notifications={notifications}
+          onMarkAsRead={handleMarkAsRead}
+        />
       </div>
 
       <AlertDialog

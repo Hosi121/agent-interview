@@ -87,7 +87,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-dvh">
       {/* ブランドパネル — デスクトップのみ */}
-      <div className="hidden lg:flex lg:w-[480px] xl:w-[520px] shrink-0 bg-secondary/60 border-r flex-col items-center justify-center gap-8 px-12">
+      <div className="hidden lg:flex lg:w-2/5 shrink-0 bg-secondary/60 border-r flex-col items-center justify-center gap-8 px-12">
         <div className="text-center space-y-3">
           <p className="text-2xl font-bold tracking-tight text-foreground">
             Metalk

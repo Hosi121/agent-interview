@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import type { DirectMessage, InboxInterest } from "@/components/inbox";
+import { DirectMessageDialog, InboxInterestCard } from "@/components/inbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,52 +14,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-
-interface Interest {
-  id: string;
-  status: "EXPRESSED" | "CONTACT_REQUESTED" | "CONTACT_DISCLOSED" | "DECLINED";
-  message: string | null;
-  createdAt: string;
-  updatedAt: string;
-  recruiter: {
-    id: string;
-    companyName: string;
-  };
-  lastMessage: {
-    content: string;
-    senderType: "USER" | "RECRUITER";
-    createdAt: string;
-  } | null;
-  messageCount: number;
-}
-
-interface DirectMessage {
-  id: string;
-  content: string;
-  senderType: "USER" | "RECRUITER";
-  createdAt: string;
-  recruiter: { companyName: string } | null;
-  user: { name: string } | null;
-}
 
 type FilterStatus =
   | "ALL"
@@ -65,25 +23,6 @@ type FilterStatus =
   | "CONTACT_REQUESTED"
   | "CONTACT_DISCLOSED"
   | "DECLINED";
-
-const statusStyles: Record<string, { label: string; className: string }> = {
-  EXPRESSED: {
-    label: "興味表明",
-    className: "bg-primary/10 text-primary",
-  },
-  CONTACT_REQUESTED: {
-    label: "リクエスト中",
-    className: "bg-amber-500/10 text-amber-600",
-  },
-  CONTACT_DISCLOSED: {
-    label: "開示済み",
-    className: "bg-emerald-500/10 text-emerald-600",
-  },
-  DECLINED: {
-    label: "辞退",
-    className: "bg-muted text-muted-foreground",
-  },
-};
 
 const filterOptions: { value: FilterStatus; label: string }[] = [
   { value: "ALL", label: "すべて" },
@@ -94,15 +33,14 @@ const filterOptions: { value: FilterStatus; label: string }[] = [
 ];
 
 export default function InboxPage() {
-  const [interests, setInterests] = useState<Interest[]>([]);
+  const [interests, setInterests] = useState<InboxInterest[]>([]);
   const [agentStatus, setAgentStatus] = useState<"PUBLIC" | "PRIVATE" | null>(
     null,
   );
   const [isLoading, setIsLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("ALL");
-  const [selectedInterest, setSelectedInterest] = useState<Interest | null>(
-    null,
-  );
+  const [selectedInterest, setSelectedInterest] =
+    useState<InboxInterest | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [messageContent, setMessageContent] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -112,7 +50,9 @@ export default function InboxPage() {
   >({});
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
-  const [declineTarget, setDeclineTarget] = useState<Interest | null>(null);
+  const [declineTarget, setDeclineTarget] = useState<InboxInterest | null>(
+    null,
+  );
   const [declineError, setDeclineError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -204,7 +144,7 @@ export default function InboxPage() {
     }
   };
 
-  const openMessageDialog = (interest: Interest) => {
+  const openMessageDialog = (interest: InboxInterest) => {
     setSelectedInterest(interest);
     setMessages([]);
     setMessageContent("");
@@ -409,232 +349,45 @@ export default function InboxPage() {
             </p>
           </div>
           {filteredInterests.map((interest, index) => (
-            <div
+            <InboxInterestCard
               key={interest.id}
-              className={cn(
-                "px-5 py-4 hover:bg-secondary/30 transition-colors",
-                index < filteredInterests.length - 1 && "border-b",
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <Avatar className="size-9 shrink-0 mt-0.5">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-                    {interest.recruiter.companyName[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold truncate">
-                      {interest.recruiter.companyName}
-                    </h3>
-                    <span
-                      className={cn(
-                        "text-[10px] font-medium px-2 py-0.5 rounded-md shrink-0",
-                        statusStyles[interest.status]?.className,
-                      )}
-                    >
-                      {statusStyles[interest.status]?.label || interest.status}
-                    </span>
-                  </div>
-                  {interest.lastMessage ? (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                      {interest.lastMessage.senderType === "USER"
-                        ? "あなた"
-                        : interest.recruiter.companyName}
-                      : {interest.lastMessage.content}
-                    </p>
-                  ) : interest.message ? (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                      {interest.message}
-                    </p>
-                  ) : null}
-                  <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground tabular-nums">
-                    <span>
-                      {new Date(interest.createdAt).toLocaleDateString("ja-JP")}
-                    </span>
-                    {interest.messageCount > 0 && (
-                      <span>{interest.messageCount} 件</span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
-                  {interest.status === "CONTACT_DISCLOSED" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs"
-                      onClick={() => openMessageDialog(interest)}
-                    >
-                      メッセージ
-                    </Button>
-                  )}
-                  {interest.status === "CONTACT_REQUESTED" && (
-                    <>
-                      <Select
-                        value={accessPreference[interest.id] || "NONE"}
-                        onValueChange={(value) =>
-                          setAccessPreference((prev) => ({
-                            ...prev,
-                            [interest.id]: value as "NONE" | "ALLOW" | "DENY",
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="h-8 text-xs w-[140px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="NONE">今回のみ</SelectItem>
-                          <SelectItem value="ALLOW">自動許可</SelectItem>
-                          <SelectItem value="DENY">自動拒否</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="h-8 text-xs"
-                          onClick={() => handleApproveDisclosure(interest.id)}
-                          disabled={isUpdating === interest.id}
-                        >
-                          開示する
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs"
-                          onClick={() => {
-                            setDeclineTarget(interest);
-                            setDeclineError(null);
-                          }}
-                          disabled={isUpdating === interest.id}
-                        >
-                          辞退
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                  {interest.status === "EXPRESSED" && (
-                    <span className="text-[10px] text-muted-foreground">
-                      リクエスト待ち
-                    </span>
-                  )}
-                  {interest.status === "DECLINED" && (
-                    <span className="text-[10px] text-muted-foreground">
-                      辞退済み
-                    </span>
-                  )}
-                </div>
-              </div>
-              {actionErrors[interest.id] && (
-                <p className="text-xs text-destructive mt-2 ml-12" role="alert">
-                  {actionErrors[interest.id]}
-                </p>
-              )}
-            </div>
+              interest={interest}
+              isLast={index === filteredInterests.length - 1}
+              accessPreference={accessPreference[interest.id] || "NONE"}
+              onAccessPreferenceChange={(value) =>
+                setAccessPreference((prev) => ({
+                  ...prev,
+                  [interest.id]: value,
+                }))
+              }
+              onApprove={handleApproveDisclosure}
+              onDecline={(i) => {
+                setDeclineTarget(i);
+                setDeclineError(null);
+              }}
+              onOpenMessages={openMessageDialog}
+              isUpdating={isUpdating === interest.id}
+              actionError={actionErrors[interest.id]}
+            />
           ))}
         </div>
       )}
 
       {/* メッセージDialog */}
-      <Dialog
+      <DirectMessageDialog
         open={!!selectedInterest}
         onOpenChange={() => setSelectedInterest(null)}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedInterest?.recruiter.companyName}とのメッセージ
-            </DialogTitle>
-            <DialogDescription>
-              企業とメッセージのやり取りができます
-            </DialogDescription>
-          </DialogHeader>
-
-          <ScrollArea className="h-80 border rounded-lg p-4">
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 space-y-2">
-                <div className="size-8 rounded-lg bg-secondary flex items-center justify-center">
-                  <svg
-                    className="size-4 text-muted-foreground"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                    />
-                  </svg>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  まだメッセージはありません
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "flex",
-                      message.senderType === "USER"
-                        ? "justify-end"
-                        : "justify-start",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "max-w-[80%] rounded-lg px-4 py-2",
-                        message.senderType === "USER"
-                          ? "bg-primary text-white"
-                          : "bg-secondary",
-                      )}
-                    >
-                      <p className="text-sm">{message.content}</p>
-                      <p
-                        className={cn(
-                          "text-xs mt-1 tabular-nums",
-                          message.senderType === "USER"
-                            ? "text-white/70"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        {new Date(message.createdAt).toLocaleString("ja-JP")}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-
-          {selectedInterest?.status === "CONTACT_DISCLOSED" && (
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Textarea
-                  placeholder="メッセージを入力..."
-                  value={messageContent}
-                  onChange={(e) => setMessageContent(e.target.value)}
-                  className="flex-1"
-                  rows={2}
-                />
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={isSending || !messageContent.trim()}
-                >
-                  送信
-                </Button>
-              </div>
-              {messageError && (
-                <p className="text-xs text-destructive" role="alert">
-                  {messageError}
-                </p>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        title={`${selectedInterest?.recruiter.companyName}とのメッセージ`}
+        description="企業とメッセージのやり取りができます"
+        messages={messages}
+        messageContent={messageContent}
+        onMessageContentChange={setMessageContent}
+        onSend={handleSendMessage}
+        isSending={isSending}
+        messageError={messageError}
+        mySenderType="USER"
+        showInput={selectedInterest?.status === "CONTACT_DISCLOSED"}
+      />
 
       {/* 辞退確認AlertDialog */}
       <AlertDialog

@@ -223,7 +223,7 @@ export default function Home() {
                 ログイン
               </Button>
             </Link>
-            <Link href="/login">
+            <Link href="/register">
               <Button size="sm">無料で始める</Button>
             </Link>
           </div>
@@ -486,7 +486,7 @@ export default function Home() {
             <p className="text-sm text-muted-foreground mb-8">
               無料で登録して、新しい採用体験を始めましょう
             </p>
-            <Link href="/login">
+            <Link href="/register">
               <Button className="px-8">無料で始める</Button>
             </Link>
           </div>
