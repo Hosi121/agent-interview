@@ -1,6 +1,23 @@
 import { prisma } from "./prisma";
 
 /**
+ * 求職者AIチャットセッションを取得または作成
+ */
+export async function getOrCreateUserAIChatSession(userId: string) {
+  let session = await prisma.session.findFirst({
+    where: { userId, sessionType: "USER_AI_CHAT" },
+    include: { messages: { orderBy: { createdAt: "asc" } } },
+  });
+  if (!session) {
+    session = await prisma.session.create({
+      data: { sessionType: "USER_AI_CHAT", userId },
+      include: { messages: true },
+    });
+  }
+  return session;
+}
+
+/**
  * 採用担当者とエージェント間のチャットセッションを取得または作成
  */
 export async function getOrCreateChatSession(
