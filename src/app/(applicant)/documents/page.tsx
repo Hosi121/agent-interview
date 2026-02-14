@@ -60,47 +60,6 @@ export default function DocumentsPage() {
     };
   }, []);
 
-  const handleUpload = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("/api/documents", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error("Upload failed");
-    }
-
-    await fetchDocuments();
-    setIsDialogOpen(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    setDeleteError(null);
-    setIsDeleting(true);
-
-    try {
-      const response = await fetch(`/api/documents/${id}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        setDocuments((prev) => prev.filter((doc) => doc.id !== id));
-        setDeleteTarget(null);
-      } else {
-        const data = await response.json();
-        setDeleteError(data.error || "削除に失敗しました");
-      }
-    } catch (error) {
-      console.error("Delete error:", error);
-      setDeleteError("削除に失敗しました");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   const handleAnalyze = async (id: string) => {
     try {
       const response = await fetch(`/api/documents/${id}/analyze`, {
@@ -162,6 +121,51 @@ export default function DocumentsPage() {
       console.error("Analyze error:", error);
       await fetchDocuments();
     }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeleteError(null);
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(`/api/documents/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setDocuments((prev) => prev.filter((doc) => doc.id !== id));
+        setDeleteTarget(null);
+      } else {
+        const data = await response.json();
+        setDeleteError(data.error || "削除に失敗しました");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      setDeleteError("削除に失敗しました");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/documents", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error("Upload failed");
+    }
+
+    const data = await response.json();
+    await fetchDocuments();
+    setIsDialogOpen(false);
+
+    // アップロード完了後、自動で解析を開始
+    handleAnalyze(data.document.id).catch(() => {});
   };
 
   if (isLoading) {
