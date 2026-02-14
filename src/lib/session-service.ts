@@ -6,6 +6,7 @@ import { prisma } from "./prisma";
 export async function getOrCreateUserAIChatSession(userId: string) {
   let session = await prisma.session.findFirst({
     where: { userId, sessionType: "USER_AI_CHAT" },
+    orderBy: { createdAt: "desc" },
     include: { messages: { orderBy: { createdAt: "asc" } } },
   });
   if (!session) {

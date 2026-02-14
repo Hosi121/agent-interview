@@ -120,18 +120,18 @@ export default function ChatPage() {
         fetch("/api/chat/messages"),
       ]);
 
-      let fragmentCount = 0;
+      let fetchedFragmentCount = 0;
       let cov: ChatCoverageState = INITIAL_COVERAGE;
 
       if (agentRes.ok) {
         const data = await agentRes.json();
         if (data.fragments) {
-          fragmentCount = data.fragments.length;
+          fetchedFragmentCount = data.fragments.length;
           cov = data.coverage ?? INITIAL_COVERAGE;
         }
       }
 
-      setFragmentCount(fragmentCount);
+      setFragmentCount(fetchedFragmentCount);
       setCoverage(cov);
 
       // 永続化済みメッセージがあればそれを復元
@@ -155,7 +155,7 @@ export default function ChatPage() {
         {
           id: "initial",
           role: "assistant",
-          content: buildInitialMessage(userName, fragmentCount, cov),
+          content: buildInitialMessage(userName, fetchedFragmentCount, cov),
         },
       ]);
     } catch (error) {

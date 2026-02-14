@@ -37,6 +37,9 @@ const qualityToConfidence: Record<string, number> = {
   high: 1.0,
 };
 
+/** LLMに送るメッセージの最大件数（古いメッセージは切り捨て） */
+const MAX_LLM_MESSAGES = 50;
+
 function buildSystemPrompt(
   fragments: { type: string; content: string; confidence?: number }[],
   coverage: ChatCoverageState,
@@ -94,6 +97,60 @@ function buildSystemPrompt(
   return prompt;
 }
 
+/**
+ * 初回セッション用の挨拶メッセージを生成（サーバー側）
+ * クライアントの buildInitialMessage と同等の役割
+ */
+function buildServerGreeting(
+  userName: string | undefined,
+  fragmentCount: number,
+  coverage: ChatCoverageState,
+): string {
+  const name = userName ? `${userName}さん` : "";
+
+  if (fragmentCount === 0) {
+    return `こんにちは${name ? `、${name}` : ""}！私はあなたのエージェントを作成するためのAIアシスタントです。
+
+あなたの経験やスキル、キャリアについて教えてください。以下のような質問に答えていただくことで、あなたを代理するAIエージェントを作成できます：
+
+- これまでのキャリアや職歴について
+- 得意なスキルや技術
+- 印象に残っているプロジェクトや成果
+- 今後のキャリアの目標
+
+何でも気軽にお話しください！`;
+  }
+
+  const unfulfilledCategories = coverage.categories.filter((c) => !c.fulfilled);
+  const categoryList = unfulfilledCategories
+    .map((c) => `- ${c.label}（あと${c.required - c.current}件）`)
+    .join("\n");
+
+  if (coverage.percentage < 80) {
+    return `おかえりなさい${name ? `、${name}` : ""}！前回までの情報をもとに、続きからお話ししましょう。
+
+現在の情報収集の進捗は${coverage.percentage}%です。${
+      categoryList
+        ? `以下のカテゴリについてもう少し教えていただけると、より良いエージェントが作れます：
+
+${categoryList}
+
+どのトピックからでも構いません。お話しください！`
+        : "どのトピックからでも構いません。お話しください！"
+    }`;
+  }
+
+  const completionSection = categoryList
+    ? `あと少しで完成です。以下の情報があるとさらに良くなります：
+
+${categoryList}`
+    : "十分な情報が集まっています。さらに追加したいエピソードがあればお聞かせください。";
+
+  return `おかえりなさい${name ? `、${name}` : ""}！情報収集の進捗は${coverage.percentage}%で、かなり充実してきました。
+
+${completionSection}`;
+}
+
 const NEW_MESSAGE_COUNT = 4;
 const CONTEXT_MESSAGE_COUNT = 4;
 
@@ -106,20 +163,8 @@ export const POST = withUserValidation(
   async (body, req, session) => {
     const { message } = body;
 
-    // セッション取得/作成 + ユーザーメッセージ保存
+    // セッション取得/作成
     const chatSession = await getOrCreateUserAIChatSession(session.user.userId);
-    await addMessage(chatSession.id, "USER", message, session.user.userId);
-
-    // DB上の既存メッセージ + 今回のメッセージでLLMに送信
-    const dbMessages = [
-      ...chatSession.messages.map((m) => ({
-        role: (m.senderType === "USER" ? "user" : "assistant") as
-          | "user"
-          | "assistant",
-        content: m.content,
-      })),
-      { role: "user" as const, content: message },
-    ];
 
     const existingFragments = await prisma.fragment.findMany({
       where: { userId: session.user.userId },
@@ -127,6 +172,52 @@ export const POST = withUserValidation(
     });
 
     const coverage = calculateCoverage(existingFragments);
+
+    // 修正1: 初回セッション時に挨拶をDBに保存してLLMコンテキストを維持
+    if (chatSession.messages.length === 0) {
+      const greeting = buildServerGreeting(
+        session.user.name ?? undefined,
+        existingFragments.length,
+        coverage,
+      );
+      await addMessage(chatSession.id, "AI", greeting);
+      chatSession.messages.push({
+        id: "",
+        sessionId: chatSession.id,
+        senderType: "AI",
+        senderId: null,
+        content: greeting,
+        createdAt: new Date(),
+      });
+    }
+
+    // 修正2: リトライ時の重複ユーザーメッセージ防止
+    const lastMessage = chatSession.messages[chatSession.messages.length - 1];
+    const isDuplicate =
+      lastMessage &&
+      lastMessage.senderType === "USER" &&
+      lastMessage.content === message;
+    if (!isDuplicate) {
+      await addMessage(chatSession.id, "USER", message, session.user.userId);
+    }
+
+    // DB上の既存メッセージ + 今回のメッセージでLLMに送信
+    const allDbMessages = [
+      ...chatSession.messages.map((m) => ({
+        role: (m.senderType === "USER" ? "user" : "assistant") as
+          | "user"
+          | "assistant",
+        content: m.content,
+      })),
+      ...(isDuplicate ? [] : [{ role: "user" as const, content: message }]),
+    ];
+
+    // 修正3: LLMに送るメッセージ数を制限
+    const dbMessages =
+      allDbMessages.length > MAX_LLM_MESSAGES
+        ? allDbMessages.slice(-MAX_LLM_MESSAGES)
+        : allDbMessages;
+
     const systemPrompt = buildSystemPrompt(existingFragments, coverage);
 
     const abortController = new AbortController();
@@ -157,12 +248,20 @@ export const POST = withUserValidation(
           await writeSSE("text", JSON.stringify(chunk));
         }
 
-        // AI応答をDB保存
-        await addMessage(chatSession.id, "AI", fullText);
+        // 修正2: AI応答のDB保存をリトライ付きで実行
+        try {
+          await addMessage(chatSession.id, "AI", fullText);
+        } catch (saveError) {
+          logger.error("AI message save failed, retrying", saveError as Error, {
+            userId: session.user.userId,
+          });
+          await addMessage(chatSession.id, "AI", fullText);
+        }
 
         let fragmentsExtracted = 0;
         let currentCoverage = coverage;
 
+        // 修正6: 新コードでは必ずユーザーメッセージがあるため常に抽出実行
         try {
           const allMessages = [
             ...dbMessages,
