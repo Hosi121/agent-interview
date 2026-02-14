@@ -129,7 +129,7 @@ function RegisterForm() {
       if (accountType === "RECRUITER") {
         router.push("/recruiter/dashboard");
       } else {
-        router.push("/dashboard");
+        router.push("/my/dashboard");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");

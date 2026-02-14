@@ -22,7 +22,7 @@ export function FinishSuggestion({
   }
 
   const handleFinish = () => {
-    router.push("/agent");
+    router.push("/my/agent");
   };
 
   const isComplete = coverage.isComplete;

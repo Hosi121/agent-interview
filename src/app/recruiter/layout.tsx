@@ -58,7 +58,7 @@ export default function RecruiterLayout({
       router.push("/login");
     }
     if (status === "authenticated" && session?.user?.accountType === "USER") {
-      router.push("/dashboard");
+      router.push("/my/dashboard");
     }
   }, [status, session, router]);
 

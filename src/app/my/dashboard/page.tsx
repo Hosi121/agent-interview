@@ -114,7 +114,7 @@ export default function ApplicantDashboard() {
     {
       label: "AIと対話",
       desc: "経験やスキルをAIに伝えて、記憶のかけらを作成",
-      href: "/chat",
+      href: "/my/chat",
       done: data.fragments.length > 0,
       stat:
         data.fragments.length > 0 ? `${data.fragments.length} かけら` : null,
@@ -131,7 +131,7 @@ export default function ApplicantDashboard() {
     {
       label: "ドキュメント",
       desc: "履歴書やポートフォリオをアップロード",
-      href: "/documents",
+      href: "/my/documents",
       done: data.documents.total > 0,
       stat:
         data.documents.total > 0 ? `${data.documents.total} ファイル` : null,
@@ -148,7 +148,7 @@ export default function ApplicantDashboard() {
     {
       label: "エージェント公開",
       desc: "採用担当者があなたのエージェントと対話できるようにする",
-      href: "/agent",
+      href: "/my/agent",
       done: agentStatus === "PUBLIC",
       stat: agentStatus === "PUBLIC" ? "公開中" : null,
       cta: "公開する",
@@ -164,7 +164,7 @@ export default function ApplicantDashboard() {
     {
       label: "受信箱を確認",
       desc: "企業からの興味表明やメッセージを確認",
-      href: "/inbox",
+      href: "/my/inbox",
       done: data.interests.total > 0,
       stat:
         data.interests.new > 0
@@ -214,7 +214,7 @@ export default function ApplicantDashboard() {
             <p className="text-[10px] tracking-widest text-muted-foreground uppercase">
               あなたの名刺
             </p>
-            <Link href="/agent">
+            <Link href="/my/agent">
               <Button
                 variant="ghost"
                 size="sm"
