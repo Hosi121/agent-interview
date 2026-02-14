@@ -88,7 +88,7 @@ export default function ApplicantLayout({
     );
   }
 
-  if (!session) {
+  if (!session || session.user?.accountType === "RECRUITER") {
     return null;
   }
 

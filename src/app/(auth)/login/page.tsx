@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -12,8 +12,7 @@ function MiniCard() {
     <div
       className="relative w-[260px] aspect-[1.75/1] rounded-xl border bg-card p-5 flex flex-col justify-between overflow-hidden"
       style={{
-        boxShadow:
-          "0 4px 24px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.02)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.02)",
       }}
     >
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary/50 via-primary to-primary/50" />
@@ -52,8 +51,10 @@ function MiniCard() {
   );
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -76,13 +77,16 @@ export default function LoginPage() {
       return;
     }
 
-    const session = await getSession();
-    if (session?.user?.accountType === "RECRUITER") {
-      router.push("/recruiter/dashboard");
+    if (callbackUrl) {
+      router.push(callbackUrl);
     } else {
-      router.push("/dashboard");
+      const session = await getSession();
+      if (session?.user?.accountType === "RECRUITER") {
+        router.push("/recruiter/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
     }
-    router.refresh();
   };
 
   return (
@@ -194,5 +198,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">読み込み中...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

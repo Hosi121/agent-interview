@@ -50,6 +50,11 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, token }) {
       if (session.user && token.email) {
+        // accountType はJWTから取得（DB不要）
+        if (token.accountType) {
+          session.user.accountType = token.accountType;
+        }
+
         const account = await prisma.account.findUnique({
           where: { email: token.email },
           include: {
@@ -62,7 +67,6 @@ export const authOptions: NextAuthOptions = {
 
         if (account) {
           session.user.accountId = account.id;
-          session.user.accountType = account.accountType;
           if (account.user) {
             session.user.userId = account.user.id;
             session.user.name = account.user.name;

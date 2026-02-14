@@ -75,7 +75,7 @@ export default function RecruiterLayout({
     );
   }
 
-  if (!session) {
+  if (!session || session.user?.accountType === "USER") {
     return null;
   }
 
