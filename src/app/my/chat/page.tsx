@@ -24,51 +24,19 @@ interface Message {
 function buildInitialMessage(
   userName: string | undefined,
   fragmentCount: number,
-  coverage: ChatCoverageState,
 ): string {
   const name = userName ? `${userName}さん` : "";
 
   if (fragmentCount === 0) {
-    return `こんにちは${name ? `、${name}` : ""}！私はあなたのエージェントを作成するためのAIアシスタントです。
+    return `こんにちは${name ? `、${name}` : ""}！あなたのキャリアを代わりに伝えてくれるAIエージェントを一緒に作りましょう。
 
-あなたの経験やスキル、キャリアについて教えてください。以下のような質問に答えていただくことで、あなたを代理するAIエージェントを作成できます：
-
-- これまでのキャリアや職歴について
-- 得意なスキルや技術
-- 印象に残っているプロジェクトや成果
-- 今後のキャリアの目標
-
-何でも気軽にお話しください！`;
+まずは気軽に、これまでのお仕事やご経験について聞かせてください。印象に残っているプロジェクトの話でも、今やっていることでも、何でも大丈夫です。`;
   }
 
-  const unfulfilledCategories = coverage.categories.filter((c) => !c.fulfilled);
-  const categoryList = unfulfilledCategories
-    .map((c) => `- ${c.label}（あと${c.required - c.current}件）`)
-    .join("\n");
+  // Fragmentあり（書類アップロード等）だが初チャットの場合
+  return `こんにちは${name ? `、${name}` : ""}！すでにいくつかの情報をいただいています。ここからはもう少し詳しくお話を聞かせてください。
 
-  if (coverage.percentage < 80) {
-    return `おかえりなさい${name ? `、${name}` : ""}！前回までの情報をもとに、続きからお話ししましょう。
-
-現在の情報収集の進捗は${coverage.percentage}%です。${
-      categoryList
-        ? `以下のカテゴリについてもう少し教えていただけると、より良いエージェントが作れます：
-
-${categoryList}
-
-どのトピックからでも構いません。お話しください！`
-        : "どのトピックからでも構いません。お話しください！"
-    }`;
-  }
-
-  const completionSection = categoryList
-    ? `あと少しで完成です。以下の情報があるとさらに良くなります：
-
-${categoryList}`
-    : "十分な情報が集まっています。さらに追加したいエピソードがあればお聞かせください。";
-
-  return `おかえりなさい${name ? `、${name}` : ""}！情報収集の進捗は${coverage.percentage}%で、かなり充実してきました。
-
-${completionSection}`;
+たとえば、お仕事の中で特に印象に残っているプロジェクトや、ご自身が工夫されたことなどがあれば教えてください。`;
 }
 
 const INITIAL_COVERAGE: ChatCoverageState = {
@@ -155,7 +123,7 @@ export default function ChatPage() {
         {
           id: "initial",
           role: "assistant",
-          content: buildInitialMessage(userName, fetchedFragmentCount, cov),
+          content: buildInitialMessage(userName, fetchedFragmentCount),
         },
       ]);
     } catch (error) {
@@ -164,7 +132,7 @@ export default function ChatPage() {
         {
           id: "initial",
           role: "assistant",
-          content: buildInitialMessage(userName, 0, INITIAL_COVERAGE),
+          content: buildInitialMessage(userName, 0),
         },
       ]);
     }
