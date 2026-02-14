@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
@@ -43,7 +44,7 @@ function MiniCard() {
         </div>
         <div className="flex items-center justify-end">
           <span className="text-[8px] tracking-widest text-muted-foreground/40 font-medium">
-            Metalk
+            MeTalk
           </span>
         </div>
       </div>
@@ -89,9 +90,14 @@ export default function LoginPage() {
       {/* ブランドパネル — デスクトップのみ */}
       <div className="hidden lg:flex lg:w-2/5 shrink-0 bg-secondary/60 border-r flex-col items-center justify-center gap-8 px-12">
         <div className="text-center space-y-3">
-          <p className="text-2xl font-bold tracking-tight text-foreground">
-            Metalk
-          </p>
+          <Image
+            src="/logos/symbol+type.svg"
+            alt="MeTalk"
+            width={180}
+            height={48}
+            className="h-10 w-auto mx-auto"
+            priority
+          />
           <p className="text-sm text-muted-foreground leading-relaxed max-w-[280px]">
             あなたの代わりに
             <span className="text-primary font-medium">語る名刺</span>
@@ -123,9 +129,14 @@ export default function LoginPage() {
         <div className="w-full max-w-[360px]">
           {/* モバイルロゴ */}
           <div className="lg:hidden text-center mb-8">
-            <p className="text-xl font-bold tracking-tight text-foreground">
-              Metalk
-            </p>
+            <Image
+              src="/logos/symbol+type.svg"
+              alt="MeTalk"
+              width={156}
+              height={42}
+              className="h-9 w-auto mx-auto"
+              priority
+            />
             <p className="text-xs text-muted-foreground mt-1">
               AIエージェントによる非同期面接
             </p>

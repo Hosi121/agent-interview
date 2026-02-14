@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
@@ -87,9 +88,17 @@ export default function RecruiterLayout({
             <div className="flex items-center gap-8">
               <Link
                 href="/recruiter/dashboard"
-                className="text-lg font-bold tracking-tight text-foreground"
+                className="inline-flex items-center"
+                aria-label="MeTalk"
               >
-                Metalk
+                <Image
+                  src="/logos/symbol+type.svg"
+                  alt="MeTalk"
+                  width={124}
+                  height={34}
+                  className="h-9 w-auto"
+                  priority
+                />
               </Link>
               <nav className="hidden md:flex items-center gap-1">
                 {navigation.map((item) => (

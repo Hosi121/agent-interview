@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -127,7 +128,7 @@ function MarqueeCard({
             Public
           </span>
           <span className="text-[9px] tracking-widest text-muted-foreground/40 font-medium">
-            Metalk
+            MeTalk
           </span>
         </div>
       </div>
@@ -198,7 +199,7 @@ function HeroCard() {
             Public
           </span>
           <span className="text-xs tracking-widest text-muted-foreground/40 font-medium">
-            Metalk
+            MeTalk
           </span>
         </div>
       </div>
@@ -214,9 +215,20 @@ export default function Home() {
     <div className="min-h-dvh bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <span className="text-lg font-bold tracking-tight text-foreground">
-            Metalk
-          </span>
+          <Link
+            href="/"
+            aria-label="MeTalk"
+            className="inline-flex items-center"
+          >
+            <Image
+              src="/logos/symbol+type.svg"
+              alt="MeTalk"
+              width={124}
+              height={34}
+              className="h-9 w-auto"
+              priority
+            />
+          </Link>
           <div className="flex items-center gap-2">
             <Link href="/login">
               <Button variant="ghost" size="sm">
@@ -496,7 +508,7 @@ export default function Home() {
       <footer className="border-t py-6">
         <div className="container mx-auto px-4 text-center">
           <p className="text-xs text-muted-foreground">
-            &copy; 2024 Metalk. All rights reserved.
+            &copy; 2026 MeTalk. All rights reserved.
           </p>
         </div>
       </footer>
