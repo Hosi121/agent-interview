@@ -4,8 +4,8 @@ import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { CoverageIndicator } from "@/components/chat/CoverageIndicator";
+import { DynamicHints } from "@/components/chat/DynamicHints";
 import { FinishSuggestion } from "@/components/chat/FinishSuggestion";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -115,34 +115,59 @@ export default function ChatPage() {
 
   const fetchInitialData = useCallback(async (userName: string | undefined) => {
     try {
-      const response = await fetch("/api/agents/me");
-      if (response.ok) {
-        const data = await response.json();
+      const [agentRes, messagesRes] = await Promise.all([
+        fetch("/api/agents/me"),
+        fetch("/api/chat/messages"),
+      ]);
+
+      let fragmentCount = 0;
+      let cov: ChatCoverageState = INITIAL_COVERAGE;
+
+      if (agentRes.ok) {
+        const data = await agentRes.json();
         if (data.fragments) {
-          const count = data.fragments.length;
-          const cov: ChatCoverageState = data.coverage ?? INITIAL_COVERAGE;
-          setFragmentCount(count);
-          setCoverage(cov);
-          setMessages([
-            {
-              id: "initial",
-              role: "assistant",
-              content: buildInitialMessage(userName, count, cov),
-            },
-          ]);
+          fragmentCount = data.fragments.length;
+          cov = data.coverage ?? INITIAL_COVERAGE;
+        }
+      }
+
+      setFragmentCount(fragmentCount);
+      setCoverage(cov);
+
+      // 永続化済みメッセージがあればそれを復元
+      if (messagesRes.ok) {
+        const { messages: dbMessages } = await messagesRes.json();
+        if (dbMessages && dbMessages.length > 0) {
+          const restored: Message[] = dbMessages.map(
+            (m: { id: string; senderType: string; content: string }) => ({
+              id: m.id,
+              role: m.senderType === "USER" ? "user" : "assistant",
+              content: m.content,
+            }),
+          );
+          setMessages(restored);
           return;
         }
       }
+
+      // メッセージなし → 初回挨拶
+      setMessages([
+        {
+          id: "initial",
+          role: "assistant",
+          content: buildInitialMessage(userName, fragmentCount, cov),
+        },
+      ]);
     } catch (error) {
       console.error("Failed to fetch initial data:", error);
+      setMessages([
+        {
+          id: "initial",
+          role: "assistant",
+          content: buildInitialMessage(userName, 0, INITIAL_COVERAGE),
+        },
+      ]);
     }
-    setMessages([
-      {
-        id: "initial",
-        role: "assistant",
-        content: buildInitialMessage(userName, 0, INITIAL_COVERAGE),
-      },
-    ]);
   }, []);
 
   useEffect(() => {
@@ -164,12 +189,7 @@ export default function ChatPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
+        body: JSON.stringify({ message: content }),
       });
 
       if (!response.ok) {
@@ -302,37 +322,7 @@ export default function ChatPage() {
         {coverage.categories.length > 0 && (
           <CoverageIndicator coverage={coverage} />
         )}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">ヒント</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-start gap-2">
-              <Badge variant="outline" className="mt-0.5">
-                1
-              </Badge>
-              <p className="text-sm text-muted-foreground">
-                具体的なエピソードを交えて話すと、より良いエージェントが作成できます
-              </p>
-            </div>
-            <div className="flex items-start gap-2">
-              <Badge variant="outline" className="mt-0.5">
-                2
-              </Badge>
-              <p className="text-sm text-muted-foreground">
-                数字や実績を含めると、説得力が増します
-              </p>
-            </div>
-            <div className="flex items-start gap-2">
-              <Badge variant="outline" className="mt-0.5">
-                3
-              </Badge>
-              <p className="text-sm text-muted-foreground">
-                困難を乗り越えた経験も重要な情報です
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <DynamicHints coverage={coverage} />
       </div>
     </div>
   );
