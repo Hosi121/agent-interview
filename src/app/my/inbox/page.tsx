@@ -321,7 +321,7 @@ export default function InboxPage() {
                 <p className="text-xs text-muted-foreground text-center">
                   エージェントを公開すると、企業から興味表明を受け取れます
                 </p>
-                <Link href="/agent">
+                <Link href="/my/agent">
                   <Button variant="outline" size="sm">
                     エージェントを公開する
                   </Button>

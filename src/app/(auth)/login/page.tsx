@@ -85,7 +85,7 @@ function LoginForm() {
       if (session?.user?.accountType === "RECRUITER") {
         router.push("/recruiter/dashboard");
       } else {
-        router.push("/dashboard");
+        router.push("/my/dashboard");
       }
     }
   };

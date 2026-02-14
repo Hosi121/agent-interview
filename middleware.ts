@@ -1,15 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const applicantRoutes = [
-  "/dashboard",
-  "/chat",
-  "/documents",
-  "/agent",
-  "/inbox",
-  "/settings",
-];
-
 const publicRoutes = ["/", "/login", "/register", "/invite"];
 
 export async function middleware(request: NextRequest) {
@@ -46,19 +37,14 @@ export async function middleware(request: NextRequest) {
   }
 
   // リクルーターが求職者ルートにアクセス → リクルーターダッシュボードへ
-  if (
-    accountType === "RECRUITER" &&
-    applicantRoutes.some(
-      (route) => pathname === route || pathname.startsWith(`${route}/`),
-    )
-  ) {
+  if (accountType === "RECRUITER" && pathname.startsWith("/my")) {
     const redirectUrl = new URL("/recruiter/dashboard", request.url);
     return NextResponse.redirect(redirectUrl);
   }
 
   // 求職者がリクルータールートにアクセス → 求職者ダッシュボードへ
   if (accountType === "USER" && pathname.startsWith("/recruiter")) {
-    const redirectUrl = new URL("/dashboard", request.url);
+    const redirectUrl = new URL("/my/dashboard", request.url);
     return NextResponse.redirect(redirectUrl);
   }
 
