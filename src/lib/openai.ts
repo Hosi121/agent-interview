@@ -56,11 +56,10 @@ const fragmentSchema = z.object({
           "ACHIEVEMENT | ACTION | CHALLENGE | LEARNING | VALUE | EMOTION | FACT | SKILL_USAGE",
         ),
       content: z.string().describe("Fragmentの具体的な内容"),
-      skills: z.array(z.string()).default([]).describe("関連スキル"),
-      keywords: z.array(z.string()).default([]).describe("関連キーワード"),
+      skills: z.array(z.string()).describe("関連スキル。なければ空配列"),
+      keywords: z.array(z.string()).describe("関連キーワード。なければ空配列"),
       quality: z
         .enum(["low", "medium", "high"])
-        .default("medium")
         .describe(
           "low: 曖昧・抽象的, medium: ある程度具体的, high: 数値・具体例を含む",
         ),
