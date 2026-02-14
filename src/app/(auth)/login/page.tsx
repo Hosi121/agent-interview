@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getSession, signIn } from "next-auth/react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -52,8 +52,10 @@ function MiniCard() {
   );
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -76,13 +78,16 @@ export default function LoginPage() {
       return;
     }
 
-    const session = await getSession();
-    if (session?.user?.accountType === "RECRUITER") {
-      router.push("/recruiter/dashboard");
+    if (callbackUrl) {
+      router.push(callbackUrl);
     } else {
-      router.push("/dashboard");
+      const session = await getSession();
+      if (session?.user?.accountType === "RECRUITER") {
+        router.push("/recruiter/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
     }
-    router.refresh();
   };
 
   return (
@@ -207,5 +212,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">読み込み中...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

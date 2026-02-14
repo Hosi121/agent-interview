@@ -31,9 +31,10 @@ export async function middleware(request: NextRequest) {
 
   const token = await getToken({ req: request });
 
-  // 未認証 → ログインへ
+  // 未認証 → ログインへ（元URLを保持）
   if (!token) {
     const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
