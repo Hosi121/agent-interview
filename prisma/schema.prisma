@@ -319,7 +319,6 @@ model InterviewEvaluation {
   technicalRating Int       // 1-5
   communicationRating Int   // 1-5
   cultureRating   Int       // 1-5
-  matchScore      Float?    // AIによるマッチ度スコア
   comment         String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

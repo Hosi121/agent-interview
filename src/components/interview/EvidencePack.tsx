@@ -68,7 +68,7 @@ export function EvidencePack({
                 className="rounded-md border border-muted p-2 space-y-1.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-foreground bg-muted px-1.5 py-0.5 rounded tabular-nums">
+                  <span className="text-[10px] font-medium text-foreground bg-muted px-1.5 py-0.5 rounded-md tabular-nums">
                     参照 {item.count}回
                   </span>
                   {item.skills.length > 0 && (
@@ -76,7 +76,7 @@ export function EvidencePack({
                       {item.skills.slice(0, 3).map((skill) => (
                         <span
                           key={skill}
-                          className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded"
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-secondary text-secondary-foreground"
                         >
                           {skill}
                         </span>
@@ -105,7 +105,7 @@ export function EvidencePack({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 px-2 text-xs"
+                              className="h-6 px-2 text-[10px]"
                               onClick={() => onScrollToMessage(ms.messageId)}
                             >
                               確認

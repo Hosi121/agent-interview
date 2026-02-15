@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import { JobDetailsTab, JobMatchesTab } from "@/components/jobs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,9 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -24,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 interface Match {
   id: string;
@@ -69,6 +69,13 @@ const statusLabels: Record<string, string> = {
   ACTIVE: "募集中",
   PAUSED: "一時停止",
   CLOSED: "募集終了",
+};
+
+const statusColorMap: Record<string, string> = {
+  ACTIVE: "bg-emerald-500/10 text-emerald-600",
+  PAUSED: "bg-amber-500/10 text-amber-600",
+  CLOSED: "bg-destructive/10 text-destructive",
+  DRAFT: "bg-secondary text-secondary-foreground",
 };
 
 export default function JobDetailPage() {
@@ -169,7 +176,11 @@ export default function JobDetailPage() {
   };
 
   if (isLoading) {
-    return <p className="text-muted-foreground text-pretty">読み込み中...</p>;
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
   }
 
   if (!job) {
@@ -179,7 +190,7 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-2">
@@ -190,8 +201,21 @@ export default function JobDetailPage() {
               ← 求人一覧
             </Link>
           </div>
-          <h1 className="text-3xl font-bold text-balance">{job.title}</h1>
-          <p className="text-muted-foreground mt-1 text-pretty tabular-nums">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-balance">
+              {job.title}
+            </h1>
+            <span
+              className={cn(
+                "text-[10px] font-medium px-2 py-0.5 rounded-md",
+                statusColorMap[job.status] ||
+                  "bg-secondary text-secondary-foreground",
+              )}
+            >
+              {statusLabels[job.status] || job.status}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1 text-pretty tabular-nums">
             {job.location || "勤務地未設定"}
             {job.isRemote && " ・ リモート可"}
             {job.salaryMin &&
@@ -234,111 +258,23 @@ export default function JobDetailPage() {
         </TabsList>
 
         <TabsContent value="details" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>求人内容</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2 text-balance">詳細</h4>
-                <p className="text-sm whitespace-pre-wrap text-pretty">
-                  {job.description}
-                </p>
-              </div>
-              {job.requirements && (
-                <div>
-                  <h4 className="font-medium mb-2 text-balance">必須要件</h4>
-                  <p className="text-sm whitespace-pre-wrap text-pretty">
-                    {job.requirements}
-                  </p>
-                </div>
-              )}
-              {job.preferredSkills && (
-                <div>
-                  <h4 className="font-medium mb-2 text-balance">歓迎スキル</h4>
-                  <p className="text-sm whitespace-pre-wrap text-pretty">
-                    {job.preferredSkills}
-                  </p>
-                </div>
-              )}
-              {job.skills.length > 0 && (
-                <div>
-                  <h4 className="font-medium mb-2 text-balance">必須スキル</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {job.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <JobDetailsTab
+            description={job.description}
+            requirements={job.requirements}
+            preferredSkills={job.preferredSkills}
+            skills={job.skills}
+          />
         </TabsContent>
 
         <TabsContent value="matches" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground text-pretty tabular-nums">
-              マッチした候補者: {job._count.matches}名
-            </p>
-            <Button onClick={handleRunMatching} disabled={isMatching}>
-              {isMatching ? "計算中..." : "マッチング再計算"}
-            </Button>
-          </div>
-
-          {job.matches.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground mb-4 text-pretty">
-                  まだマッチング候補がいません
-                </p>
-                <Button onClick={handleRunMatching} disabled={isMatching}>
-                  マッチングを実行
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {job.matches.map((match) => (
-                <Card key={match.id}>
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{match.agent.user.name}</p>
-                        <div className="flex gap-4 text-sm text-muted-foreground mt-1 tabular-nums">
-                          <span>総合: {Math.round(match.score * 100)}%</span>
-                          <span>
-                            スキル: {Math.round(match.scoreDetails.skill * 100)}
-                            %
-                          </span>
-                          <span>
-                            経験:{" "}
-                            {Math.round(match.scoreDetails.experience * 100)}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/recruiter/interview/${match.agent.id}?jobId=${jobId}`}
-                        >
-                          <Button variant="outline" size="sm">
-                            面接
-                          </Button>
-                        </Link>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddToPipeline(match.agent.id)}
-                        >
-                          パイプラインに追加
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+          <JobMatchesTab
+            matches={job.matches}
+            matchCount={job._count.matches}
+            jobId={jobId}
+            isMatching={isMatching}
+            onRunMatching={handleRunMatching}
+            onAddToPipeline={handleAddToPipeline}
+          />
         </TabsContent>
       </Tabs>
 

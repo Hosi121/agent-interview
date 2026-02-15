@@ -5,17 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { use, useCallback, useEffect, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
-import {
-  EvaluationForm,
-  EvidencePack,
-  InterviewNotes,
-  MissingInfoAlert,
-} from "@/components/interview";
+import { InterviewSidebar } from "@/components/interview";
 import type { EvidenceFragment } from "@/components/interview/EvidencePack";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -23,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface FragmentReference {
   id: string;
@@ -65,7 +58,6 @@ interface Evaluation {
   technicalRating: number;
   communicationRating: number;
   cultureRating: number;
-  matchScore: number | null;
   comment: string | null;
 }
 
@@ -116,7 +108,7 @@ export default function InterviewPage({
   const [isFetching, setIsFetching] = useState(true);
 
   const [notes, setNotes] = useState<Note[]>([]);
-  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [_evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [interest, setInterest] = useState<Interest | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
@@ -352,13 +344,14 @@ export default function InterviewPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: content,
-          jobId: selectedJobId || null,
+          jobId: selectedJobId || undefined,
           missingInfo: guide?.missingInfo || [],
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to send message");
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "メッセージの送信に失敗しました");
       }
 
       const data = await response.json();
@@ -374,11 +367,12 @@ export default function InterviewPage({
       setFollowUps(data.followUps || []);
     } catch (error) {
       console.error("Chat error:", error);
+      const detail =
+        error instanceof Error ? error.message : "不明なエラーが発生しました";
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content:
-          "申し訳ありません。エラーが発生しました。もう一度お試しください。",
+        content: `申し訳ありません。エラーが発生しました：${detail}`,
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -414,8 +408,8 @@ export default function InterviewPage({
 
   if (isFetching) {
     return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground text-pretty">読み込み中...</p>
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
@@ -469,7 +463,7 @@ export default function InterviewPage({
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-xl font-bold text-balance">
+            <h1 className="text-lg font-bold tracking-tight text-balance">
               {agentInfo.user.name}
             </h1>
             <p className="text-sm text-muted-foreground text-pretty">
@@ -500,16 +494,16 @@ export default function InterviewPage({
               </Select>
             </div>
             {interest ? (
-              <Badge variant="outline" className="py-1.5 px-3">
+              <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-md bg-primary/10 text-primary">
                 <svg
-                  className="size-4 mr-1.5 text-red-500"
+                  className="size-3.5 mr-1 text-red-500"
                   fill="currentColor"
                   viewBox="0 0 24 24"
                 >
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                 </svg>
                 興味表明済み
-              </Badge>
+              </span>
             ) : (
               <Button
                 variant="outline"
@@ -561,213 +555,31 @@ export default function InterviewPage({
             </CardContent>
           </Card>
         </div>
-        <div className="space-y-4 overflow-y-auto">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">候補者情報</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">スキル</p>
-                <div className="flex flex-wrap gap-1">
-                  {allSkills.size > 0 ? (
-                    Array.from(allSkills).map((skill) => (
-                      <Badge
-                        key={skill}
-                        variant="secondary"
-                        className="text-xs"
-                      >
-                        {skill}
-                      </Badge>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">情報なし</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">メモ・評価</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="notes">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="notes">メモ</TabsTrigger>
-                  <TabsTrigger value="evaluation">評価</TabsTrigger>
-                  <TabsTrigger
-                    value="summary"
-                    onClick={() => !summary && fetchSummary()}
-                  >
-                    要約
-                  </TabsTrigger>
-                  <TabsTrigger value="guide">面接設計</TabsTrigger>
-                </TabsList>
-                <TabsContent value="notes" className="mt-3">
-                  <InterviewNotes notes={notes} onAddNote={handleAddNote} />
-                </TabsContent>
-                <TabsContent value="evaluation" className="mt-3">
-                  <EvaluationForm
-                    initialData={evalForm}
-                    matchScore={evaluation?.matchScore}
-                    onSave={handleSaveEvaluation}
-                  />
-                </TabsContent>
-                <TabsContent value="summary" className="mt-3">
-                  {isSummaryLoading ? (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground text-pretty">
-                        要約を生成中...
-                      </p>
-                    </div>
-                  ) : summary?.summary ? (
-                    <div className="space-y-3">
-                      <div className="text-xs text-muted-foreground text-pretty tabular-nums">
-                        {summary.messageCount}件のメッセージを分析
-                      </div>
-                      <div className="prose prose-sm max-w-none">
-                        <div className="whitespace-pre-wrap text-sm text-pretty">
-                          {summary.summary}
-                        </div>
-                      </div>
-                      {summary.evidence && summary.evidence.length > 0 && (
-                        <EvidencePack
-                          evidence={summary.evidence}
-                          onScrollToMessage={(messageId) => {
-                            const element = document.querySelector(
-                              `[data-message-id="${messageId}"]`,
-                            );
-                            element?.scrollIntoView({
-                              behavior: "smooth",
-                              block: "center",
-                            });
-                          }}
-                        />
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={fetchSummary}
-                      >
-                        要約を更新
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 space-y-2">
-                      <p className="text-sm text-muted-foreground text-pretty">
-                        {messages.length === 0
-                          ? "会話を開始すると要約を生成できます"
-                          : "会話の要約を生成します"}
-                      </p>
-                      {messages.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={fetchSummary}
-                        >
-                          要約を生成
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </TabsContent>
-                <TabsContent value="guide" className="mt-3">
-                  {!selectedJobId ? (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground text-pretty">
-                        求人を選択すると面接設計を表示します
-                      </p>
-                    </div>
-                  ) : isGuideLoading ? (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground text-pretty">
-                        面接設計を生成中...
-                      </p>
-                    </div>
-                  ) : guide ? (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-balance">
-                          質問テンプレ
-                        </p>
-                        <div className="space-y-2">
-                          {guide.questions.map((question) => (
-                            <div
-                              key={question}
-                              className="rounded-md border border-muted p-2"
-                            >
-                              <p className="text-sm text-pretty">{question}</p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="mt-2"
-                                onClick={() => setDraftMessage(question)}
-                              >
-                                入力に挿入
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {guide.missingInfo.length > 0 && (
-                        <MissingInfoAlert
-                          items={guide.missingInfo}
-                          onAskAbout={(item) =>
-                            setDraftMessage(`${item}について教えてください。`)
-                          }
-                        />
-                      )}
-
-                      {guide.focusAreas && guide.focusAreas.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-balance">
-                            重点観点
-                          </p>
-                          <ul className="space-y-1 text-sm text-muted-foreground text-pretty">
-                            {guide.focusAreas.map((item) => (
-                              <li key={item}>・{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {followUps.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-balance">
-                            直近回答の深掘り候補
-                          </p>
-                          <div className="space-y-2">
-                            {followUps.map((item) => (
-                              <Button
-                                key={item}
-                                size="sm"
-                                variant="secondary"
-                                className="w-full justify-start"
-                                onClick={() => setDraftMessage(item)}
-                              >
-                                {item}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground text-pretty">
-                        面接設計を取得できませんでした
-                      </p>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
+        <InterviewSidebar
+          skills={allSkills}
+          notes={notes}
+          onAddNote={handleAddNote}
+          evalForm={evalForm}
+          onSaveEvaluation={handleSaveEvaluation}
+          summary={summary}
+          isSummaryLoading={isSummaryLoading}
+          messageCount={messages.length}
+          onFetchSummary={fetchSummary}
+          onScrollToMessage={(messageId) => {
+            const element = document.querySelector(
+              `[data-message-id="${messageId}"]`,
+            );
+            element?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }}
+          selectedJobId={selectedJobId}
+          isGuideLoading={isGuideLoading}
+          guide={guide}
+          followUps={followUps}
+          onInsertMessage={setDraftMessage}
+        />
       </div>
     </div>
   );

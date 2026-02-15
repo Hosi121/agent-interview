@@ -2,15 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 interface Job {
   id: string;
@@ -50,16 +43,16 @@ interface Job {
 
 const statusLabels: Record<string, string> = {
   DRAFT: "下書き",
-  ACTIVE: "募集中",
+  ACTIVE: "公開中",
   PAUSED: "一時停止",
-  CLOSED: "募集終了",
+  CLOSED: "終了",
 };
 
 const statusColors: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-800",
-  ACTIVE: "bg-green-100 text-green-800",
-  PAUSED: "bg-yellow-100 text-yellow-800",
-  CLOSED: "bg-red-100 text-red-800",
+  DRAFT: "bg-secondary text-secondary-foreground",
+  ACTIVE: "bg-emerald-500/10 text-emerald-600",
+  PAUSED: "bg-amber-500/10 text-amber-600",
+  CLOSED: "bg-destructive/10 text-destructive",
 };
 
 const employmentLabels: Record<string, string> = {
@@ -149,12 +142,20 @@ export default function JobsPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">求人管理</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl font-bold tracking-tight">求人管理</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             求人を作成して候補者とマッチングしましょう
           </p>
         </div>
@@ -300,63 +301,84 @@ export default function JobsPage() {
         </Dialog>
       </div>
 
-      {isLoading ? (
-        <p className="text-muted-foreground">読み込み中...</p>
-      ) : jobs.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">まだ求人がありません</p>
-            <Button onClick={() => setIsDialogOpen(true)}>
-              最初の求人を作成
-            </Button>
-          </CardContent>
-        </Card>
+      {jobs.length === 0 ? (
+        <div className="py-16 space-y-3 text-center">
+          <div className="mx-auto w-full max-w-xs h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-secondary">
+            <svg
+              className="size-5 text-muted-foreground"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v.894m7.5 0a48.667 48.667 0 0 0-7.5 0"
+              />
+            </svg>
+          </div>
+          <p className="text-sm text-muted-foreground">まだ求人がありません</p>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            最初の求人を作成
+          </Button>
+        </div>
       ) : (
-        <div className="grid gap-4">
-          {jobs.map((job) => (
-            <Card key={job.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      {job.title}
-                      <Badge className={statusColors[job.status]}>
-                        {statusLabels[job.status]}
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription className="mt-1">
-                      {employmentLabels[job.employmentType]} ・{" "}
-                      {experienceLabels[job.experienceLevel]}
-                      {job.location && ` ・ ${job.location}`}
-                      {job.isRemote && " ・ リモート可"}
-                    </CardDescription>
+        <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="px-5 py-3 border-b">
+            <span className="text-[10px] tracking-widest text-muted-foreground uppercase">
+              求人 {jobs.length}件
+            </span>
+          </div>
+          {jobs.map((job, index) => (
+            <Link
+              key={job.id}
+              href={cn("/recruiter/jobs/", job.id)}
+              className={cn(
+                "block px-5 py-4 hover:bg-secondary/30 transition-colors",
+                index < jobs.length - 1 && "border-b",
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium truncate">{job.title}</span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-medium px-2 py-0.5 rounded-md shrink-0",
+                        statusColors[job.status],
+                      )}
+                    >
+                      {statusLabels[job.status]}
+                    </span>
                   </div>
-                  <Link href={`/recruiter/jobs/${job.id}`}>
-                    <Button variant="outline" size="sm">
-                      詳細
-                    </Button>
-                  </Link>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {employmentLabels[job.employmentType]} ・{" "}
+                    {experienceLabels[job.experienceLevel]}
+                    {job.location && ` ・ ${job.location}`}
+                    {job.isRemote && " ・ リモート可"}
+                  </p>
+                  {job.skills.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {job.skills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-secondary-foreground"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                  {job.description}
-                </p>
-                {job.skills.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-4">
-                    {job.skills.map((skill) => (
-                      <Badge key={skill} variant="secondary">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-4 text-sm text-muted-foreground">
-                  <span>マッチ: {job._count.matches}件</span>
-                  <span>パイプライン: {job._count.pipelines}件</span>
+                <div className="flex gap-4 text-xs text-muted-foreground shrink-0 pt-0.5">
+                  <span>マッチ {job._count.matches}</span>
+                  <span>パイプライン {job._count.pipelines}</span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </Link>
           ))}
         </div>
       )}

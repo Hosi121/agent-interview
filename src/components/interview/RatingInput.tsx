@@ -18,7 +18,7 @@ export function RatingInput({
   return (
     <div className="space-y-1">
       <div className="flex justify-between">
-        <span className="text-sm text-balance">{label}</span>
+        <span className="text-sm font-medium text-balance">{label}</span>
         <span className="text-sm font-medium tabular-nums">
           {value}/{max}
         </span>
@@ -30,8 +30,10 @@ export function RatingInput({
             type="button"
             onClick={() => onChange(n)}
             className={cn(
-              "size-8 rounded tabular-nums",
-              n <= value ? "bg-primary text-white" : "bg-gray-200",
+              "size-8 rounded-md text-xs tabular-nums",
+              n <= value
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary",
             )}
           >
             {n}

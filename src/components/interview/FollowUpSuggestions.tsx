@@ -22,7 +22,7 @@ export function FollowUpSuggestions({
             key={suggestion}
             type="button"
             onClick={() => onSelect(suggestion)}
-            className="flex-shrink-0 px-3 py-1.5 text-sm bg-secondary hover:bg-secondary/80 rounded-full border border-border transition-colors whitespace-nowrap"
+            className="flex-shrink-0 px-3 py-1.5 text-xs bg-secondary hover:bg-secondary/80 rounded-md border border-border transition-colors whitespace-nowrap"
           >
             {suggestion}
           </button>

@@ -131,8 +131,8 @@ resource "aws_lambda_function" "document_analysis" {
       MINIO_SECRET_KEY  = var.minio_secret_key
       MINIO_BUCKET_NAME = var.minio_bucket_name
       OPENAI_API_KEY    = var.openai_api_key
-      CALLBACK_URL      = var.callback_url
-      CALLBACK_SECRET   = var.callback_secret
+      CALLBACK_URL               = var.callback_url
+      ANALYSIS_CALLBACK_SECRET   = var.callback_secret
     }
   }
 

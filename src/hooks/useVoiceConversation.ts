@@ -67,7 +67,6 @@ export function useVoiceConversation({
 
   const isActiveRef = useRef(false);
   const prevIsLoadingRef = useRef(isLoading);
-  const prevMessagesLenRef = useRef(messages.length);
   const recordingRef = useRef<{
     startRecording: () => Promise<void>;
     stopRecording: () => Promise<Blob | null>;
@@ -128,18 +127,14 @@ export function useVoiceConversation({
   recordingRef.current = recording;
 
   // AI応答完了時にTTS再生を開始
+  // isLoadingがtrue→falseに遷移したタイミングで、最後のassistantメッセージを読み上げる。
+  // SSEストリーミング時は空のassistantメッセージが先に追加されコンテンツが後から更新されるため、
+  // messages.lengthの変化ではなくisLoadingの遷移のみで判定する。
   useEffect(() => {
     const wasLoading = prevIsLoadingRef.current;
-    const prevLen = prevMessagesLenRef.current;
     prevIsLoadingRef.current = isLoading;
-    prevMessagesLenRef.current = messages.length;
 
-    if (
-      wasLoading &&
-      !isLoading &&
-      voiceState === "waiting" &&
-      messages.length > prevLen
-    ) {
+    if (wasLoading && !isLoading && voiceState === "waiting") {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage?.role === "assistant" && lastMessage.content) {
         setVoiceState("speaking");

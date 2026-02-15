@@ -36,12 +36,20 @@ export const POST = withUserAuth<RouteContext>(
     }
 
     if (document.analysisStatus === "ANALYZING") {
-      throw new ConflictError("このドキュメントは現在解析中です");
+      const startedAt = document.analyzedAt ?? document.createdAt;
+      const STALE_THRESHOLD = 10 * 60 * 1000;
+      if (Date.now() - new Date(startedAt).getTime() < STALE_THRESHOLD) {
+        throw new ConflictError("このドキュメントは現在解析中です");
+      }
     }
 
     await prisma.document.update({
       where: { id },
-      data: { analysisStatus: "ANALYZING", analysisError: null },
+      data: {
+        analysisStatus: "ANALYZING",
+        analysisError: null,
+        analyzedAt: new Date(),
+      },
     });
 
     try {

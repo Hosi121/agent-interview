@@ -28,7 +28,7 @@ export function FragmentList({ fragments }: FragmentListProps) {
   return (
     <div className="space-y-3 max-h-[400px] overflow-y-auto">
       {fragments.map((fragment) => (
-        <div key={fragment.id} className="p-3 bg-gray-50 rounded-lg">
+        <div key={fragment.id} className="p-3 bg-secondary rounded-lg">
           <div className="flex items-center gap-2 mb-1">
             <Badge variant="outline" className="text-xs">
               {fragment.type}

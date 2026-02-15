@@ -1,6 +1,9 @@
 export { EvaluationForm } from "./EvaluationForm";
 export { EvidencePack } from "./EvidencePack";
 export { FollowUpSuggestions } from "./FollowUpSuggestions";
+export { InterviewGuideTab } from "./InterviewGuideTab";
 export { InterviewNotes } from "./InterviewNotes";
+export { InterviewSidebar } from "./InterviewSidebar";
+export { InterviewSummaryTab } from "./InterviewSummaryTab";
 export { MissingInfoAlert } from "./MissingInfoAlert";
 export { RatingInput } from "./RatingInput";

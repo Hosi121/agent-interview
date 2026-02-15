@@ -45,18 +45,20 @@ export default function BillingPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">読み込み中...</p>
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
 
   if (!subscription) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold">プラン・ポイント管理</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-2xl font-bold tracking-tight">
+            プラン・ポイント管理
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
             サブスクリプションがありません。プランを選択してください。
           </p>
         </div>
@@ -66,15 +68,17 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">プラン・ポイント管理</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-2xl font-bold tracking-tight">
+          プラン・ポイント管理
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
           プランの確認・変更、ポイントの購入・履歴確認ができます
         </p>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs defaultValue="overview" className="space-y-8">
         <TabsList>
           <TabsTrigger value="overview">概要</TabsTrigger>
           <TabsTrigger value="history">ポイント履歴</TabsTrigger>

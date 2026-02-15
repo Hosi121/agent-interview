@@ -2,13 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface PointTransaction {
@@ -75,115 +68,114 @@ export function PointHistory() {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">読み込み中...</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
     );
   }
 
   if (history.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">ポイント履歴がありません</p>
-        </CardContent>
-      </Card>
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-muted-foreground">
+            ポイント履歴がありません
+          </p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>ポイント履歴</CardTitle>
-        <CardDescription>ポイントの消費・付与の履歴</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {history.map((transaction) => (
-            <div
-              key={transaction.id}
-              className="flex items-center justify-between py-3 border-b last:border-0"
-            >
-              <div className="flex items-center gap-4">
-                <div
-                  className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full",
-                    transaction.amount > 0
-                      ? "bg-green-100 text-green-600"
-                      : "bg-red-100 text-red-600",
-                  )}
-                >
-                  {transaction.amount > 0 ? (
-                    <svg
-                      className="size-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="size-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M20 12H4"
-                      />
-                    </svg>
-                  )}
-                </div>
-                <div>
-                  <p className="font-medium">
-                    {transaction.action
-                      ? ACTION_LABELS[transaction.action] || transaction.action
-                      : TYPE_LABELS[transaction.type] || transaction.type}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {transaction.description}
-                  </p>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {new Date(transaction.createdAt).toLocaleString("ja-JP")}
-                  </p>
-                </div>
+    <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="px-5 py-3 border-b">
+        <span className="text-[10px] tracking-widest text-muted-foreground uppercase">
+          ポイント履歴
+        </span>
+      </div>
+      <div>
+        {history.map((transaction) => (
+          <div
+            key={transaction.id}
+            className="flex items-center justify-between px-5 py-4 border-b hover:bg-secondary/30 transition-colors"
+          >
+            <div className="flex items-center gap-4">
+              <div
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-full",
+                  transaction.amount > 0
+                    ? "bg-green-100 text-green-600"
+                    : "bg-red-100 text-red-600",
+                )}
+              >
+                {transaction.amount > 0 ? (
+                  <svg
+                    className="size-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="size-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M20 12H4"
+                    />
+                  </svg>
+                )}
               </div>
-              <div className="text-right">
-                <p
-                  className={cn(
-                    "font-semibold tabular-nums",
-                    transaction.amount > 0 ? "text-green-600" : "text-red-600",
-                  )}
-                >
-                  {transaction.amount > 0 ? "+" : ""}
-                  {transaction.amount} pt
+              <div>
+                <p className="font-medium text-sm">
+                  {transaction.action
+                    ? ACTION_LABELS[transaction.action] || transaction.action
+                    : TYPE_LABELS[transaction.type] || transaction.type}
                 </p>
-                <p className="text-sm text-muted-foreground tabular-nums">
-                  残高: {transaction.balance} pt
+                <p className="text-sm text-muted-foreground">
+                  {transaction.description}
+                </p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {new Date(transaction.createdAt).toLocaleString("ja-JP")}
                 </p>
               </div>
             </div>
-          ))}
-        </div>
-        {hasMore && (
-          <div className="mt-4 text-center">
-            <Button variant="outline" onClick={loadMore}>
-              さらに読み込む
-            </Button>
+            <div className="text-right">
+              <p
+                className={cn(
+                  "font-semibold tabular-nums",
+                  transaction.amount > 0 ? "text-green-600" : "text-red-600",
+                )}
+              >
+                {transaction.amount > 0 ? "+" : ""}
+                {transaction.amount} pt
+              </p>
+              <p className="text-sm text-muted-foreground tabular-nums">
+                残高: {transaction.balance} pt
+              </p>
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+      {hasMore && (
+        <div className="px-5 py-4 text-center border-t">
+          <Button variant="outline" onClick={loadMore}>
+            さらに読み込む
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

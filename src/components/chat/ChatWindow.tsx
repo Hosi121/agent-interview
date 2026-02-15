@@ -130,15 +130,17 @@ export function ChatWindow({
             />
           ))}
           {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                <span className="text-xs">AI</span>
+            <div className="flex gap-2.5">
+              <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-xs text-primary">
+                  {assistantName?.[0] || "AI"}
+                </span>
               </div>
-              <div className="bg-gray-100 rounded-lg px-4 py-2">
+              <div className="bg-secondary rounded-lg px-3.5 py-2">
                 <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.1s]" />
-                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                  <span className="size-1.5 bg-muted-foreground/60 rounded-full animate-bounce" />
+                  <span className="size-1.5 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:0.1s]" />
+                  <span className="size-1.5 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:0.2s]" />
                 </div>
               </div>
             </div>

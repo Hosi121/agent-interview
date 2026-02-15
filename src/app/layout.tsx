@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Agent Interview",
+  title: "MeTalk",
   description: "AIエージェントを通じた非同期面接プラットフォーム",
 };
 

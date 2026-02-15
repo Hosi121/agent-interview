@@ -16,15 +16,10 @@ interface EvaluationData {
 
 interface EvaluationFormProps {
   initialData: EvaluationData;
-  matchScore?: number | null;
   onSave: (data: EvaluationData) => Promise<void>;
 }
 
-export function EvaluationForm({
-  initialData,
-  matchScore,
-  onSave,
-}: EvaluationFormProps) {
+export function EvaluationForm({ initialData, onSave }: EvaluationFormProps) {
   const [form, setForm] = useState<EvaluationData>(initialData);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{
@@ -69,7 +64,7 @@ export function EvaluationForm({
         onChange={(v) => setForm({ ...form, cultureRating: v })}
       />
       <div className="space-y-1">
-        <span className="text-sm">コメント</span>
+        <span className="text-sm font-medium">コメント</span>
         <Textarea
           value={form.comment}
           onChange={(e) => setForm({ ...form, comment: e.target.value })}
@@ -77,7 +72,11 @@ export function EvaluationForm({
           className="min-h-[60px]"
         />
       </div>
-      <Button onClick={handleSave} disabled={isSaving} className="w-full">
+      <Button
+        onClick={handleSave}
+        disabled={isSaving}
+        className="h-8 text-xs px-3 w-full"
+      >
         {isSaving ? "保存中..." : "評価を保存"}
       </Button>
       {saveStatus && (
@@ -90,14 +89,6 @@ export function EvaluationForm({
         >
           {saveStatus.message}
         </p>
-      )}
-      {typeof matchScore === "number" && (
-        <div className="p-3 bg-primary/10 rounded-lg">
-          <p className="text-sm font-medium text-balance">AIマッチ度スコア</p>
-          <p className="text-2xl font-bold text-primary tabular-nums">
-            {matchScore}%
-          </p>
-        </div>
       )}
     </div>
   );

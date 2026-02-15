@@ -1,6 +1,7 @@
 import { generateText, Output, streamText } from "ai";
 import { z } from "zod";
 import { defaultModel } from "./ai";
+import { logger } from "./logger";
 
 export async function generateChatResponse(
   systemPrompt: string,
@@ -55,8 +56,13 @@ const fragmentSchema = z.object({
           "ACHIEVEMENT | ACTION | CHALLENGE | LEARNING | VALUE | EMOTION | FACT | SKILL_USAGE",
         ),
       content: z.string().describe("Fragmentの具体的な内容"),
-      skills: z.array(z.string()).default([]).describe("関連スキル"),
-      keywords: z.array(z.string()).default([]).describe("関連キーワード"),
+      skills: z.array(z.string()).describe("関連スキル。なければ空配列"),
+      keywords: z.array(z.string()).describe("関連キーワード。なければ空配列"),
+      quality: z
+        .enum(["low", "medium", "high"])
+        .describe(
+          "low: 曖昧・抽象的, medium: ある程度具体的, high: 数値・具体例を含む",
+        ),
     }),
   ),
 });
@@ -112,6 +118,7 @@ export async function extractFragments(
     content: string;
     skills: string[];
     keywords: string[];
+    quality: "low" | "medium" | "high";
   }[];
 }> {
   const baseSystemPrompt = `あなたは求職者との会話から重要な経験や能力を抽出するアシスタントです。
@@ -126,7 +133,13 @@ export async function extractFragments(
 - FACT: 事実情報（学歴、職歴など）
 - SKILL_USAGE: スキルの使用例
 
-各Fragmentには関連するスキルとキーワードも抽出してください。`;
+各Fragmentには関連するスキルとキーワードも抽出してください。
+
+## 品質評価基準
+各Fragmentのqualityを以下の基準で判定してください:
+- high: 具体的な数値、固有名詞、詳細なエピソードを含む（例: 「売上を30%向上させた」「5人チームのリーダー」）
+- medium: ある程度具体的だが数値や詳細が不足（例: 「チームリーダーとして成果を出した」）
+- low: 曖昧・抽象的で具体性がない（例: 「色々な経験を積んだ」「頑張った」）`;
 
   const systemPrompt = options
     ? `${baseSystemPrompt}\n\n重要: 既存Fragmentと意味的に重複する情報は抽出しないでください。同じ事実を別の言い回しで表現しただけのものも重複とみなしてください。`
@@ -148,7 +161,8 @@ export async function extractFragments(
     });
 
     return output ?? { fragments: [] };
-  } catch {
+  } catch (error) {
+    logger.error("Fragment extraction failed", error as Error);
     return { fragments: [] };
   }
 }
@@ -378,39 +392,6 @@ export async function extractTextFromPdfWithVision(
   }
 
   return validTexts.join("\n\n");
-}
-
-const matchScoreSchema = z.object({
-  score: z.number(),
-  reason: z.string(),
-});
-
-export async function generateMatchScore(
-  conversationSummary: string,
-  fragmentsSummary: string,
-): Promise<number | null> {
-  try {
-    const { output } = await generateText({
-      model: defaultModel,
-      messages: [
-        {
-          role: "system",
-          content: `あなたは採用のマッチング評価を行うアシスタントです。
-面接の会話内容と候補者のプロフィール情報を分析し、マッチ度を0-100のスコアで評価してください。`,
-        },
-        {
-          role: "user",
-          content: `面接会話:\n${conversationSummary}\n\n候補者情報:\n${fragmentsSummary}`,
-        },
-      ],
-      output: Output.object({ schema: matchScoreSchema }),
-      temperature: 0.3,
-    });
-
-    return output?.score ?? null;
-  } catch {
-    return null;
-  }
 }
 
 export async function generateConversationSummary(

@@ -36,10 +36,10 @@ function AgentsPageContent() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-balance">エージェント一覧</h1>
-        <p className="text-muted-foreground mt-2 text-pretty">
+        <h1 className="text-2xl font-bold tracking-tight">エージェント一覧</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           公開されているエージェントと面接を行えます
         </p>
       </div>
@@ -72,8 +72,8 @@ export default function AgentsListPage() {
   return (
     <Suspense
       fallback={
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">読み込み中...</p>
+        <div className="flex items-center justify-center py-20">
+          <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
         </div>
       }
     >
