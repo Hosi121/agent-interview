@@ -48,12 +48,7 @@ export function AgentBusinessCard({
           </p>
         </div>
         <Avatar className="size-12 ring-2 ring-border">
-          {avatarSrc && (
-            <AvatarImage
-              src={avatarSrc}
-              alt={name}
-            />
-          )}
+          {avatarSrc && <AvatarImage src={avatarSrc} alt={name} />}
           <AvatarFallback className="bg-primary/10 text-primary font-semibold">
             {name[0] || "?"}
           </AvatarFallback>
