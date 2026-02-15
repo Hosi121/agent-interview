@@ -81,7 +81,7 @@ export function ChatWindow({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }, [messages, isLoading]);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -109,7 +109,7 @@ export function ChatWindow({
 
   return (
     <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 min-h-0 p-4">
         <div className="space-y-4">
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
