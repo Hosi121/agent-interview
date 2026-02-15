@@ -42,6 +42,7 @@ export const authOptions: NextAuthOptions = {
           id: account.id,
           email: account.email,
           name: account.user?.name || account.recruiter?.company?.name || "",
+          accountType: account.accountType,
         };
       },
     }),
@@ -49,6 +50,11 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, token }) {
       if (session.user && token.email) {
+        // accountType はJWTから取得（DB不要）
+        if (token.accountType) {
+          session.user.accountType = token.accountType;
+        }
+
         const account = await prisma.account.findUnique({
           where: { email: token.email },
           include: {
@@ -61,7 +67,6 @@ export const authOptions: NextAuthOptions = {
 
         if (account) {
           session.user.accountId = account.id;
-          session.user.accountType = account.accountType;
           if (account.user) {
             session.user.userId = account.user.id;
             session.user.name = account.user.name;
@@ -87,6 +92,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user && user.email) {
         token.email = user.email;
+        token.accountType = user.accountType;
       }
       return token;
     },

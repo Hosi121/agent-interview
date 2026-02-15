@@ -4,8 +4,8 @@ import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { CoverageIndicator } from "@/components/chat/CoverageIndicator";
+import { DynamicHints } from "@/components/chat/DynamicHints";
 import { FinishSuggestion } from "@/components/chat/FinishSuggestion";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -24,51 +24,19 @@ interface Message {
 function buildInitialMessage(
   userName: string | undefined,
   fragmentCount: number,
-  coverage: ChatCoverageState,
 ): string {
   const name = userName ? `${userName}さん` : "";
 
   if (fragmentCount === 0) {
-    return `こんにちは${name ? `、${name}` : ""}！私はあなたのエージェントを作成するためのAIアシスタントです。
+    return `こんにちは${name ? `、${name}` : ""}！あなたのキャリアを代わりに伝えてくれるAIエージェントを一緒に作りましょう。
 
-あなたの経験やスキル、キャリアについて教えてください。以下のような質問に答えていただくことで、あなたを代理するAIエージェントを作成できます：
-
-- これまでのキャリアや職歴について
-- 得意なスキルや技術
-- 印象に残っているプロジェクトや成果
-- 今後のキャリアの目標
-
-何でも気軽にお話しください！`;
+まずは気軽に、これまでのお仕事やご経験について聞かせてください。印象に残っているプロジェクトの話でも、今やっていることでも、何でも大丈夫です。`;
   }
 
-  const unfulfilledCategories = coverage.categories.filter((c) => !c.fulfilled);
-  const categoryList = unfulfilledCategories
-    .map((c) => `- ${c.label}（あと${c.required - c.current}件）`)
-    .join("\n");
+  // Fragmentあり（書類アップロード等）だが初チャットの場合
+  return `こんにちは${name ? `、${name}` : ""}！すでにいくつかの情報をいただいています。ここからはもう少し詳しくお話を聞かせてください。
 
-  if (coverage.percentage < 80) {
-    return `おかえりなさい${name ? `、${name}` : ""}！前回までの情報をもとに、続きからお話ししましょう。
-
-現在の情報収集の進捗は${coverage.percentage}%です。${
-      categoryList
-        ? `以下のカテゴリについてもう少し教えていただけると、より良いエージェントが作れます：
-
-${categoryList}
-
-どのトピックからでも構いません。お話しください！`
-        : "どのトピックからでも構いません。お話しください！"
-    }`;
-  }
-
-  const completionSection = categoryList
-    ? `あと少しで完成です。以下の情報があるとさらに良くなります：
-
-${categoryList}`
-    : "十分な情報が集まっています。さらに追加したいエピソードがあればお聞かせください。";
-
-  return `おかえりなさい${name ? `、${name}` : ""}！情報収集の進捗は${coverage.percentage}%で、かなり充実してきました。
-
-${completionSection}`;
+たとえば、お仕事の中で特に印象に残っているプロジェクトや、ご自身が工夫されたことなどがあれば教えてください。`;
 }
 
 const INITIAL_COVERAGE: ChatCoverageState = {
@@ -115,34 +83,59 @@ export default function ChatPage() {
 
   const fetchInitialData = useCallback(async (userName: string | undefined) => {
     try {
-      const response = await fetch("/api/agents/me");
-      if (response.ok) {
-        const data = await response.json();
+      const [agentRes, messagesRes] = await Promise.all([
+        fetch("/api/agents/me"),
+        fetch("/api/chat/messages"),
+      ]);
+
+      let fetchedFragmentCount = 0;
+      let cov: ChatCoverageState = INITIAL_COVERAGE;
+
+      if (agentRes.ok) {
+        const data = await agentRes.json();
         if (data.fragments) {
-          const count = data.fragments.length;
-          const cov: ChatCoverageState = data.coverage ?? INITIAL_COVERAGE;
-          setFragmentCount(count);
-          setCoverage(cov);
-          setMessages([
-            {
-              id: "initial",
-              role: "assistant",
-              content: buildInitialMessage(userName, count, cov),
-            },
-          ]);
+          fetchedFragmentCount = data.fragments.length;
+          cov = data.coverage ?? INITIAL_COVERAGE;
+        }
+      }
+
+      setFragmentCount(fetchedFragmentCount);
+      setCoverage(cov);
+
+      // 永続化済みメッセージがあればそれを復元
+      if (messagesRes.ok) {
+        const { messages: dbMessages } = await messagesRes.json();
+        if (dbMessages && dbMessages.length > 0) {
+          const restored: Message[] = dbMessages.map(
+            (m: { id: string; senderType: string; content: string }) => ({
+              id: m.id,
+              role: m.senderType === "USER" ? "user" : "assistant",
+              content: m.content,
+            }),
+          );
+          setMessages(restored);
           return;
         }
       }
+
+      // メッセージなし → 初回挨拶
+      setMessages([
+        {
+          id: "initial",
+          role: "assistant",
+          content: buildInitialMessage(userName, fetchedFragmentCount),
+        },
+      ]);
     } catch (error) {
       console.error("Failed to fetch initial data:", error);
+      setMessages([
+        {
+          id: "initial",
+          role: "assistant",
+          content: buildInitialMessage(userName, 0),
+        },
+      ]);
     }
-    setMessages([
-      {
-        id: "initial",
-        role: "assistant",
-        content: buildInitialMessage(userName, 0, INITIAL_COVERAGE),
-      },
-    ]);
   }, []);
 
   useEffect(() => {
@@ -164,12 +157,7 @@ export default function ChatPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
+        body: JSON.stringify({ message: content }),
       });
 
       if (!response.ok) {
@@ -302,37 +290,7 @@ export default function ChatPage() {
         {coverage.categories.length > 0 && (
           <CoverageIndicator coverage={coverage} />
         )}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">ヒント</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-start gap-2">
-              <Badge variant="outline" className="mt-0.5">
-                1
-              </Badge>
-              <p className="text-sm text-muted-foreground">
-                具体的なエピソードを交えて話すと、より良いエージェントが作成できます
-              </p>
-            </div>
-            <div className="flex items-start gap-2">
-              <Badge variant="outline" className="mt-0.5">
-                2
-              </Badge>
-              <p className="text-sm text-muted-foreground">
-                数字や実績を含めると、説得力が増します
-              </p>
-            </div>
-            <div className="flex items-start gap-2">
-              <Badge variant="outline" className="mt-0.5">
-                3
-              </Badge>
-              <p className="text-sm text-muted-foreground">
-                困難を乗り越えた経験も重要な情報です
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <DynamicHints coverage={coverage} />
       </div>
     </div>
   );

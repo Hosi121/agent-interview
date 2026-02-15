@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
+import { ClosedStagesSection, PipelineCard } from "@/components/pipeline";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,8 +12,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -21,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 
 interface Pipeline {
   id: string;
@@ -87,7 +84,7 @@ export default function PipelinePage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
-  const [removeTarget, setRemoveTarget] = useState<Pipeline | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string } | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
 
@@ -206,9 +203,12 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="flex gap-4 overflow-x-auto pb-2">
         {activeStages.map((stage) => (
-          <div key={stage} className="space-y-2">
+          <div
+            key={stage}
+            className="min-w-[220px] shrink-0 lg:min-w-0 lg:shrink lg:flex-1 space-y-2"
+          >
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-sm text-balance">
                 {stageLabels[stage]}
@@ -241,84 +241,16 @@ export default function PipelinePage() {
                 </div>
               ) : (
                 (grouped[stage] || []).map((pipeline) => (
-                  <Card key={pipeline.id} className="cursor-pointer">
-                    <CardHeader className="p-3 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        {pipeline.agent.user.name}
-                      </CardTitle>
-                      {pipeline.job && (
-                        <p className="text-xs text-muted-foreground text-pretty">
-                          {pipeline.job.title}
-                        </p>
-                      )}
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0 space-y-2">
-                      <div className="flex flex-wrap gap-1">
-                        {[
-                          ...new Set(
-                            pipeline.agent.user.fragments.flatMap(
-                              (f) => f.skills,
-                            ),
-                          ),
-                        ]
-                          .slice(0, 3)
-                          .map((skill) => (
-                            <span
-                              key={skill}
-                              className="text-[10px] px-1.5 py-0.5 rounded-md bg-secondary text-secondary-foreground"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                      </div>
-                      <Select
-                        value={pipeline.stage}
-                        onValueChange={(v: string) =>
-                          handleStageChange(pipeline.id, v)
-                        }
-                      >
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(stageLabels).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>
-                              {v}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex gap-1">
-                        <Link
-                          href={
-                            pipeline.job
-                              ? `/recruiter/interview/${pipeline.agent.id}?jobId=${pipeline.job.id}`
-                              : `/recruiter/interview/${pipeline.agent.id}`
-                          }
-                          className="flex-1"
-                        >
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full text-xs"
-                          >
-                            面接
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-destructive"
-                          onClick={() => {
-                            setRemoveTarget(pipeline);
-                            setRemoveError(null);
-                          }}
-                        >
-                          削除
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <PipelineCard
+                    key={pipeline.id}
+                    pipeline={pipeline}
+                    stageLabels={stageLabels}
+                    onStageChange={handleStageChange}
+                    onRemoveClick={(p) => {
+                      setRemoveTarget(p);
+                      setRemoveError(null);
+                    }}
+                  />
                 ))
               )}
             </div>
@@ -326,59 +258,12 @@ export default function PipelinePage() {
         ))}
       </div>
 
-      {/* Archived/Closed stages */}
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-4 text-balance">クローズド</h2>
-        <div className="grid grid-cols-3 gap-4">
-          {["HIRED", "REJECTED", "WITHDRAWN"].map((stage) => (
-            <Card key={stage}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "text-[10px] font-medium px-2 py-0.5 rounded-md",
-                      stageColors[stage],
-                    )}
-                  >
-                    {stageLabels[stage]}
-                  </span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {counts[stage] || 0}名
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(grouped[stage] || []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-pretty">
-                    候補者がいません
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {(grouped[stage] || []).slice(0, 3).map((pipeline) => (
-                      <div
-                        key={pipeline.id}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span>{pipeline.agent.user.name}</span>
-                        {pipeline.job && (
-                          <span className="text-muted-foreground text-xs text-pretty">
-                            {pipeline.job.title}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                    {(grouped[stage] || []).length > 3 && (
-                      <p className="text-xs text-muted-foreground tabular-nums">
-                        他 {(grouped[stage] || []).length - 3}名
-                      </p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+      <ClosedStagesSection
+        grouped={grouped}
+        counts={counts}
+        stageLabels={stageLabels}
+        stageColors={stageColors}
+      />
 
       <AlertDialog
         open={!!removeTarget}

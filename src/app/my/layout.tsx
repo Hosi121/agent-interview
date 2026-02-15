@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
@@ -29,11 +30,11 @@ interface Notification {
 }
 
 const navigation = [
-  { name: "ダッシュボード", href: "/dashboard" },
-  { name: "AIチャット", href: "/chat" },
-  { name: "ドキュメント", href: "/documents" },
-  { name: "エージェント", href: "/agent" },
-  { name: "受信箱", href: "/inbox" },
+  { name: "ダッシュボード", href: "/my/dashboard" },
+  { name: "AIチャット", href: "/my/chat" },
+  { name: "ドキュメント", href: "/my/documents" },
+  { name: "エージェント", href: "/my/agent" },
+  { name: "受信箱", href: "/my/inbox" },
 ];
 
 export default function ApplicantLayout({
@@ -63,7 +64,13 @@ export default function ApplicantLayout({
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status, router]);
+    if (
+      status === "authenticated" &&
+      session?.user?.accountType === "RECRUITER"
+    ) {
+      router.push("/recruiter/dashboard");
+    }
+  }, [status, session, router]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -82,7 +89,7 @@ export default function ApplicantLayout({
     );
   }
 
-  if (!session) {
+  if (!session || session.user?.accountType === "RECRUITER") {
     return null;
   }
 
@@ -93,10 +100,18 @@ export default function ApplicantLayout({
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-8">
               <Link
-                href="/dashboard"
-                className="text-lg font-bold tracking-tight text-foreground"
+                href="/my/dashboard"
+                className="inline-flex items-center"
+                aria-label="MeTalk"
               >
-                Metalk
+                <Image
+                  src="/logos/symbol+type.svg"
+                  alt="MeTalk"
+                  width={124}
+                  height={34}
+                  className="h-9 w-auto"
+                  priority
+                />
               </Link>
               <nav className="hidden md:flex items-center gap-1">
                 {navigation.map((item) => (
@@ -159,7 +174,7 @@ export default function ApplicantLayout({
                           className="flex flex-col items-start gap-1 cursor-pointer"
                           onClick={() => {
                             if (notification.relatedInterest) {
-                              router.push("/inbox");
+                              router.push("/my/inbox");
                             }
                           }}
                         >
@@ -179,7 +194,7 @@ export default function ApplicantLayout({
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="justify-center text-primary"
-                        onClick={() => router.push("/inbox")}
+                        onClick={() => router.push("/my/inbox")}
                       >
                         すべて見る
                       </DropdownMenuItem>
@@ -212,7 +227,7 @@ export default function ApplicantLayout({
                     {session.user?.email}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => router.push("/settings")}>
+                  <DropdownMenuItem onClick={() => router.push("/my/settings")}>
                     設定
                   </DropdownMenuItem>
                   <DropdownMenuItem
