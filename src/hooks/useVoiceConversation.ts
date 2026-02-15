@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useTextToSpeech } from "./useTextToSpeech";
 import { useVoiceRecording } from "./useVoiceRecording";
 
 export type VoiceMode = "push-to-talk" | "continuous";
@@ -10,8 +9,7 @@ export type VoiceConversationState =
   | "inactive"
   | "recording"
   | "transcribing"
-  | "waiting"
-  | "speaking";
+  | "waiting";
 
 interface Message {
   id: string;
@@ -110,15 +108,6 @@ export function useVoiceConversation({
     });
   }, []);
 
-  const tts = useTextToSpeech({
-    onFinished: () => {
-      setVoiceState(isActiveRef.current ? "recording" : "inactive");
-      if (isActiveRef.current && mode === "continuous") {
-        startRecordingWithErrorHandling();
-      }
-    },
-  });
-
   const recording = useVoiceRecording({
     onSilenceDetected:
       mode === "continuous" ? handleSilenceDetected : undefined,
@@ -127,7 +116,7 @@ export function useVoiceConversation({
   // recordingRef を常に最新のrecordingに同期
   recordingRef.current = recording;
 
-  // AI応答完了時にTTS再生を開始
+  // AI応答完了時に次の状態へ遷移
   useEffect(() => {
     const wasLoading = prevIsLoadingRef.current;
     const prevLen = prevMessagesLenRef.current;
@@ -142,23 +131,13 @@ export function useVoiceConversation({
     ) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage?.role === "assistant" && lastMessage.content) {
-        setVoiceState("speaking");
-        tts.speak(lastMessage.content).catch(() => {
-          setVoiceState(isActiveRef.current ? "recording" : "inactive");
-          if (isActiveRef.current && mode === "continuous") {
-            startRecordingWithErrorHandling();
-          }
-        });
+        setVoiceState(isActiveRef.current ? "recording" : "inactive");
+        if (isActiveRef.current && mode === "continuous") {
+          startRecordingWithErrorHandling();
+        }
       }
     }
-  }, [
-    isLoading,
-    messages,
-    voiceState,
-    tts.speak,
-    mode,
-    startRecordingWithErrorHandling,
-  ]);
+  }, [isLoading, messages, voiceState, mode, startRecordingWithErrorHandling]);
 
   // Push-to-talk: ボタン押下→録音開始
   const onPressStart = useCallback(() => {
@@ -190,7 +169,6 @@ export function useVoiceConversation({
     if (isActive) {
       isActiveRef.current = false;
       setIsActive(false);
-      tts.stop();
       recording.stopRecording().then(() => {
         setVoiceState("inactive");
       });
@@ -206,13 +184,7 @@ export function useVoiceConversation({
         setVoiceState("inactive");
       });
     }
-  }, [
-    mode,
-    isActive,
-    tts.stop,
-    recording.startRecording,
-    recording.stopRecording,
-  ]);
+  }, [mode, isActive, recording.startRecording, recording.stopRecording]);
 
   return {
     mode,

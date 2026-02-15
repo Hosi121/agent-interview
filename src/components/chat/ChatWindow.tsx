@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, MicOff, Square, Volume2 } from "lucide-react";
+import { Mic, MicOff, Square } from "lucide-react";
 import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
@@ -166,12 +166,6 @@ export function ChatWindow({
           {voice.voiceState === "waiting" && (
             <span className="text-muted-foreground">
               AI応答を待っています...
-            </span>
-          )}
-          {voice.voiceState === "speaking" && (
-            <span className="flex items-center gap-1.5 text-blue-600">
-              <Volume2 className="size-4 animate-pulse" />
-              音声を再生中...
             </span>
           )}
         </div>
