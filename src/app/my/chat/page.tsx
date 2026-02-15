@@ -247,8 +247,8 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="grid lg:grid-cols-4 gap-6 h-[calc(100vh-12rem)]">
-      <div className="lg:col-span-3 flex flex-col gap-4">
+    <div className="flex flex-col lg:grid lg:grid-cols-4 gap-4 lg:gap-6 h-[calc(100vh-12rem)]">
+      <div className="lg:col-span-3 flex flex-col gap-4 min-h-0 flex-1 order-2 lg:order-none">
         {coverage.isReadyToFinish && (
           <FinishSuggestion
             coverage={coverage}
@@ -274,7 +274,7 @@ export default function ChatPage() {
           </CardContent>
         </Card>
       </div>
-      <div className="space-y-4">
+      <div className="space-y-3 lg:space-y-4 overflow-y-auto shrink-0 max-h-[25vh] lg:max-h-none order-1 lg:order-none">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">抽出された情報</CardTitle>
