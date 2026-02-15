@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -93,8 +92,8 @@ export function PlanChange({ currentPlan, onPlanChanged }: PlanChangeProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-3">
+    <div className="space-y-8">
+      <div className="grid gap-8 lg:grid-cols-3">
         {PLANS.map((plan) => {
           const isCurrent = currentPlan === plan.id;
           const isSelected = selectedPlan === plan.id;
@@ -112,18 +111,22 @@ export function PlanChange({ currentPlan, onPlanChanged }: PlanChangeProps) {
             >
               {plan.recommended && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <Badge className="bg-primary">おすすめ</Badge>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-primary text-primary-foreground">
+                    おすすめ
+                  </span>
                 </div>
               )}
               {isCurrent && (
                 <div className="absolute -top-3 right-4">
-                  <Badge variant="secondary">現在のプラン</Badge>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground">
+                    現在のプラン
+                  </span>
                 </div>
               )}
               <CardHeader>
                 <CardTitle>{plan.name}</CardTitle>
                 <CardDescription>
-                  <span className="text-3xl font-bold text-foreground tabular-nums">
+                  <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
                     ¥{plan.price.toLocaleString()}
                   </span>
                   <span className="text-muted-foreground">/月</span>

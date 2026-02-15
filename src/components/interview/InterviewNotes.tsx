@@ -41,6 +41,7 @@ export function InterviewNotes({ notes, onAddNote }: InterviewNotesProps) {
         />
         <Button
           size="sm"
+          className="h-8 text-xs px-3"
           onClick={handleAddNote}
           disabled={!newNote.trim() || isAdding}
         >
@@ -50,9 +51,9 @@ export function InterviewNotes({ notes, onAddNote }: InterviewNotesProps) {
       {notes.length > 0 && (
         <div className="space-y-2 max-h-[200px] overflow-y-auto">
           {notes.map((note) => (
-            <div key={note.id} className="p-2 bg-gray-50 rounded text-sm">
-              <p>{note.content}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+            <div key={note.id} className="p-2 bg-secondary rounded-md text-sm">
+              <p className="text-sm text-pretty">{note.content}</p>
+              <p className="text-xs text-muted-foreground mt-1 tabular-nums">
                 {new Date(note.createdAt).toLocaleString("ja-JP")}
               </p>
             </div>

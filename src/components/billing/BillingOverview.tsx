@@ -1,7 +1,6 @@
 "use client";
 
 import type { SubscriptionData } from "@/app/recruiter/billing/page";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -9,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface BillingOverviewProps {
   subscription: SubscriptionData;
@@ -25,19 +25,22 @@ export function BillingOverview({ subscription }: BillingOverviewProps) {
   );
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
       <Card>
         <CardHeader>
           <CardDescription>現在のプラン</CardDescription>
           <CardTitle className="flex items-center gap-2">
             {subscription.planName}
-            <Badge
-              variant={
-                subscription.status === "ACTIVE" ? "default" : "secondary"
-              }
+            <span
+              className={cn(
+                "text-[10px] font-medium px-2 py-0.5 rounded-md",
+                subscription.status === "ACTIVE"
+                  ? "bg-emerald-500/10 text-emerald-600"
+                  : "bg-secondary text-secondary-foreground",
+              )}
             >
               {subscription.status === "ACTIVE" ? "有効" : subscription.status}
-            </Badge>
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -101,7 +104,7 @@ export function BillingOverview({ subscription }: BillingOverviewProps) {
 
       <Card className="md:col-span-2 lg:col-span-3">
         <CardHeader>
-          <CardTitle className="text-lg">ポイント消費ガイド</CardTitle>
+          <CardTitle className="text-base">ポイント消費ガイド</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -41,6 +41,13 @@ export const GET = withUserAuth<RouteContext>(
 
           try {
             if (Date.now() - startTime > TIMEOUT) {
+              await prisma.document.update({
+                where: { id },
+                data: {
+                  analysisStatus: "FAILED",
+                  analysisError: "解析がタイムアウトしました",
+                },
+              });
               send("timeout", { message: "タイムアウトしました" });
               controller.close();
               return;

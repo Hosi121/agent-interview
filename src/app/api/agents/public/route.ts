@@ -25,6 +25,7 @@ export const GET = withRecruiterAuth(async (request, session) => {
         select: {
           id: true,
           name: true,
+          avatarPath: true,
           fragments: {
             select: {
               id: true,
@@ -98,6 +99,7 @@ export const GET = withRecruiterAuth(async (request, session) => {
         user: {
           id: agent.user.id,
           name: agent.user.name,
+          avatarPath: agent.user.avatarPath,
         },
         skills: Array.from(allSkills).slice(0, 10),
         matchScore: scoreDetails.totalScore,
@@ -123,6 +125,7 @@ export const GET = withRecruiterAuth(async (request, session) => {
       user: {
         id: agent.user.id,
         name: agent.user.name,
+        avatarPath: agent.user.avatarPath,
       },
       skills: Array.from(allSkills).slice(0, 10),
       matchScore: null,

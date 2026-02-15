@@ -23,6 +23,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
           name: true,
           email: true,
           phone: true,
+          avatarPath: true,
           agent: {
             select: {
               id: true,

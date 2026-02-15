@@ -1,16 +1,17 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -19,10 +20,6 @@ const navigation = [
   { name: "求人管理", href: "/recruiter/jobs" },
   { name: "パイプライン", href: "/recruiter/pipeline" },
   { name: "エージェント一覧", href: "/recruiter/agents" },
-  { name: "興味リスト", href: "/recruiter/interests" },
-  { name: "ウォッチリスト", href: "/recruiter/watches" },
-  { name: "プラン・ポイント", href: "/recruiter/billing" },
-  { name: "メンバー管理", href: "/recruiter/members" },
 ];
 
 interface Subscription {
@@ -60,7 +57,10 @@ export default function RecruiterLayout({
     if (status === "unauthenticated") {
       router.push("/login");
     }
-  }, [status, router]);
+    if (status === "authenticated" && session?.user?.accountType === "USER") {
+      router.push("/my/dashboard");
+    }
+  }, [status, session, router]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -70,34 +70,42 @@ export default function RecruiterLayout({
 
   if (status === "loading") {
     return (
-      <div className="min-h-dvh flex items-center justify-center">
-        <p>Loading...</p>
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
 
-  if (!session) {
+  if (!session || session.user?.accountType === "USER") {
     return null;
   }
 
   return (
-    <div className="min-h-dvh bg-gray-50">
-      <header className="bg-white border-b sticky top-0 z-50">
+    <div className="min-h-dvh bg-background">
+      <header className="bg-card border-b sticky top-0 z-50">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-8">
               <Link
                 href="/recruiter/dashboard"
-                className="text-xl font-bold text-primary"
+                className="inline-flex items-center"
+                aria-label="MeTalk"
               >
-                Agent Interview
+                <Image
+                  src="/logos/symbol+type.svg"
+                  alt="MeTalk"
+                  width={124}
+                  height={34}
+                  className="h-9 w-auto"
+                  priority
+                />
               </Link>
-              <nav className="hidden md:flex items-center gap-6">
+              <nav className="hidden md:flex items-center gap-1">
                 {navigation.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent px-3 py-1.5 rounded-md transition-colors"
                   >
                     {item.name}
                   </Link>
@@ -106,10 +114,7 @@ export default function RecruiterLayout({
             </div>
             <div className="flex items-center gap-4">
               {subscription && (
-                <Badge
-                  variant="outline"
-                  className="hidden md:flex gap-1.5 py-1"
-                >
+                <span className="hidden md:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-secondary">
                   <svg
                     className="size-4"
                     fill="none"
@@ -127,7 +132,7 @@ export default function RecruiterLayout({
                     {subscription.pointBalance}
                   </span>
                   <span className="text-muted-foreground">pt</span>
-                </Badge>
+                </span>
               )}
               <span className="text-sm text-muted-foreground hidden md:block">
                 {session.user?.companyName}
@@ -153,6 +158,14 @@ export default function RecruiterLayout({
                   <DropdownMenuItem className="text-muted-foreground">
                     {session.user?.email}
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/recruiter/billing">プラン・ポイント</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/recruiter/members">メンバー管理</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => signOut({ callbackUrl: "/" })}
                   >

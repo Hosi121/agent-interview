@@ -17,6 +17,7 @@ export const GET = withRecruiterAuth<RouteContext>(
           select: {
             id: true,
             name: true,
+            avatarPath: true,
           },
         },
       },

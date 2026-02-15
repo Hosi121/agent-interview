@@ -3,7 +3,6 @@ import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { generateMatchScore } from "@/lib/openai";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -102,43 +101,10 @@ export const POST = withRecruiterAuth<RouteContext>(
         recruiterId: session.user.recruiterId,
         sessionType: "RECRUITER_AGENT_CHAT",
       },
-      include: {
-        messages: true,
-        agent: {
-          include: {
-            user: true,
-          },
-        },
-      },
     });
 
     if (!interviewSession) {
       throw new NotFoundError("まず面接チャットを開始してください");
-    }
-
-    let matchScore: number | null = null;
-
-    if (interviewSession.agent && interviewSession.messages.length > 0) {
-      try {
-        const conversationSummary = interviewSession.messages
-          .map((m) => `${m.senderType}: ${m.content}`)
-          .join("\n");
-
-        const fragments = await prisma.fragment.findMany({
-          where: { userId: interviewSession.agent.userId },
-        });
-
-        const fragmentsSummary = fragments
-          .map((f) => `[${f.type}]: ${f.content}`)
-          .join("\n");
-
-        matchScore = await generateMatchScore(
-          conversationSummary,
-          fragmentsSummary,
-        );
-      } catch {
-        // マッチスコア計算の失敗は無視（メイン機能ではない）
-      }
     }
 
     const evaluation = await prisma.interviewEvaluation.upsert({
@@ -148,7 +114,6 @@ export const POST = withRecruiterAuth<RouteContext>(
         technicalRating,
         communicationRating,
         cultureRating,
-        matchScore,
         comment: comment || null,
       },
       create: {
@@ -158,7 +123,6 @@ export const POST = withRecruiterAuth<RouteContext>(
         technicalRating,
         communicationRating,
         cultureRating,
-        matchScore,
         comment: comment || null,
       },
     });

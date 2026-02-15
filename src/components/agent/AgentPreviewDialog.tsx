@@ -19,11 +19,15 @@ interface PreviewMessage {
 interface AgentPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  userName?: string;
+  avatarPath?: string | null;
 }
 
 export function AgentPreviewDialog({
   open,
   onOpenChange,
+  userName,
+  avatarPath,
 }: AgentPreviewDialogProps) {
   const [messages, setMessages] = useState<PreviewMessage[]>([
     {
@@ -112,6 +116,8 @@ export function AgentPreviewDialog({
             messages={messages}
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
+            assistantName={userName}
+            assistantAvatarPath={avatarPath}
             placeholder="採用担当者として質問してみてください..."
           />
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -21,6 +21,8 @@ interface MessageBubbleProps {
   content: string;
   role: "user" | "assistant";
   senderName?: string;
+  assistantName?: string;
+  assistantAvatarPath?: string | null;
   references?: FragmentReference[];
   messageId?: string;
 }
@@ -40,6 +42,8 @@ export function MessageBubble({
   content,
   role,
   senderName,
+  assistantName,
+  assistantAvatarPath,
   references,
   messageId,
 }: MessageBubbleProps) {
@@ -50,33 +54,51 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        "flex gap-3 max-w-[80%]",
+        "flex gap-2.5 max-w-[80%]",
         isUser ? "ml-auto flex-row-reverse" : "",
       )}
       data-message-id={messageId}
     >
-      <Avatar className="h-8 w-8 flex-shrink-0">
+      <Avatar className="size-7 flex-shrink-0 mt-0.5">
+        {!isUser && assistantAvatarPath && (
+          <AvatarImage
+            src={`/api/applicant/avatar/${assistantAvatarPath}`}
+            alt={assistantName || "AI"}
+          />
+        )}
         <AvatarFallback
-          className={cn(isUser ? "bg-primary text-white" : "bg-gray-200")}
-        >
-          {isUser ? senderName?.[0] || "U" : "AI"}
-        </AvatarFallback>
-      </Avatar>
-      <div className="space-y-2">
-        <div
           className={cn(
-            "rounded-lg px-4 py-2",
-            isUser ? "bg-primary text-white" : "bg-gray-100 text-foreground",
+            "text-xs",
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-primary/10 text-primary",
           )}
         >
-          <p className="text-sm whitespace-pre-wrap">{content}</p>
+          {isUser ? senderName?.[0] || "U" : assistantName?.[0] || "AI"}
+        </AvatarFallback>
+      </Avatar>
+      <div className="space-y-1.5">
+        {!isUser && assistantName && (
+          <p className="text-xs text-muted-foreground ml-1">{assistantName}</p>
+        )}
+        <div
+          className={cn(
+            "rounded-lg px-3.5 py-2",
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary text-foreground",
+          )}
+        >
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+            {content}
+          </p>
         </div>
         {hasReferences && !isUser && (
           <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors ml-1">
               <svg
                 className={cn(
-                  "w-3 h-3 transition-transform",
+                  "size-3 transition-transform",
                   isOpen && "rotate-90",
                 )}
                 fill="none"
@@ -92,12 +114,12 @@ export function MessageBubble({
               </svg>
               回答の根拠 ({references.length}件)
             </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2">
-              <div className="space-y-2 pl-2 border-l-2 border-gray-200">
+            <CollapsibleContent className="mt-1.5">
+              <div className="space-y-1.5 pl-2 border-l-2 border-border">
                 {references.map((ref) => (
                   <div
                     key={ref.id}
-                    className="text-xs bg-gray-50 rounded p-2 space-y-1"
+                    className="text-xs bg-secondary rounded p-2 space-y-1"
                   >
                     <div className="flex items-center gap-1">
                       <Badge

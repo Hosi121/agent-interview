@@ -66,7 +66,7 @@ export function PointPurchase({
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-8 lg:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle>ポイント追加購入</CardTitle>
