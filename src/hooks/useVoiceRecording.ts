@@ -37,7 +37,7 @@ export function useVoiceRecording(
   const {
     onSilenceDetected,
     silenceThreshold = 10,
-    silenceDuration = 1500,
+    silenceDuration = 3000,
   } = options;
 
   const [state, setState] = useState<RecordingState>("idle");
@@ -87,6 +87,7 @@ export function useVoiceRecording(
 
     const dataArray = new Uint8Array(analyser.fftSize);
     let isSilent = false;
+    let hasSpoken = false;
 
     const check = () => {
       if (!analyserRef.current) return;
@@ -101,13 +102,14 @@ export function useVoiceRecording(
       const rms = Math.sqrt(sum / dataArray.length);
 
       if (rms < silenceThreshold) {
-        if (!isSilent) {
+        if (!isSilent && hasSpoken) {
           isSilent = true;
           silenceTimerRef.current = setTimeout(() => {
             onSilenceDetected();
           }, silenceDuration);
         }
       } else {
+        hasSpoken = true;
         isSilent = false;
         if (silenceTimerRef.current) {
           clearTimeout(silenceTimerRef.current);

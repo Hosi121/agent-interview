@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, MicOff, Square, Volume2 } from "lucide-react";
+import { Mic, MicOff, Square } from "lucide-react";
 import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
@@ -81,7 +81,7 @@ export function ChatWindow({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }, [messages, isLoading]);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -109,7 +109,7 @@ export function ChatWindow({
 
   return (
     <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 min-h-0 p-4">
         <div className="space-y-4">
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
@@ -174,12 +174,6 @@ export function ChatWindow({
           {voice.voiceState === "waiting" && (
             <span className="text-muted-foreground">
               AI応答を待っています...
-            </span>
-          )}
-          {voice.voiceState === "speaking" && (
-            <span className="flex items-center gap-1.5 text-blue-600">
-              <Volume2 className="size-4 animate-pulse" />
-              音声を再生中...
             </span>
           )}
         </div>
