@@ -12,6 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -220,12 +221,10 @@ export default function ApplicantLayout({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem className="font-medium">
-                    {session.user?.name}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-muted-foreground">
+                  <DropdownMenuLabel>{session.user?.name}</DropdownMenuLabel>
+                  <DropdownMenuLabel className="font-normal text-muted-foreground">
                     {session.user?.email}
-                  </DropdownMenuItem>
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => router.push("/my/settings")}>
                     設定
