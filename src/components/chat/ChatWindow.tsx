@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, MicOff, Square } from "lucide-react";
+import { Mic, SendHorizontal, Square } from "lucide-react";
 import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
+import { cn } from "@/lib/utils";
 import { MessageBubble } from "./MessageBubble";
 
 interface FragmentReference {
@@ -154,54 +155,45 @@ export function ChatWindow({
           onSelect={onFollowUpSelect}
         />
       )}
-      {/* 音声状態インジケーター */}
-      {voice.voiceState !== "inactive" && (
-        <div className="flex items-center gap-2 px-4 py-2 text-sm">
-          {voice.voiceState === "recording" && (
-            <>
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-              </span>
-              <span className="text-red-600">
-                録音中 {formatDuration(voice.duration)}
-              </span>
-            </>
-          )}
-          {voice.voiceState === "transcribing" && (
-            <span className="text-muted-foreground">文字起こし中...</span>
-          )}
-          {voice.voiceState === "waiting" && (
-            <span className="text-muted-foreground">
-              AI応答を待っています...
-            </span>
-          )}
-        </div>
-      )}
       {voice.error && (
         <div className="px-4 py-1">
           <p className="text-xs text-destructive">{voice.error}</p>
         </div>
       )}
       <form onSubmit={handleSubmit} className="border-t p-4">
-        <div className="flex gap-2">
-          <Textarea
-            ref={inputRef}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            className="min-h-[60px] resize-none"
-            disabled={isLoading || isVoiceBusy}
-          />
-          <div className="flex flex-col gap-1">
-            {voice.mode === "push-to-talk" ? (
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 min-w-0">
+            <Textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              className={cn(
+                "min-h-[60px] resize-none transition-shadow",
+                voice.voiceState === "recording" &&
+                  "border-destructive/50 ring-2 ring-destructive/20",
+              )}
+              disabled={isLoading || isVoiceBusy}
+            />
+          </div>
+          {/* マイクボタン */}
+          {voice.mode === "push-to-talk" ? (
+            <div className="relative">
+              {voice.voiceState === "recording" && (
+                <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30" />
+              )}
               <Button
                 type="button"
                 size="icon"
                 variant={
                   voice.voiceState === "recording" ? "destructive" : "outline"
                 }
+                className={cn(
+                  "relative",
+                  voice.voiceState === "recording" &&
+                    "ring-2 ring-destructive/50",
+                )}
                 disabled={isVoiceBusy}
                 onPointerDown={voice.onPressStart}
                 onPointerUp={voice.onPressEnd}
@@ -214,63 +206,79 @@ export function ChatWindow({
               >
                 <Mic className="size-4" />
               </Button>
-            ) : voice.isActive ? (
+            </div>
+          ) : voice.isActive ? (
+            <div className="relative">
+              {voice.voiceState === "recording" && (
+                <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30" />
+              )}
               <Button
                 type="button"
                 size="icon"
                 variant="destructive"
+                className={cn(
+                  "relative",
+                  voice.voiceState === "recording" &&
+                    "ring-2 ring-destructive/50",
+                )}
                 onClick={voice.toggleContinuous}
                 title="音声会話を停止"
               >
                 <Square className="size-4" />
               </Button>
-            ) : (
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                onClick={voice.toggleContinuous}
-                disabled={isVoiceBusy}
-                title="連続会話を開始"
-              >
-                <Mic className="size-4" />
-              </Button>
-            )}
+            </div>
+          ) : (
             <Button
               type="button"
               size="icon"
-              variant="ghost"
-              className="h-6 w-9 text-[10px]"
-              onClick={() =>
-                voice.setMode(
-                  voice.mode === "push-to-talk" ? "continuous" : "push-to-talk",
-                )
-              }
-              disabled={voice.isActive}
-              title={
-                voice.mode === "push-to-talk"
-                  ? "連続会話モードに切替"
-                  : "Push-to-talkモードに切替"
-              }
+              variant="outline"
+              onClick={voice.toggleContinuous}
+              disabled={isVoiceBusy}
+              title="連続会話を開始"
             >
-              {voice.mode === "push-to-talk" ? (
-                <Mic className="size-3" />
-              ) : (
-                <MicOff className="size-3" />
-              )}
+              <Mic className="size-4" />
             </Button>
-            <Button
-              type="submit"
-              size="icon"
-              disabled={!inputValue.trim() || isLoading || isVoiceBusy}
-            >
-              送信
-            </Button>
-          </div>
+          )}
+          {/* 送信ボタン */}
+          <Button
+            type="submit"
+            size="icon"
+            disabled={!inputValue.trim() || isLoading || isVoiceBusy}
+            title="送信"
+          >
+            <SendHorizontal className="size-4" />
+          </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          {isMobile ? "送信ボタンで送信" : "Shift+Enterで改行、Enterで送信"}
-        </p>
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() =>
+              voice.setMode(
+                voice.mode === "push-to-talk" ? "continuous" : "push-to-talk",
+              )
+            }
+            disabled={voice.isActive}
+            title={
+              voice.mode === "push-to-talk"
+                ? "連続会話モードに切替"
+                : "Push-to-talkモードに切替"
+            }
+          >
+            {voice.mode === "push-to-talk" ? "PTT" : "連続"}
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {voice.voiceState === "recording"
+              ? formatDuration(voice.duration)
+              : voice.voiceState === "transcribing"
+                ? "文字起こし中..."
+                : voice.voiceState === "waiting"
+                  ? "AI応答待ち..."
+                  : isMobile
+                    ? "送信ボタンで送信"
+                    : "Shift+Enterで改行"}
+          </span>
+        </div>
       </form>
     </div>
   );
