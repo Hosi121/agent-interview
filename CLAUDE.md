@@ -46,6 +46,10 @@ npm run db:seed                # テストデータ投入
 npm run db:studio              # Prisma Studio GUI
 ```
 
+## git
+
+develop へPRを出すようにしてください．
+
 ## Architecture
 
 ### ルーティングとロール分離
