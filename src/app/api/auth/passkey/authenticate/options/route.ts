@@ -2,7 +2,7 @@ import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { NextResponse } from "next/server";
 import { withErrorHandling } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { CHALLENGE_TTL_MS, rpID } from "@/lib/webauthn";
+import { buildSetCookieHeader, CHALLENGE_TTL_MS, rpID } from "@/lib/webauthn";
 
 export const POST = withErrorHandling(async () => {
   // 期限切れチャレンジを削除
@@ -25,17 +25,7 @@ export const POST = withErrorHandling(async () => {
   });
 
   // チャレンジIDをhttpOnly Cookieでクライアントにバインド
-  const isProduction = process.env.NODE_ENV === "production";
-  const cookie = [
-    `webauthn_challenge=${record.id}`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Strict",
-    "Max-Age=300",
-    isProduction ? "Secure" : "",
-  ]
-    .filter(Boolean)
-    .join("; ");
+  const cookie = buildSetCookieHeader("webauthn_challenge", record.id, 300);
 
   return new NextResponse(JSON.stringify(options), {
     status: 200,

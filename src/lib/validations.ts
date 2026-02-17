@@ -191,13 +191,22 @@ export function formatZodError(error: z.ZodError): {
 }
 
 // パスキー関連
+const webauthnCredentialSchema = z.object({
+  id: z.string(),
+  rawId: z.string(),
+  response: z.record(z.string(), z.unknown()),
+  type: z.literal("public-key"),
+  clientExtensionResults: z.record(z.string(), z.unknown()).optional(),
+  authenticatorAttachment: z.string().optional(),
+});
+
 export const passkeyRegisterVerifySchema = z.object({
-  credential: z.record(z.string(), z.unknown()),
+  credential: webauthnCredentialSchema,
   deviceName: z.string().max(100).optional(),
 });
 
 export const passkeyAuthVerifySchema = z.object({
-  credential: z.record(z.string(), z.unknown()),
+  credential: webauthnCredentialSchema,
 });
 
 // 型エクスポート

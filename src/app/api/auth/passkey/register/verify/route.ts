@@ -1,37 +1,43 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
-import { apiSuccess, withAuthValidation } from "@/lib/api-utils";
+import { NextResponse } from "next/server";
+import { withAuthValidation } from "@/lib/api-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { passkeyRegisterVerifySchema } from "@/lib/validations";
-import { expectedOrigins, rpID } from "@/lib/webauthn";
+import {
+  buildSetCookieHeader,
+  expectedOrigins,
+  parseCookie,
+  rpID,
+} from "@/lib/webauthn";
 
 export const POST = withAuthValidation(
   passkeyRegisterVerifySchema,
-  async (body, _req, session) => {
+  async (body, req, session) => {
     const accountId = session.user.accountId!;
     const credential = body.credential as unknown as RegistrationResponseJSON;
 
-    // DB からチャレンジをアトミックに取得・削除（1回限り使用）
-    // findFirst + delete の代わりに、最新のチャレンジを削除して取得
-    const stored = await prisma.webAuthnChallenge.findFirst({
-      where: {
-        accountId,
-        type: "registration",
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    // CookieからチャレンジIDを取得してクライアントにバインド
+    const cookieHeader = req.headers.get("cookie") || "";
+    const challengeId = parseCookie(cookieHeader, "webauthn_reg_challenge");
 
-    if (!stored) {
-      throw new NotFoundError(
+    if (!challengeId) {
+      throw new ValidationError(
         "チャレンジが見つかりません。再度お試しください。",
       );
     }
 
-    // アトミックに削除（条件付きdelete — 他のリクエストが先に消した場合は失敗する）
+    // チャレンジをアトミックに削除・取得（1回限り使用）
     const deleted = await prisma.webAuthnChallenge
-      .delete({ where: { id: stored.id } })
+      .delete({
+        where: {
+          id: challengeId,
+          accountId,
+          type: "registration",
+          expiresAt: { gt: new Date() },
+        },
+      })
       .catch(() => null);
 
     if (!deleted) {
@@ -73,10 +79,22 @@ export const POST = withAuthValidation(
       },
     });
 
-    return apiSuccess({
-      verified: true,
-      deviceType: credentialDeviceType,
-      backedUp: credentialBackedUp,
-    });
+    // webauthn_reg_challenge Cookieを削除
+    const clearCookie = buildSetCookieHeader("webauthn_reg_challenge", "", 0);
+
+    return new NextResponse(
+      JSON.stringify({
+        verified: true,
+        deviceType: credentialDeviceType,
+        backedUp: credentialBackedUp,
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Set-Cookie": clearCookie,
+        },
+      },
+    );
   },
 );

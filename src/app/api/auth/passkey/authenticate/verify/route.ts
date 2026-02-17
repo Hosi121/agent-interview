@@ -7,7 +7,13 @@ import { NotFoundError, ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { passkeyAuthVerifySchema } from "@/lib/validations";
-import { expectedOrigins, LOGIN_TOKEN_TTL_MS, rpID } from "@/lib/webauthn";
+import {
+  buildSetCookieHeader,
+  expectedOrigins,
+  LOGIN_TOKEN_TTL_MS,
+  parseCookie,
+  rpID,
+} from "@/lib/webauthn";
 
 export const POST = withValidation(
   passkeyAuthVerifySchema,
@@ -16,8 +22,7 @@ export const POST = withValidation(
 
     // CookieからチャレンジIDを取得してクライアントにバインド
     const cookieHeader = req.headers.get("cookie") || "";
-    const challengeIdMatch = cookieHeader.match(/webauthn_challenge=([^;]+)/);
-    const challengeId = challengeIdMatch?.[1];
+    const challengeId = parseCookie(cookieHeader, "webauthn_challenge");
 
     if (!challengeId) {
       throw new ValidationError(
@@ -88,9 +93,9 @@ export const POST = withValidation(
       throw new ValidationError("パスキーの検証に失敗しました");
     }
 
-    // カウンター検証: 減少はクローン攻撃の可能性があるため拒否
+    // カウンター検証: カウンターが以前より進んでいない場合はクローン攻撃の可能性
     const newCounter = verification.authenticationInfo.newCounter;
-    if (newCounter > 0 && newCounter < passkey.counter) {
+    if (passkey.counter > 0 && newCounter <= passkey.counter) {
       logger.warn("WebAuthn counter decreased, possible cloned authenticator", {
         accountId: account.id,
         passkeyId: passkey.id,
@@ -125,34 +130,15 @@ export const POST = withValidation(
     });
 
     // httpOnly Cookie にトークンを設定 + webauthn_challenge Cookieを削除
-    const isProduction = process.env.NODE_ENV === "production";
     const headers = new Headers();
     headers.set("Content-Type", "application/json");
     headers.append(
       "Set-Cookie",
-      [
-        `passkey_token=${loginToken}`,
-        "Path=/",
-        "HttpOnly",
-        "SameSite=Strict",
-        "Max-Age=30",
-        isProduction ? "Secure" : "",
-      ]
-        .filter(Boolean)
-        .join("; "),
+      buildSetCookieHeader("passkey_token", loginToken, 30),
     );
     headers.append(
       "Set-Cookie",
-      [
-        "webauthn_challenge=",
-        "Path=/",
-        "HttpOnly",
-        "SameSite=Strict",
-        "Max-Age=0",
-        isProduction ? "Secure" : "",
-      ]
-        .filter(Boolean)
-        .join("; "),
+      buildSetCookieHeader("webauthn_challenge", "", 0),
     );
 
     return new NextResponse(JSON.stringify({ verified: true }), {

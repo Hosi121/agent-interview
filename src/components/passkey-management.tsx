@@ -48,9 +48,17 @@ export function PasskeyManagement() {
       if (res.ok) {
         const data = await res.json();
         setPasskeys(data.passkeys);
+      } else {
+        setMessage({
+          type: "error",
+          text: "パスキー一覧の取得に失敗しました",
+        });
       }
     } catch {
-      // ignore
+      setMessage({
+        type: "error",
+        text: "パスキー一覧の取得に失敗しました",
+      });
     } finally {
       setIsLoading(false);
     }
