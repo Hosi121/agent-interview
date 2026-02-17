@@ -1,5 +1,6 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
+import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { withAuthValidation } from "@/lib/api-utils";
@@ -74,7 +75,7 @@ export const POST = withAuthValidation(
     await prisma.passkey.create({
       data: {
         accountId,
-        credentialId: Buffer.from(cred.id),
+        credentialId: Buffer.from(isoBase64URL.toBuffer(cred.id)),
         credentialPublicKey: Buffer.from(cred.publicKey),
         counter: cred.counter,
         transports: cred.transports ?? [],
