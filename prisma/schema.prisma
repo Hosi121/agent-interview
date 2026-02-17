@@ -116,7 +116,6 @@ model WebAuthnChallenge {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  @@index([challenge])
   @@index([expiresAt])
 }
 

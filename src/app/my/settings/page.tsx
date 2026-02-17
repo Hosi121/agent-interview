@@ -333,13 +333,13 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <PasskeyManagement />
-
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={isSaving}>
           {isSaving ? "保存中..." : "設定を保存"}
         </Button>
       </div>
+
+      <PasskeyManagement />
     </div>
   );
 }

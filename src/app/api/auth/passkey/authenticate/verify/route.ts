@@ -3,10 +3,11 @@ import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { withValidation } from "@/lib/api-utils";
+import { withRateLimitValidation } from "@/lib/api-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { RATE_LIMIT_PRESETS } from "@/lib/rate-limiter";
 import { passkeyAuthVerifySchema } from "@/lib/validations";
 import {
   buildSetCookieHeader,
@@ -15,9 +16,12 @@ import {
   rpID,
 } from "@/lib/webauthn";
 
-export const POST = withValidation(
+export const POST = withRateLimitValidation(
+  RATE_LIMIT_PRESETS.PUBLIC_AUTH,
   passkeyAuthVerifySchema,
   async (body, _req) => {
+    // simplewebauthnライブラリが内部でレスポンス構造をバリデーションするため、
+    // Zodで基本構造を検証した後のtype castは安全
     const credential = body.credential as unknown as AuthenticationResponseJSON;
 
     // CookieからチャレンジIDを取得してクライアントにバインド

@@ -1,14 +1,17 @@
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { NextResponse } from "next/server";
-import { withErrorHandling } from "@/lib/api-utils";
+import { withRateLimit } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { RATE_LIMIT_PRESETS } from "@/lib/rate-limiter";
 import { buildSetCookieHeader, CHALLENGE_TTL_MS, rpID } from "@/lib/webauthn";
 
-export const POST = withErrorHandling(async () => {
-  // 期限切れチャレンジを削除
-  await prisma.webAuthnChallenge.deleteMany({
-    where: { expiresAt: { lt: new Date() } },
-  });
+export const POST = withRateLimit(RATE_LIMIT_PRESETS.PUBLIC_AUTH, async () => {
+  // 期限切れチャレンジを削除（レスポンスをブロックしない）
+  prisma.webAuthnChallenge
+    .deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    })
+    .catch(() => {});
 
   const options = await generateAuthenticationOptions({
     rpID,

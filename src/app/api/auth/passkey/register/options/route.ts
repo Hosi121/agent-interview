@@ -30,10 +30,12 @@ export const POST = withAuth(async (_req, session) => {
     );
   }
 
-  // 期限切れチャレンジを削除
-  await prisma.webAuthnChallenge.deleteMany({
-    where: { expiresAt: { lt: new Date() } },
-  });
+  // 期限切れチャレンジを削除（レスポンスをブロックしない）
+  prisma.webAuthnChallenge
+    .deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    })
+    .catch(() => {});
 
   // webauthnUserId がなければ生成してAccountに保存
   let webauthnUserId = account.webauthnUserId;

@@ -20,6 +20,8 @@ export const POST = withAuthValidation(
     if (!accountId) {
       throw new UnauthorizedError("アカウント情報が取得できません");
     }
+    // simplewebauthnライブラリが内部でレスポンス構造をバリデーションするため、
+    // Zodで基本構造を検証した後のtype castは安全
     const credential = body.credential as unknown as RegistrationResponseJSON;
 
     // CookieからチャレンジIDを取得してクライアントにバインド

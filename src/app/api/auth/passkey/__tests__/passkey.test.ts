@@ -127,7 +127,7 @@ describe("パスキーAPI - 結合テスト", () => {
         mockGetServerSession.mockResolvedValue(authenticatedSession);
         mockPrisma.passkey.findMany.mockResolvedValue([
           {
-            id: "pk-1",
+            id: "00000000-0000-4000-8000-000000000001",
             deviceName: "MacBook Pro",
             createdAt: new Date("2025-01-01"),
             lastUsedAt: new Date("2025-01-15"),
@@ -179,18 +179,20 @@ describe("パスキーAPI - 結合テスト", () => {
       it("自分のパスキーを削除できる", async () => {
         mockGetServerSession.mockResolvedValue(authenticatedSession);
         mockPrisma.passkey.findUnique.mockResolvedValue({
-          id: "pk-1",
+          id: "00000000-0000-4000-8000-000000000001",
           accountId: "account-1",
         });
         mockPrisma.passkey.delete.mockResolvedValue({});
 
         const { DELETE } = await import("../[passkeyId]/route");
         const request = new NextRequest(
-          "http://localhost/api/auth/passkey/pk-1",
+          "http://localhost/api/auth/passkey/00000000-0000-4000-8000-000000000001",
           { method: "DELETE" },
         );
         const response = await DELETE(request, {
-          params: Promise.resolve({ passkeyId: "pk-1" }),
+          params: Promise.resolve({
+            passkeyId: "00000000-0000-4000-8000-000000000001",
+          }),
         });
         const data = await response.json();
 
@@ -203,17 +205,19 @@ describe("パスキーAPI - 結合テスト", () => {
       it("他ユーザーのパスキーを削除しようとすると403を返す", async () => {
         mockGetServerSession.mockResolvedValue(authenticatedSession);
         mockPrisma.passkey.findUnique.mockResolvedValue({
-          id: "pk-2",
+          id: "00000000-0000-4000-8000-000000000002",
           accountId: "other-account",
         });
 
         const { DELETE } = await import("../[passkeyId]/route");
         const request = new NextRequest(
-          "http://localhost/api/auth/passkey/pk-2",
+          "http://localhost/api/auth/passkey/00000000-0000-4000-8000-000000000002",
           { method: "DELETE" },
         );
         const response = await DELETE(request, {
-          params: Promise.resolve({ passkeyId: "pk-2" }),
+          params: Promise.resolve({
+            passkeyId: "00000000-0000-4000-8000-000000000002",
+          }),
         });
 
         expect(response.status).toBe(403);
@@ -225,11 +229,13 @@ describe("パスキーAPI - 結合テスト", () => {
 
         const { DELETE } = await import("../[passkeyId]/route");
         const request = new NextRequest(
-          "http://localhost/api/auth/passkey/pk-999",
+          "http://localhost/api/auth/passkey/00000000-0000-4000-8000-000000000999",
           { method: "DELETE" },
         );
         const response = await DELETE(request, {
-          params: Promise.resolve({ passkeyId: "pk-999" }),
+          params: Promise.resolve({
+            passkeyId: "00000000-0000-4000-8000-000000000999",
+          }),
         });
 
         expect(response.status).toBe(404);
@@ -240,14 +246,31 @@ describe("パスキーAPI - 結合テスト", () => {
 
         const { DELETE } = await import("../[passkeyId]/route");
         const request = new NextRequest(
-          "http://localhost/api/auth/passkey/pk-1",
+          "http://localhost/api/auth/passkey/00000000-0000-4000-8000-000000000001",
           { method: "DELETE" },
         );
         const response = await DELETE(request, {
-          params: Promise.resolve({ passkeyId: "pk-1" }),
+          params: Promise.resolve({
+            passkeyId: "00000000-0000-4000-8000-000000000001",
+          }),
         });
 
         expect(response.status).toBe(401);
+      });
+
+      it("不正なUUID形式のpasskeyIdで400を返す", async () => {
+        mockGetServerSession.mockResolvedValue(authenticatedSession);
+
+        const { DELETE } = await import("../[passkeyId]/route");
+        const request = new NextRequest(
+          "http://localhost/api/auth/passkey/invalid-id",
+          { method: "DELETE" },
+        );
+        const response = await DELETE(request, {
+          params: Promise.resolve({ passkeyId: "invalid-id" }),
+        });
+
+        expect(response.status).toBe(400);
       });
     });
   });
@@ -560,7 +583,7 @@ describe("パスキーAPI - 結合テスト", () => {
         webauthnUserId: "webauthn-user-1",
       });
       mockPrisma.passkey.findUnique.mockResolvedValue({
-        id: "pk-1",
+        id: "00000000-0000-4000-8000-000000000001",
         accountId: "account-1",
         credentialId: Buffer.from("credential-id-base64", "base64url"),
         credentialPublicKey: Buffer.from([1, 2, 3]),
@@ -696,7 +719,7 @@ describe("パスキーAPI - 結合テスト", () => {
           webauthnUserId: "webauthn-user-1",
         });
         mockPrisma.passkey.findUnique.mockResolvedValue({
-          id: "pk-1",
+          id: "00000000-0000-4000-8000-000000000001",
           accountId: "account-1",
           credentialId: Buffer.from("credential-id-base64", "base64url"),
           credentialPublicKey: Buffer.from([1, 2, 3]),
