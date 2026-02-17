@@ -133,21 +133,16 @@ export const POST = withRateLimitValidation(
       },
     });
 
-    // httpOnly Cookie にトークンを設定 + webauthn_challenge Cookieを削除
-    const headers = new Headers();
-    headers.set("Content-Type", "application/json");
-    headers.append(
-      "Set-Cookie",
-      buildSetCookieHeader("passkey_token", loginToken, 30),
-    );
-    headers.append(
-      "Set-Cookie",
-      buildSetCookieHeader("webauthn_challenge", "", 0),
-    );
+    // webauthn_challenge Cookieを削除
+    cookieStore.delete("webauthn_challenge");
 
+    // httpOnly Cookie にログイントークンを設定
     return new NextResponse(JSON.stringify({ verified: true }), {
       status: 200,
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie": buildSetCookieHeader("passkey_token", loginToken, 30),
+      },
     });
   },
 );

@@ -127,8 +127,8 @@ export function PasskeyManagement() {
           <div
             className={
               message.type === "success"
-                ? "p-3 rounded-lg bg-green-50 text-green-800 border border-green-200 text-sm"
-                : "p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 text-sm"
+                ? "p-3 rounded-lg bg-green-50 text-green-800 border border-green-200 dark:bg-green-950 dark:text-green-200 dark:border-green-800 text-sm"
+                : "p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800 text-sm"
             }
             role={message.type === "error" ? "alert" : "status"}
           >
@@ -208,6 +208,7 @@ export function PasskeyManagement() {
             placeholder="パスキーの名前（例: MacBook Pro）"
             value={deviceName}
             onChange={(e) => setDeviceName(e.target.value)}
+            maxLength={100}
             className="flex-1"
           />
           <Button onClick={handleRegister} disabled={isRegistering}>

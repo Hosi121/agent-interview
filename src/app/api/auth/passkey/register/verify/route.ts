@@ -11,7 +11,7 @@ import {
 } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { passkeyRegisterVerifySchema } from "@/lib/validations";
-import { buildSetCookieHeader, expectedOrigins, rpID } from "@/lib/webauthn";
+import { expectedOrigins, rpID } from "@/lib/webauthn";
 
 export const POST = withAuthValidation(
   passkeyRegisterVerifySchema,
@@ -86,7 +86,7 @@ export const POST = withAuthValidation(
     });
 
     // webauthn_reg_challenge Cookieを削除
-    const clearCookie = buildSetCookieHeader("webauthn_reg_challenge", "", 0);
+    cookieStore.delete("webauthn_reg_challenge");
 
     return new NextResponse(
       JSON.stringify({
@@ -98,7 +98,6 @@ export const POST = withAuthValidation(
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Set-Cookie": clearCookie,
         },
       },
     );
