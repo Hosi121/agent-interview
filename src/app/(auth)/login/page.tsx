@@ -85,6 +85,7 @@ function LoginForm() {
       const msg =
         err instanceof Error ? err.message : "パスキー認証に失敗しました";
       setError(msg);
+    } finally {
       setPasskeyLoading(false);
     }
   };

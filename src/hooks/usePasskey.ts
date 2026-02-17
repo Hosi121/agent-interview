@@ -76,7 +76,7 @@ export function usePasskey() {
       redirect: false,
     });
 
-    if (result?.error) {
+    if (!result || result.error) {
       throw new Error("セッションの作成に失敗しました");
     }
 
