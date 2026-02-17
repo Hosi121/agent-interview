@@ -1,26 +1,29 @@
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { withAuthValidation } from "@/lib/api-utils";
-import { NotFoundError, ValidationError } from "@/lib/errors";
+import {
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { passkeyRegisterVerifySchema } from "@/lib/validations";
-import {
-  buildSetCookieHeader,
-  expectedOrigins,
-  parseCookie,
-  rpID,
-} from "@/lib/webauthn";
+import { buildSetCookieHeader, expectedOrigins, rpID } from "@/lib/webauthn";
 
 export const POST = withAuthValidation(
   passkeyRegisterVerifySchema,
-  async (body, req, session) => {
-    const accountId = session.user.accountId!;
+  async (body, _req, session) => {
+    const accountId = session.user.accountId;
+    if (!accountId) {
+      throw new UnauthorizedError("アカウント情報が取得できません");
+    }
     const credential = body.credential as unknown as RegistrationResponseJSON;
 
     // CookieからチャレンジIDを取得してクライアントにバインド
-    const cookieHeader = req.headers.get("cookie") || "";
-    const challengeId = parseCookie(cookieHeader, "webauthn_reg_challenge");
+    const cookieStore = await cookies();
+    const challengeId = cookieStore.get("webauthn_reg_challenge")?.value;
 
     if (!challengeId) {
       throw new ValidationError(

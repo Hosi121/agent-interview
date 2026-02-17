@@ -1,12 +1,15 @@
 import { apiSuccess, withAuth } from "@/lib/api-utils";
-import { ForbiddenError, NotFoundError } from "@/lib/errors";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
+type RouteContext = { params: Promise<{ passkeyId: string }> };
+
 export const DELETE = withAuth(async (_req, session, context) => {
-  const { passkeyId } = await (
-    context as { params: Promise<{ passkeyId: string }> }
-  ).params;
-  const accountId = session.user.accountId!;
+  const { passkeyId } = await (context as RouteContext).params;
+  const accountId = session.user.accountId;
+  if (!accountId) {
+    throw new UnauthorizedError("アカウント情報が取得できません");
+  }
 
   const passkey = await prisma.passkey.findUnique({
     where: { id: passkeyId },

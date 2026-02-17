@@ -2,7 +2,7 @@ import { generateRegistrationOptions } from "@simplewebauthn/server";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-utils";
-import { ConflictError } from "@/lib/errors";
+import { ConflictError, UnauthorizedError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import {
   buildSetCookieHeader,
@@ -13,7 +13,10 @@ import {
 } from "@/lib/webauthn";
 
 export const POST = withAuth(async (_req, session) => {
-  const accountId = session.user.accountId!;
+  const accountId = session.user.accountId;
+  if (!accountId) {
+    throw new UnauthorizedError("アカウント情報が取得できません");
+  }
 
   const account = await prisma.account.findUniqueOrThrow({
     where: { id: accountId },

@@ -28,11 +28,3 @@ export function buildSetCookieHeader(
     .filter(Boolean)
     .join("; ");
 }
-
-export function parseCookie(
-  cookieHeader: string,
-  name: string,
-): string | undefined {
-  const match = cookieHeader.match(new RegExp(`${name}=([^;]+)`));
-  return match?.[1];
-}

@@ -1,6 +1,7 @@
 import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { isoBase64URL } from "@simplewebauthn/server/helpers";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { withValidation } from "@/lib/api-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -11,18 +12,17 @@ import {
   buildSetCookieHeader,
   expectedOrigins,
   LOGIN_TOKEN_TTL_MS,
-  parseCookie,
   rpID,
 } from "@/lib/webauthn";
 
 export const POST = withValidation(
   passkeyAuthVerifySchema,
-  async (body, req) => {
+  async (body, _req) => {
     const credential = body.credential as unknown as AuthenticationResponseJSON;
 
     // CookieからチャレンジIDを取得してクライアントにバインド
-    const cookieHeader = req.headers.get("cookie") || "";
-    const challengeId = parseCookie(cookieHeader, "webauthn_challenge");
+    const cookieStore = await cookies();
+    const challengeId = cookieStore.get("webauthn_challenge")?.value;
 
     if (!challengeId) {
       throw new ValidationError(

@@ -22,6 +22,9 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
+          // 消費済みCookieを即座に削除
+          cookieStore.delete("passkey_token");
+
           // トークンをアトミックに検証・削除（1回限り使用）
           // challengeフィールドにunique indexがあるため、deleteは一意に特定される
           const stored = await prisma.webAuthnChallenge
