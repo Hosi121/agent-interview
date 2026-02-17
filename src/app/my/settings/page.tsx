@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PasskeyManagement } from "@/components/passkey-management";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -331,6 +332,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <PasskeyManagement />
 
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={isSaving}>

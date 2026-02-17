@@ -190,6 +190,16 @@ export function formatZodError(error: z.ZodError): {
   };
 }
 
+// パスキー関連
+export const passkeyRegisterVerifySchema = z.object({
+  credential: z.record(z.string(), z.unknown()),
+  deviceName: z.string().max(100).optional(),
+});
+
+export const passkeyAuthVerifySchema = z.object({
+  credential: z.record(z.string(), z.unknown()),
+});
+
 // 型エクスポート
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -207,3 +217,7 @@ export type CompareInput = z.infer<typeof compareSchema>;
 export type EvaluationInput = z.infer<typeof evaluationSchema>;
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>;
 export type ChatMessageInput = z.infer<typeof chatMessageSchema>;
+export type PasskeyRegisterVerifyInput = z.infer<
+  typeof passkeyRegisterVerifySchema
+>;
+export type PasskeyAuthVerifyInput = z.infer<typeof passkeyAuthVerifySchema>;

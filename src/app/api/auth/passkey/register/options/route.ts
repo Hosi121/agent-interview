@@ -1,0 +1,72 @@
+import { generateRegistrationOptions } from "@simplewebauthn/server";
+import { isoBase64URL } from "@simplewebauthn/server/helpers";
+import { apiSuccess, withAuth } from "@/lib/api-utils";
+import { ConflictError } from "@/lib/errors";
+import { prisma } from "@/lib/prisma";
+import {
+  CHALLENGE_TTL_MS,
+  MAX_PASSKEYS_PER_ACCOUNT,
+  rpID,
+  rpName,
+} from "@/lib/webauthn";
+
+export const POST = withAuth(async (_req, session) => {
+  const accountId = session.user.accountId!;
+
+  const account = await prisma.account.findUniqueOrThrow({
+    where: { id: accountId },
+    include: { passkeys: true },
+  });
+
+  // パスキー登録数上限チェック
+  if (account.passkeys.length >= MAX_PASSKEYS_PER_ACCOUNT) {
+    throw new ConflictError(
+      `パスキーの登録上限（${MAX_PASSKEYS_PER_ACCOUNT}件）に達しています`,
+    );
+  }
+
+  // 期限切れチャレンジを削除
+  await prisma.webAuthnChallenge.deleteMany({
+    where: { expiresAt: { lt: new Date() } },
+  });
+
+  // webauthnUserId がなければ生成してAccountに保存
+  let webauthnUserId = account.webauthnUserId;
+  if (!webauthnUserId) {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    webauthnUserId = isoBase64URL.fromBuffer(bytes);
+    await prisma.account.update({
+      where: { id: accountId },
+      data: { webauthnUserId },
+    });
+  }
+
+  const options = await generateRegistrationOptions({
+    rpName,
+    rpID,
+    userName: account.email,
+    userID: isoBase64URL.toBuffer(webauthnUserId),
+    attestationType: "none",
+    excludeCredentials: account.passkeys.map((pk) => ({
+      id: isoBase64URL.fromBuffer(pk.credentialId),
+      transports: pk.transports as AuthenticatorTransport[],
+    })),
+    authenticatorSelection: {
+      residentKey: "required",
+      userVerification: "preferred",
+    },
+  });
+
+  // チャレンジをDBに保存
+  await prisma.webAuthnChallenge.create({
+    data: {
+      accountId,
+      challenge: options.challenge,
+      type: "registration",
+      expiresAt: new Date(Date.now() + CHALLENGE_TTL_MS),
+    },
+  });
+
+  return apiSuccess(options);
+});
