@@ -7,6 +7,7 @@ import { getSession, signIn } from "next-auth/react";
 import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { usePasskey } from "@/hooks/usePasskey";
 
 function MiniCard() {
   return (
@@ -59,7 +60,35 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [error, setError] = useState("");
+  const { isSupported, authenticateWithPasskey } = usePasskey();
+
+  const handlePasskeyLogin = async () => {
+    setPasskeyLoading(true);
+    setError("");
+
+    try {
+      await authenticateWithPasskey();
+
+      if (callbackUrl) {
+        router.push(callbackUrl);
+      } else {
+        const session = await getSession();
+        if (session?.user?.accountType === "RECRUITER") {
+          router.push("/recruiter/dashboard");
+        } else {
+          router.push("/my/dashboard");
+        }
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "パスキー認証に失敗しました";
+      setError(msg);
+    } finally {
+      setPasskeyLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,10 +222,38 @@ function LoginForm() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || passkeyLoading}
+            >
               {loading ? "ログイン中..." : "ログイン"}
             </Button>
           </form>
+
+          {isSupported && (
+            <>
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    または
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handlePasskeyLogin}
+                disabled={loading || passkeyLoading}
+              >
+                {passkeyLoading ? "認証中..." : "パスキーでログイン"}
+              </Button>
+            </>
+          )}
 
           <div className="mt-6 pt-6 border-t text-center">
             <p className="text-sm text-muted-foreground">

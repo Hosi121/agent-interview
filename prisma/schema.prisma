@@ -79,16 +79,44 @@ enum TaggableType {
 }
 
 model Account {
-  id           String      @id @default(uuid())
-  email        String      @unique
-  passwordHash String
-  accountType  AccountType
-  createdAt    DateTime    @default(now())
+  id             String      @id @default(uuid())
+  email          String      @unique
+  passwordHash   String
+  accountType    AccountType
+  webauthnUserId String?     @unique
+  createdAt      DateTime    @default(now())
 
   user              User?
   recruiter         Recruiter?
+  passkeys          Passkey[]
   invites           Invite[]    @relation("InviteSender")
   invitedRecruiters Recruiter[] @relation("RecruiterInviter")
+}
+
+model Passkey {
+  id                  String    @id @default(uuid())
+  accountId           String
+  account             Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  credentialId        Bytes     @unique
+  credentialPublicKey Bytes
+  counter             Int       @default(0)
+  transports          String[]
+  deviceName          String?
+  createdAt           DateTime  @default(now())
+  lastUsedAt          DateTime?
+
+  @@index([accountId])
+}
+
+model WebAuthnChallenge {
+  id        String   @id @default(uuid())
+  accountId String?
+  challenge String   @unique
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }
 
 model User {

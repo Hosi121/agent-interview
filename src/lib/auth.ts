@@ -1,4 +1,5 @@
 import { compare } from "bcryptjs";
+import { cookies } from "next/headers";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
@@ -10,8 +11,57 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        passkeyLogin: { label: "Passkey Login", type: "text" },
       },
       async authorize(credentials) {
+        // パスキー認証フロー
+        if (credentials?.passkeyLogin) {
+          const cookieStore = await cookies();
+          const token = cookieStore.get("passkey_token")?.value;
+          if (!token) {
+            return null;
+          }
+
+          // トークンをアトミックに検証・削除（1回限り使用）
+          // challengeフィールドにunique indexがあるため、deleteは一意に特定される
+          const stored = await prisma.webAuthnChallenge
+            .delete({
+              where: {
+                challenge: token,
+                type: "login_token",
+                expiresAt: { gt: new Date() },
+              },
+            })
+            .catch(() => null);
+
+          if (!stored || !stored.accountId) {
+            return null;
+          }
+
+          // DB検証成功後にCookieを削除（DB接続エラー時にリトライ可能にする）
+          cookieStore.delete("passkey_token");
+
+          const account = await prisma.account.findUnique({
+            where: { id: stored.accountId },
+            include: {
+              user: true,
+              recruiter: { include: { company: true } },
+            },
+          });
+
+          if (!account) {
+            return null;
+          }
+
+          return {
+            id: account.id,
+            email: account.email,
+            name: account.user?.name || account.recruiter?.company?.name || "",
+            accountType: account.accountType,
+          };
+        }
+
+        // 従来のパスワード認証フロー
         if (!credentials?.email || !credentials?.password) {
           return null;
         }

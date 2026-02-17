@@ -127,6 +127,26 @@ export class NoSubscriptionError extends AppError {
 }
 
 /**
+ * レート制限エラー (429)
+ * リクエスト頻度が高すぎる場合に使用
+ */
+export class RateLimitError extends AppError {
+  readonly statusCode = 429;
+  readonly code = "RATE_LIMITED";
+  readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number) {
+    super(
+      `リクエストが多すぎます。${retryAfterSeconds}秒後に再試行してください。`,
+      {
+        retryAfterSeconds,
+      },
+    );
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
  * 内部エラー (500)
  * 予期しないシステムエラーの場合に使用
  */

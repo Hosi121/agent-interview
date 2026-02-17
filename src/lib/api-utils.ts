@@ -10,6 +10,7 @@ import { authOptions } from "@/lib/auth";
 import {
   AppError,
   ForbiddenError,
+  RateLimitError,
   UnauthorizedError,
   ValidationError,
 } from "@/lib/errors";
@@ -111,6 +112,26 @@ export function handleError(
   error: unknown,
   path?: string,
 ): NextResponse<ApiErrorResponse> {
+  if (error instanceof RateLimitError) {
+    logger.warn(error.message, {
+      code: error.code,
+      statusCode: error.statusCode,
+      path,
+      details: error.details,
+    });
+    return NextResponse.json(
+      {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+      },
+      {
+        status: error.statusCode,
+        headers: { "Retry-After": String(error.retryAfterSeconds) },
+      },
+    );
+  }
+
   if (error instanceof AppError) {
     logger.error(error.message, error, {
       code: error.code,
@@ -335,6 +356,46 @@ export function withValidation<TBody, TContext = unknown>(
   ) => Promise<NextResponse>,
 ): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
   return withErrorHandling(async (req, context) => {
+    const body = await req.json();
+    const parsed = schema.safeParse(body);
+
+    if (!parsed.success) {
+      throw new ValidationError("入力内容に問題があります", {
+        fields: formatZodError(parsed.error),
+      });
+    }
+
+    return handler(parsed.data, req, context);
+  });
+}
+
+/**
+ * レート制限付きのAPIルートのラッパー（認証不要）
+ */
+export function withRateLimit<T = unknown>(
+  preset: import("@/lib/rate-limiter").RateLimitPreset,
+  handler: (req: NextRequest, context: T) => Promise<NextResponse>,
+): (req: NextRequest, context?: T) => Promise<NextResponse> {
+  return withErrorHandling(async (req, context) => {
+    const { checkRateLimit } = await import("@/lib/rate-limiter");
+    await checkRateLimit(req, preset);
+    return handler(req, context);
+  });
+}
+
+/**
+ * レート制限 + Zodバリデーション付きのAPIルートのラッパー（認証不要）
+ */
+export function withRateLimitValidation<TBody, TContext = unknown>(
+  preset: import("@/lib/rate-limiter").RateLimitPreset,
+  schema: ZodSchema<TBody>,
+  handler: (
+    body: TBody,
+    req: NextRequest,
+    context: TContext,
+  ) => Promise<NextResponse>,
+): (req: NextRequest, context?: TContext) => Promise<NextResponse> {
+  return withRateLimit(preset, async (req, context) => {
     const body = await req.json();
     const parsed = schema.safeParse(body);
 
