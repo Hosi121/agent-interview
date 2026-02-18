@@ -126,11 +126,7 @@ function RegisterForm() {
         throw new Error("ログインに失敗しました");
       }
 
-      if (accountType === "RECRUITER") {
-        router.push("/recruiter/dashboard");
-      } else {
-        router.push("/my/dashboard");
-      }
+      router.push("/setup/passkey");
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
     } finally {
