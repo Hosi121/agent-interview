@@ -9,10 +9,12 @@ import { signIn } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 
 export function usePasskey() {
-  const [isSupported, setIsSupported] = useState(false);
+  const [isPasskeyAvailable, setIsPasskeyAvailable] = useState<boolean | null>(
+    null,
+  );
 
   useEffect(() => {
-    setIsSupported(browserSupportsWebAuthn());
+    setIsPasskeyAvailable(browserSupportsWebAuthn());
   }, []);
 
   const registerPasskey = useCallback(async (deviceName?: string) => {
@@ -84,7 +86,7 @@ export function usePasskey() {
   }, []);
 
   return {
-    isSupported,
+    isPasskeyAvailable,
     registerPasskey,
     authenticateWithPasskey,
   };

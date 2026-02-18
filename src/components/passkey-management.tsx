@@ -31,7 +31,7 @@ interface PasskeyItem {
 }
 
 export function PasskeyManagement() {
-  const { isSupported, registerPasskey } = usePasskey();
+  const { isPasskeyAvailable, registerPasskey } = usePasskey();
   const [passkeys, setPasskeys] = useState<PasskeyItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -109,7 +109,7 @@ export function PasskeyManagement() {
     }
   };
 
-  if (!isSupported) {
+  if (!isPasskeyAvailable) {
     return null;
   }
 
