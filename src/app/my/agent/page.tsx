@@ -225,8 +225,12 @@ export default function AgentPage() {
         setFragments((prev) => prev.filter((f) => f.id !== id));
         setDeleteTarget(null);
       } else {
-        const data = await response.json();
-        setDeleteError(data.error || "削除に失敗しました");
+        try {
+          const data = await response.json();
+          setDeleteError(data.error || "削除に失敗しました");
+        } catch {
+          setDeleteError("削除に失敗しました");
+        }
       }
     } catch (error) {
       console.error("Delete fragment error:", error);

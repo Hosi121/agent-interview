@@ -12,6 +12,11 @@ export async function deleteFragmentWithRelations(
     where: { refType: "FRAGMENT", refId: fragmentId },
   });
 
+  // 関連する Tagging を削除
+  await tx.tagging.deleteMany({
+    where: { taggableType: "FRAGMENT", taggableId: fragmentId },
+  });
+
   // 子フラグメントの parentId を null に更新
   await tx.fragment.updateMany({
     where: { parentId: fragmentId },

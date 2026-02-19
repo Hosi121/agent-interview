@@ -51,6 +51,7 @@ export function FragmentList({
                     variant="ghost"
                     size="icon"
                     className="size-6"
+                    aria-label="修正"
                     onClick={() => onCorrect(fragment)}
                   >
                     <Pencil className="size-3.5" />
@@ -61,6 +62,7 @@ export function FragmentList({
                     variant="ghost"
                     size="icon"
                     className="size-6 text-destructive hover:text-destructive"
+                    aria-label="削除"
                     onClick={() => onDelete(fragment.id)}
                   >
                     <Trash2 className="size-3.5" />

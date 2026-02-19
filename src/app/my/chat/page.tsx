@@ -95,16 +95,12 @@ function ChatPageInner() {
   const [correctFragment, setCorrectFragment] =
     useState<CorrectFragmentInfo | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
-  const correctionSentRef = useRef(false);
 
   const correctFragmentId = searchParams.get("correctFragmentId");
 
   // 修正対象フラグメントの取得
   useEffect(() => {
-    if (!correctFragmentId) {
-      setCorrectFragment(null);
-      return;
-    }
+    if (!correctFragmentId) return;
 
     (async () => {
       try {
@@ -121,7 +117,6 @@ function ChatPageInner() {
 
   const clearCorrectionMode = useCallback(() => {
     setCorrectFragment(null);
-    correctionSentRef.current = false;
     router.replace("/my/chat", { scroll: false });
   }, [router]);
 
@@ -201,9 +196,8 @@ function ChatPageInner() {
       const body: { message: string; correctFragmentId?: string } = {
         message: content,
       };
-      if (correctFragment && !correctionSentRef.current) {
+      if (correctFragment) {
         body.correctFragmentId = correctFragment.id;
-        correctionSentRef.current = true;
       }
 
       const response = await fetch("/api/chat", {
