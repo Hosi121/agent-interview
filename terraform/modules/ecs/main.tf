@@ -61,6 +61,8 @@ resource "aws_ecs_task_definition" "app" {
         { name = "STRIPE_SECRET_KEY", valueFrom = "${local.ssm_prefix}/stripe-secret-key" },
         { name = "DOCUMENT_ANALYSIS_LAMBDA_ARN", valueFrom = "${local.ssm_prefix}/document-analysis-lambda-arn" },
         { name = "ANALYSIS_CALLBACK_SECRET", valueFrom = "${local.ssm_prefix}/analysis-callback-secret" },
+        { name = "RESEND_API_KEY", valueFrom = "${local.ssm_prefix}/resend-api-key" },
+        { name = "EMAIL_FROM", valueFrom = "${local.ssm_prefix}/email-from" },
       ]
 
       logConfiguration = {
