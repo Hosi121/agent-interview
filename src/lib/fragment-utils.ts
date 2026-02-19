@@ -1,5 +1,14 @@
 import type { Prisma } from "@prisma/client";
 
+export const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const qualityToConfidence: Record<string, number> = {
+  low: 0.4,
+  medium: 0.7,
+  high: 1.0,
+};
+
 /**
  * フラグメントと関連レコードをトランザクション内で削除する
  */

@@ -149,7 +149,6 @@ function ChatPageInner() {
       );
       if (response.ok) {
         setFragmentCount((prev) => prev - 1 + pendingCorrection.length);
-        setPendingCorrection(null);
         clearCorrectionMode();
       } else {
         setCorrectionError("修正の適用に失敗しました");
@@ -245,7 +244,7 @@ function ChatPageInner() {
       const body: { message: string; correctFragmentId?: string } = {
         message: content,
       };
-      if (correctFragment) {
+      if (correctFragment && !pendingCorrection) {
         body.correctFragmentId = correctFragment.id;
       }
 

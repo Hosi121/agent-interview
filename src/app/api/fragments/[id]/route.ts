@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { withUserAuth } from "@/lib/api-utils";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { deleteFragmentWithRelations } from "@/lib/fragment-utils";
+import { deleteFragmentWithRelations, UUID_REGEX } from "@/lib/fragment-utils";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
   const { id } = await context.params;

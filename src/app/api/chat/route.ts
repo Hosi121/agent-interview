@@ -4,6 +4,7 @@ import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
 import { ForbiddenError } from "@/lib/errors";
+import { qualityToConfidence } from "@/lib/fragment-utils";
 import { logger } from "@/lib/logger";
 import {
   extractFragments,
@@ -35,12 +36,6 @@ const BASE_SYSTEM_PROMPT = `あなたは求職者からキャリア情報を深�
 - 「すごいですね！」「素晴らしいですね！」のような定型リアクションを連続で使わない。
 - 長い前置きや説明は不要。
 - 日本語で回答。`;
-
-const qualityToConfidence: Record<string, number> = {
-  low: 0.4,
-  medium: 0.7,
-  high: 1.0,
-};
 
 /** LLMに送るメッセージの最大件数（古いメッセージは切り捨て） */
 const MAX_LLM_MESSAGES = 50;
@@ -164,10 +159,11 @@ export const POST = withUserValidation(
       const fragment = await prisma.fragment.findUnique({
         where: { id: correctFragmentId },
       });
-      if (fragment && fragment.userId !== session.user.userId) {
+      if (!fragment) {
+        // フラグメントが見つからない場合はスキップ（既に削除済み）
+      } else if (fragment.userId !== session.user.userId) {
         throw new ForbiddenError("このフラグメントを修正する権限がありません");
-      }
-      if (fragment && fragment.userId === session.user.userId) {
+      } else {
         correctFragment = {
           id: fragment.id,
           type: fragment.type,
@@ -175,7 +171,6 @@ export const POST = withUserValidation(
           skills: fragment.skills,
         };
       }
-      // フラグメントが見つからない場合はスキップ（既に削除済み）
     }
 
     const existingFragments = await prisma.fragment.findMany({
