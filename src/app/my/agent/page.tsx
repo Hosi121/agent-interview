@@ -375,6 +375,11 @@ export default function AgentPage() {
               <p>{deleteTarget.content}</p>
             </div>
           )}
+          {deleteError && (
+            <p className="text-xs text-destructive text-pretty" role="alert">
+              {deleteError}
+            </p>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>キャンセル</AlertDialogCancel>
             <AlertDialogAction
@@ -389,11 +394,6 @@ export default function AgentPage() {
               {isDeleting ? "削除中..." : "削除する"}
             </AlertDialogAction>
           </AlertDialogFooter>
-          {deleteError && (
-            <p className="text-xs text-destructive text-pretty" role="alert">
-              {deleteError}
-            </p>
-          )}
         </AlertDialogContent>
       </AlertDialog>
 

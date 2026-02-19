@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
+import { ForbiddenError, NotFoundError } from "@/lib/errors";
+import { deleteFragmentWithRelations } from "@/lib/fragment-utils";
 import { logger } from "@/lib/logger";
 import {
   extractFragments,
@@ -163,14 +165,18 @@ export const POST = withUserValidation(
       const fragment = await prisma.fragment.findUnique({
         where: { id: correctFragmentId },
       });
-      if (fragment && fragment.userId === session.user.userId) {
-        correctFragment = {
-          id: fragment.id,
-          type: fragment.type,
-          content: fragment.content,
-          skills: fragment.skills,
-        };
+      if (!fragment) {
+        throw new NotFoundError("修正対象のフラグメントが見つかりません");
       }
+      if (fragment.userId !== session.user.userId) {
+        throw new ForbiddenError("このフラグメントを修正する権限がありません");
+      }
+      correctFragment = {
+        id: fragment.id,
+        type: fragment.type,
+        content: fragment.content,
+        skills: fragment.skills,
+      };
     }
 
     const existingFragments = await prisma.fragment.findMany({
@@ -322,16 +328,7 @@ export const POST = withUserValidation(
 
               // 修正対象フラグメントの削除
               if (correctFragment) {
-                await tx.messageReference.deleteMany({
-                  where: { refType: "FRAGMENT", refId: correctFragment.id },
-                });
-                await tx.fragment.updateMany({
-                  where: { parentId: correctFragment.id },
-                  data: { parentId: null },
-                });
-                await tx.fragment.delete({
-                  where: { id: correctFragment.id },
-                });
+                await deleteFragmentWithRelations(tx, correctFragment.id);
                 fragmentCorrected = true;
               }
             });

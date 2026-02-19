@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { withUserAuth } from "@/lib/api-utils";
-import { ForbiddenError, NotFoundError } from "@/lib/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { deleteFragmentWithRelations } from "@/lib/fragment-utils";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
   const { id } = await context.params;
+
+  if (!UUID_REGEX.test(id)) {
+    throw new ValidationError("無効なフラグメントIDです");
+  }
 
   const fragment = await prisma.fragment.findUnique({
     where: { id },
@@ -27,6 +35,10 @@ export const DELETE = withUserAuth<RouteContext>(
   async (req, session, context) => {
     const { id } = await context.params;
 
+    if (!UUID_REGEX.test(id)) {
+      throw new ValidationError("無効なフラグメントIDです");
+    }
+
     const fragment = await prisma.fragment.findUnique({
       where: { id },
     });
@@ -40,21 +52,7 @@ export const DELETE = withUserAuth<RouteContext>(
     }
 
     await prisma.$transaction(async (tx) => {
-      // 関連する MessageReference を先に削除
-      await tx.messageReference.deleteMany({
-        where: { refType: "FRAGMENT", refId: id },
-      });
-
-      // 子フラグメントの parentId を null に更新
-      await tx.fragment.updateMany({
-        where: { parentId: id },
-        data: { parentId: null },
-      });
-
-      // フラグメント本体を削除
-      await tx.fragment.delete({
-        where: { id },
-      });
+      await deleteFragmentWithRelations(tx, id);
     });
 
     return NextResponse.json({ success: true });
