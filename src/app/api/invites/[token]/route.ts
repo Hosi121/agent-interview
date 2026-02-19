@@ -101,6 +101,7 @@ export const POST = withValidation(
           email: invite.email,
           passwordHash,
           accountType: "RECRUITER",
+          emailVerified: true,
           recruiter: {
             create: {
               companyId: invite.companyId,

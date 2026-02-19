@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { calculateCoverage } from "@/lib/coverage";
+import type { ChatCoverageState } from "@/types";
 
 interface FragmentReference {
   id: string;
@@ -94,6 +96,22 @@ interface InterviewGuide {
   focusAreas?: string[];
 }
 
+function buildRecruiterGreeting(
+  candidateName: string,
+  coverage: ChatCoverageState,
+): string {
+  if (coverage.percentage >= 80) {
+    return `${candidateName}さんのAIエージェントです。情報の収集状況は${coverage.percentage}%で、幅広い質問にお答えできます。\n\nスキル、経験、実績など、気になる点をお気軽にお聞きください。`;
+  }
+  if (coverage.percentage > 0) {
+    const missing = coverage.categories
+      .filter((c) => !c.fulfilled)
+      .map((c) => c.label);
+    return `${candidateName}さんのAIエージェントです。現在、情報の収集状況は${coverage.percentage}%です。\n\n収集済みの情報をもとにお答えしますが、${missing.join("・")}についてはまだ情報が限られています。`;
+  }
+  return `${candidateName}さんのAIエージェントです。まだ詳細な情報が収集されていないため、お答えできる範囲が限られる場合があります。`;
+}
+
 export default function InterviewPage({
   params,
 }: {
@@ -134,6 +152,21 @@ export default function InterviewPage({
       if (response.ok) {
         const data = await response.json();
         setAgentInfo(data.agent);
+        // 初回挨拶メッセージ（メッセージがまだない場合のみ）
+        setMessages((prev) => {
+          if (prev.length > 0) return prev;
+          const agent = data.agent as AgentInfo;
+          const coverage = calculateCoverage(
+            agent.fragments.map((f) => ({ type: f.type })),
+          );
+          return [
+            {
+              id: "greeting",
+              role: "assistant" as const,
+              content: buildRecruiterGreeting(agent.user.name, coverage),
+            },
+          ];
+        });
       }
     } catch (error) {
       console.error("Failed to fetch agent info:", error);
@@ -147,15 +180,17 @@ export default function InterviewPage({
       );
       if (response.ok) {
         const data = await response.json();
-        setMessages(
-          data.messages.map(
-            (m: { id: string; senderType: string; content: string }) => ({
-              id: m.id,
-              role: m.senderType === "RECRUITER" ? "user" : "assistant",
-              content: m.content,
-            }),
-          ),
-        );
+        if (data.messages.length > 0) {
+          setMessages(
+            data.messages.map(
+              (m: { id: string; senderType: string; content: string }) => ({
+                id: m.id,
+                role: m.senderType === "RECRUITER" ? "user" : "assistant",
+                content: m.content,
+              }),
+            ),
+          );
+        }
       }
     } catch (error) {
       console.error("Failed to fetch messages:", error);

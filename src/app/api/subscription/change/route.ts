@@ -64,6 +64,8 @@ export const POST = withRecruiterValidation(
       });
 
       // 初回ポイント付与の履歴を記録
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 3);
       await tx.pointTransaction.create({
         data: {
           companyId,
@@ -71,6 +73,7 @@ export const POST = withRecruiterValidation(
           amount: planInfo.pointsIncluded,
           balance: planInfo.pointsIncluded,
           description: `${planInfo.name}プラン開始 - 初回ポイント付与`,
+          expiresAt,
         },
       });
 

@@ -6,6 +6,7 @@ import { withValidation } from "@/lib/api-utils";
 import { generateUniqueSlug } from "@/lib/company";
 import { ConflictError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
+import { createAndSendVerificationToken } from "@/lib/verification";
 
 const registerSchema = z
   .object({
@@ -81,6 +82,8 @@ export const POST = withValidation(registerSchema, async (body, req) => {
       return { account, company, recruiter };
     });
 
+    await createAndSendVerificationToken(result.account.id, email);
+
     return NextResponse.json(
       {
         account: {
@@ -97,6 +100,7 @@ export const POST = withValidation(registerSchema, async (body, req) => {
           id: result.recruiter.id,
           role: result.recruiter.role,
         },
+        requiresVerification: true,
       },
       { status: 201 },
     );
@@ -117,5 +121,10 @@ export const POST = withValidation(registerSchema, async (body, req) => {
     },
   });
 
-  return NextResponse.json({ account }, { status: 201 });
+  await createAndSendVerificationToken(account.id, email);
+
+  return NextResponse.json(
+    { account, requiresVerification: true },
+    { status: 201 },
+  );
 });

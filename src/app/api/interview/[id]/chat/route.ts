@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
+import { calculateCoverage } from "@/lib/coverage";
 import {
   ForbiddenError,
   InsufficientPointsError,
@@ -180,8 +181,19 @@ export const POST = withRecruiterAuth<RouteContext>(
       .slice(0, 5)
       .map((sf) => sf.fragment);
 
+    const coverage = calculateCoverage(fragments);
+
     const fragmentsContext = fragments
       .map((f, i) => `[REF${i + 1}] [${f.type}]: ${f.content}`)
+      .join("\n");
+
+    const fulfilledCategories = coverage.categories
+      .filter((c) => c.fulfilled)
+      .map((c) => `- ${c.label} ✓`)
+      .join("\n");
+    const missingCategories = coverage.categories
+      .filter((c) => !c.fulfilled)
+      .map((c) => `- ${c.label}（${c.current}/${c.required}件）`)
       .join("\n");
 
     const jobContext = job
@@ -194,8 +206,17 @@ export const POST = withRecruiterAuth<RouteContext>(
 
 ${fragmentsContext || "（詳細な情報はまだ収集されていません）"}
 
-採用担当者からの質問に対して、${agent.user.name}さんの代理として丁寧かつ専門的に回答してください。
-わからないことは正直に「その点についてはまだ情報を持っていません」と答えてください。`;
+## 情報カバレッジ（${coverage.percentage}%）
+### 収集済みカテゴリ
+${fulfilledCategories || "なし"}
+### 不足カテゴリ
+${missingCategories || "なし"}
+
+## 応答ルール
+- 採用担当者からの質問に対して、${agent.user.name}さんの代理として丁寧かつ専門的に回答してください。
+- 情報の充足度について聞かれた場合は、上記のカバレッジ情報（${coverage.percentage}%）を正確に参照してください。自分で別の数値を推測しないでください。
+- 持っている情報で答えられる質問には具体的に答えてください。
+- わからないことは正直に「その点についてはまだ情報を持っていません」と答えてください。`;
 
     const fullSystemPrompt = `${enhancedSystemPrompt}${jobContext}`;
 

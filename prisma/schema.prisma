@@ -84,13 +84,27 @@ model Account {
   passwordHash   String
   accountType    AccountType
   webauthnUserId String?     @unique
+  emailVerified  Boolean     @default(false)
   createdAt      DateTime    @default(now())
 
-  user              User?
-  recruiter         Recruiter?
-  passkeys          Passkey[]
-  invites           Invite[]    @relation("InviteSender")
-  invitedRecruiters Recruiter[] @relation("RecruiterInviter")
+  user                       User?
+  recruiter                  Recruiter?
+  passkeys                   Passkey[]
+  invites                    Invite[]                 @relation("InviteSender")
+  invitedRecruiters          Recruiter[]              @relation("RecruiterInviter")
+  emailVerificationTokens    EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  accountId String
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([accountId, createdAt])
 }
 
 model Passkey {
@@ -609,9 +623,12 @@ model PointTransaction {
   balance     Int                  // 取引後の残高
   relatedId   String?              // 関連するエンティティID
   description String?
+  expiresAt   DateTime?            // GRANT/PURCHASE: 付与から3ヶ月後に失効
+  expired     Boolean              @default(false)
   createdAt   DateTime             @default(now())
 
   @@index([companyId, createdAt])
+  @@index([companyId, expired, expiresAt])
 }
 
 // ==========================================

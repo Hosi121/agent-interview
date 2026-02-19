@@ -58,6 +58,10 @@ function LoginForm() {
     });
 
     if (result?.error) {
+      if (result.error.includes("EMAIL_NOT_VERIFIED")) {
+        router.push(`/check-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
       setError("メールアドレスまたはパスワードが正しくありません");
       setLoading(false);
       return;

@@ -51,6 +51,7 @@
     "rate-limiter-flexible": "^9.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "resend": "^6.9.2",
     "sharp": "^0.34.5",
     "stripe": "^20.2.0",
     "tailwind-merge": "^3.4.0",
