@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
-import { ForbiddenError, NotFoundError } from "@/lib/errors";
-import { deleteFragmentWithRelations } from "@/lib/fragment-utils";
+import { ForbiddenError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import {
   extractFragments,
@@ -165,18 +164,18 @@ export const POST = withUserValidation(
       const fragment = await prisma.fragment.findUnique({
         where: { id: correctFragmentId },
       });
-      if (!fragment) {
-        throw new NotFoundError("修正対象のフラグメントが見つかりません");
-      }
-      if (fragment.userId !== session.user.userId) {
+      if (fragment && fragment.userId !== session.user.userId) {
         throw new ForbiddenError("このフラグメントを修正する権限がありません");
       }
-      correctFragment = {
-        id: fragment.id,
-        type: fragment.type,
-        content: fragment.content,
-        skills: fragment.skills,
-      };
+      if (fragment && fragment.userId === session.user.userId) {
+        correctFragment = {
+          id: fragment.id,
+          type: fragment.type,
+          content: fragment.content,
+          skills: fragment.skills,
+        };
+      }
+      // フラグメントが見つからない場合はスキップ（既に削除済み）
     }
 
     const existingFragments = await prisma.fragment.findMany({
@@ -275,7 +274,15 @@ export const POST = withUserValidation(
         }
 
         let fragmentsExtracted = 0;
-        let fragmentCorrected = false;
+        let pendingCorrection:
+          | {
+              type: string;
+              content: string;
+              skills: string[];
+              keywords: string[];
+              quality: string;
+            }[]
+          | null = null;
         let currentCoverage = coverage;
 
         // 修正6: 新コードでは必ずユーザーメッセージがあるため常に抽出実行
@@ -312,8 +319,17 @@ export const POST = withUserValidation(
           });
 
           if (extractedData.fragments && extractedData.fragments.length > 0) {
-            await prisma.$transaction(async (tx) => {
-              await tx.fragment.createMany({
+            if (correctFragment) {
+              // 修正モード: 確認用にクライアントに返す（自動適用しない）
+              pendingCorrection = extractedData.fragments.map((f) => ({
+                type: f.type || "FACT",
+                content: f.content,
+                skills: f.skills || [],
+                keywords: f.keywords || [],
+                quality: f.quality ?? "medium",
+              }));
+            } else {
+              await prisma.fragment.createMany({
                 data: extractedData.fragments.map((fragment) => ({
                   userId: session.user.userId,
                   type: (fragment.type as FragmentType) || "FACT",
@@ -325,20 +341,14 @@ export const POST = withUserValidation(
                     qualityToConfidence[fragment.quality ?? "medium"] ?? 0.7,
                 })),
               });
+              fragmentsExtracted = extractedData.fragments.length;
 
-              // 修正対象フラグメントの削除
-              if (correctFragment) {
-                await deleteFragmentWithRelations(tx, correctFragment.id);
-                fragmentCorrected = true;
-              }
-            });
-            fragmentsExtracted = extractedData.fragments.length;
-
-            const allFragments = await prisma.fragment.findMany({
-              where: { userId: session.user.userId },
-              select: { type: true },
-            });
-            currentCoverage = calculateCoverage(allFragments);
+              const allFragments = await prisma.fragment.findMany({
+                where: { userId: session.user.userId },
+                select: { type: true },
+              });
+              currentCoverage = calculateCoverage(allFragments);
+            }
           }
         } catch (extractError) {
           logger.error("Fragment extraction error", extractError as Error, {
@@ -350,7 +360,7 @@ export const POST = withUserValidation(
           "metadata",
           JSON.stringify({
             fragmentsExtracted,
-            fragmentCorrected,
+            pendingCorrection,
             coverage: currentCoverage,
           }),
         );

@@ -32,6 +32,14 @@ interface CorrectFragmentInfo {
   skills: string[];
 }
 
+interface PendingCorrectionFragment {
+  type: string;
+  content: string;
+  skills: string[];
+  keywords: string[];
+  quality: string;
+}
+
 function buildInitialMessage(
   userName: string | undefined,
   fragmentCount: number,
@@ -94,6 +102,11 @@ function ChatPageInner() {
   const [coverage, setCoverage] = useState<ChatCoverageState>(INITIAL_COVERAGE);
   const [correctFragment, setCorrectFragment] =
     useState<CorrectFragmentInfo | null>(null);
+  const [pendingCorrection, setPendingCorrection] = useState<
+    PendingCorrectionFragment[] | null
+  >(null);
+  const [isApplyingCorrection, setIsApplyingCorrection] = useState(false);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const correctFragmentId = searchParams.get("correctFragmentId");
@@ -117,8 +130,42 @@ function ChatPageInner() {
 
   const clearCorrectionMode = useCallback(() => {
     setCorrectFragment(null);
+    setPendingCorrection(null);
     router.replace("/my/chat", { scroll: false });
   }, [router]);
+
+  const handleConfirmCorrection = useCallback(async () => {
+    if (!correctFragment || !pendingCorrection) return;
+    setIsApplyingCorrection(true);
+    setCorrectionError(null);
+    try {
+      const response = await fetch(
+        `/api/fragments/${correctFragment.id}/correct`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newFragments: pendingCorrection }),
+        },
+      );
+      if (response.ok) {
+        setFragmentCount((prev) => prev - 1 + pendingCorrection.length);
+        setPendingCorrection(null);
+        clearCorrectionMode();
+      } else {
+        setCorrectionError("修正の適用に失敗しました");
+      }
+    } catch (error) {
+      console.error("Failed to apply correction:", error);
+      setCorrectionError("修正の適用に失敗しました");
+    } finally {
+      setIsApplyingCorrection(false);
+    }
+  }, [correctFragment, pendingCorrection, clearCorrectionMode]);
+
+  const handleDismissCorrection = useCallback(() => {
+    setPendingCorrection(null);
+    setCorrectionError(null);
+  }, []);
 
   const fetchInitialData = useCallback(async (userName: string | undefined) => {
     try {
@@ -183,6 +230,8 @@ function ChatPageInner() {
   }, [fetchInitialData, status, session?.user?.name]);
 
   const handleSendMessage = async (content: string) => {
+    setPendingCorrection(null);
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -245,8 +294,8 @@ function ChatPageInner() {
             if (meta.coverage) {
               setCoverage(meta.coverage);
             }
-            if (meta.fragmentCorrected) {
-              clearCorrectionMode();
+            if (meta.pendingCorrection) {
+              setPendingCorrection(meta.pendingCorrection);
             }
           } else if (event === "error") {
             const errorData = JSON.parse(data);
@@ -315,10 +364,72 @@ function ChatPageInner() {
               variant="ghost"
               size="icon"
               className="size-7 shrink-0"
+              aria-label="修正モードを終了"
               onClick={clearCorrectionMode}
             >
               <X className="size-4" />
             </Button>
+          </div>
+        )}
+        {pendingCorrection && correctFragment && (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <p className="text-sm font-medium">修正内容の確認</p>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">修正前</p>
+              <div className="p-2 bg-secondary rounded text-sm">
+                <Badge variant="outline" className="text-xs mb-1">
+                  {correctFragment.type}
+                </Badge>
+                <p className="mt-1">{correctFragment.content}</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">修正後</p>
+              {pendingCorrection.map((f, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: 抽出結果は並べ替え不要な一時表示
+                <div key={i} className="p-2 bg-secondary rounded text-sm">
+                  <Badge variant="outline" className="text-xs mb-1">
+                    {f.type}
+                  </Badge>
+                  <p className="mt-1">{f.content}</p>
+                  {f.skills.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {f.skills.map((skill) => (
+                        <Badge
+                          key={skill}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {correctionError && (
+              <p className="text-xs text-destructive" role="alert">
+                {correctionError}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDismissCorrection}
+                disabled={isApplyingCorrection}
+              >
+                やり直す
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleConfirmCorrection}
+                disabled={isApplyingCorrection}
+              >
+                {isApplyingCorrection ? "適用中..." : "この内容で確定"}
+              </Button>
+            </div>
           </div>
         )}
         {coverage.isReadyToFinish && (
