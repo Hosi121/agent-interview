@@ -11,6 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -152,12 +153,12 @@ export default function RecruiterLayout({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem className="font-medium">
+                  <DropdownMenuLabel>
                     {session.user?.companyName}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-muted-foreground">
+                  </DropdownMenuLabel>
+                  <DropdownMenuLabel className="font-normal text-muted-foreground">
                     {session.user?.email}
-                  </DropdownMenuItem>
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href="/recruiter/billing">プラン・ポイント</Link>

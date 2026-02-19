@@ -3,14 +3,111 @@ import {
   PointTransactionType,
   type Prisma,
 } from "@prisma/client";
-import { InsufficientPointsError, NoSubscriptionError } from "./errors";
+import {
+  InsufficientPointsError,
+  NoSubscriptionError,
+  SubscriptionInactiveError,
+} from "./errors";
 import { prisma } from "./prisma";
 import { POINT_COSTS } from "./stripe";
 
 type TransactionClient = Prisma.TransactionClient;
 
+const POINT_EXPIRATION_MONTHS = 3;
+const CARRYOVER_CAP_RATIO = 0.5;
+
+async function getSubscriptionForUpdate(
+  tx: TransactionClient,
+  companyId: string,
+) {
+  const rows = await tx.$queryRaw<
+    Array<{
+      id: string;
+      companyId: string;
+      pointBalance: number;
+      pointsIncluded: number;
+      status: string;
+      planType: string;
+    }>
+  >`SELECT id, "companyId", "pointBalance", "pointsIncluded", status, "planType"
+    FROM "Subscription"
+    WHERE "companyId" = ${companyId}
+    FOR UPDATE`;
+  return rows[0] ?? null;
+}
+
+function computeExpiresAt() {
+  const date = new Date();
+  date.setMonth(date.getMonth() + POINT_EXPIRATION_MONTHS);
+  return date;
+}
+
+async function expirePointsInTx(
+  tx: TransactionClient,
+  companyId: string,
+): Promise<number> {
+  const now = new Date();
+
+  const expiredTransactions = await tx.pointTransaction.findMany({
+    where: {
+      companyId,
+      expired: false,
+      expiresAt: { lt: now },
+      type: { in: [PointTransactionType.GRANT, PointTransactionType.PURCHASE] },
+    },
+  });
+
+  if (expiredTransactions.length === 0) {
+    return 0;
+  }
+
+  const totalExpiredAmount = expiredTransactions.reduce(
+    (sum, t) => sum + t.amount,
+    0,
+  );
+
+  // 現在残高を取得して、失効額が残高を超えないようにする
+  const currentSub = await tx.subscription.findUnique({
+    where: { companyId },
+  });
+  const currentBalance = currentSub?.pointBalance ?? 0;
+  const expireAmount = Math.min(totalExpiredAmount, currentBalance);
+
+  if (expireAmount > 0) {
+    const newBalance = currentBalance - expireAmount;
+
+    await tx.subscription.update({
+      where: { companyId },
+      data: { pointBalance: newBalance },
+    });
+
+    await tx.pointTransaction.create({
+      data: {
+        companyId,
+        type: PointTransactionType.EXPIRE,
+        amount: -expireAmount,
+        balance: newBalance,
+        description: `${expireAmount}ポイント失効（有効期限切れ）`,
+      },
+    });
+  }
+
+  await tx.pointTransaction.updateMany({
+    where: {
+      id: { in: expiredTransactions.map((t) => t.id) },
+    },
+    data: { expired: true },
+  });
+
+  return expireAmount;
+}
+
 // Re-export for backward compatibility
-export { InsufficientPointsError, NoSubscriptionError };
+export {
+  InsufficientPointsError,
+  NoSubscriptionError,
+  SubscriptionInactiveError,
+};
 
 /**
  * 会社のポイント残高を取得
@@ -74,21 +171,32 @@ export async function consumePoints(
     return { newBalance: subscription?.pointBalance || 0, consumed: 0 };
   }
 
-  // トランザクションでポイント消費
+  // トランザクションでポイント消費（FOR UPDATEで排他ロック）
   const result = await prisma.$transaction(async (tx) => {
-    const subscription = await tx.subscription.findUnique({
-      where: { companyId },
-    });
+    const subscription = await getSubscriptionForUpdate(tx, companyId);
 
     if (!subscription) {
       throw new NoSubscriptionError();
     }
 
-    if (subscription.pointBalance < cost) {
-      throw new InsufficientPointsError(cost, subscription.pointBalance);
+    if (subscription.status !== "ACTIVE") {
+      throw new SubscriptionInactiveError(subscription.status);
     }
 
-    const newBalance = subscription.pointBalance - cost;
+    // 期限切れポイントを失効処理
+    await expirePointsInTx(tx, companyId);
+
+    // 失効後の最新残高を再取得
+    const refreshed = await tx.subscription.findUnique({
+      where: { companyId },
+    });
+    const currentBalance = refreshed?.pointBalance ?? subscription.pointBalance;
+
+    if (currentBalance < cost) {
+      throw new InsufficientPointsError(cost, currentBalance);
+    }
+
+    const newBalance = currentBalance - cost;
 
     // サブスクリプションの残高を更新
     await tx.subscription.update({
@@ -130,19 +238,30 @@ export async function consumePointsWithOperations<T>(
   const cost = POINT_COSTS[actionKey];
 
   const result = await prisma.$transaction(async (tx) => {
-    const subscription = await tx.subscription.findUnique({
-      where: { companyId },
-    });
+    const subscription = await getSubscriptionForUpdate(tx, companyId);
 
     if (!subscription) {
       throw new NoSubscriptionError();
     }
 
-    if (cost > 0 && subscription.pointBalance < cost) {
-      throw new InsufficientPointsError(cost, subscription.pointBalance);
+    if (subscription.status !== "ACTIVE") {
+      throw new SubscriptionInactiveError(subscription.status);
     }
 
-    const newBalance = subscription.pointBalance - cost;
+    // 期限切れポイントを失効処理
+    await expirePointsInTx(tx, companyId);
+
+    // 失効後の最新残高を再取得
+    const refreshed = await tx.subscription.findUnique({
+      where: { companyId },
+    });
+    const currentBalance = refreshed?.pointBalance ?? subscription.pointBalance;
+
+    if (cost > 0 && currentBalance < cost) {
+      throw new InsufficientPointsError(cost, currentBalance);
+    }
+
+    const newBalance = currentBalance - cost;
 
     if (cost > 0) {
       // サブスクリプションの残高を更新
@@ -185,20 +304,52 @@ export async function grantPoints(
   description?: string,
 ): Promise<{ newBalance: number }> {
   const result = await prisma.$transaction(async (tx) => {
-    const subscription = await tx.subscription.findUnique({
-      where: { companyId },
-    });
+    const subscription = await getSubscriptionForUpdate(tx, companyId);
 
     if (!subscription) {
       throw new NoSubscriptionError();
     }
 
-    const newBalance = subscription.pointBalance + amount;
+    let currentBalance = subscription.pointBalance;
+
+    // 月次GRANT時の繰越上限チェック
+    if (type === PointTransactionType.GRANT) {
+      const carryoverCap = Math.floor(
+        subscription.pointsIncluded * CARRYOVER_CAP_RATIO,
+      );
+      if (currentBalance > carryoverCap) {
+        const excess = currentBalance - carryoverCap;
+        currentBalance = carryoverCap;
+
+        await tx.subscription.update({
+          where: { companyId },
+          data: { pointBalance: currentBalance },
+        });
+
+        await tx.pointTransaction.create({
+          data: {
+            companyId,
+            type: PointTransactionType.EXPIRE,
+            amount: -excess,
+            balance: currentBalance,
+            description: `繰越上限超過により${excess}ポイント失効`,
+          },
+        });
+      }
+    }
+
+    const newBalance = currentBalance + amount;
 
     await tx.subscription.update({
       where: { companyId },
       data: { pointBalance: newBalance },
     });
+
+    const expiresAt =
+      type === PointTransactionType.GRANT ||
+      type === PointTransactionType.PURCHASE
+        ? computeExpiresAt()
+        : undefined;
 
     await tx.pointTransaction.create({
       data: {
@@ -207,6 +358,7 @@ export async function grantPoints(
         amount,
         balance: newBalance,
         description: description || "ポイント付与",
+        expiresAt,
       },
     });
 
@@ -214,6 +366,18 @@ export async function grantPoints(
   });
 
   return result;
+}
+
+/**
+ * バッチ処理用: 会社のポイント失効を実行
+ */
+export async function expirePointsBatch(
+  companyId: string,
+): Promise<{ expired: number }> {
+  const expired = await prisma.$transaction(async (tx) => {
+    return expirePointsInTx(tx, companyId);
+  });
+  return { expired };
 }
 
 /**

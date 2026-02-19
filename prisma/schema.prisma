@@ -79,16 +79,58 @@ enum TaggableType {
 }
 
 model Account {
-  id           String      @id @default(uuid())
-  email        String      @unique
-  passwordHash String
-  accountType  AccountType
-  createdAt    DateTime    @default(now())
+  id             String      @id @default(uuid())
+  email          String      @unique
+  passwordHash   String
+  accountType    AccountType
+  webauthnUserId String?     @unique
+  emailVerified  Boolean     @default(false)
+  createdAt      DateTime    @default(now())
 
-  user              User?
-  recruiter         Recruiter?
-  invites           Invite[]    @relation("InviteSender")
-  invitedRecruiters Recruiter[] @relation("RecruiterInviter")
+  user                       User?
+  recruiter                  Recruiter?
+  passkeys                   Passkey[]
+  invites                    Invite[]                 @relation("InviteSender")
+  invitedRecruiters          Recruiter[]              @relation("RecruiterInviter")
+  emailVerificationTokens    EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  accountId String
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([accountId, createdAt])
+}
+
+model Passkey {
+  id                  String    @id @default(uuid())
+  accountId           String
+  account             Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  credentialId        Bytes     @unique
+  credentialPublicKey Bytes
+  counter             Int       @default(0)
+  transports          String[]
+  deviceName          String?
+  createdAt           DateTime  @default(now())
+  lastUsedAt          DateTime?
+
+  @@index([accountId])
+}
+
+model WebAuthnChallenge {
+  id        String   @id @default(uuid())
+  accountId String?
+  challenge String   @unique
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }
 
 model User {
@@ -581,9 +623,12 @@ model PointTransaction {
   balance     Int                  // 取引後の残高
   relatedId   String?              // 関連するエンティティID
   description String?
+  expiresAt   DateTime?            // GRANT/PURCHASE: 付与から3ヶ月後に失効
+  expired     Boolean              @default(false)
   createdAt   DateTime             @default(now())
 
   @@index([companyId, createdAt])
+  @@index([companyId, expired, expiresAt])
 }
 
 // ==========================================

@@ -22,6 +22,7 @@ async function main() {
       email: "user@example.com",
       passwordHash: password,
       accountType: AccountType.USER,
+      emailVerified: true,
       user: {
         create: {
           name: "山田 太郎",
@@ -51,6 +52,7 @@ async function main() {
       email: "recruiter@example.com",
       passwordHash: password,
       accountType: AccountType.RECRUITER,
+      emailVerified: true,
       recruiter: {
         create: {
           companyId: company.id,

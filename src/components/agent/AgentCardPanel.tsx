@@ -68,7 +68,7 @@ export function AgentCardPanel({
             <div className="size-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
           </div>
         )}
-        <div className="relative group">
+        <div className="relative group w-full max-w-[380px]">
           <AgentBusinessCard
             name={userName || "名前未設定"}
             avatarUrl={avatarUrl}

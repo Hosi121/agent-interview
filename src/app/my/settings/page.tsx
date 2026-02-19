@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PasskeyManagement } from "@/components/passkey-management";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -337,6 +338,8 @@ export default function SettingsPage() {
           {isSaving ? "保存中..." : "設定を保存"}
         </Button>
       </div>
+
+      <PasskeyManagement />
     </div>
   );
 }

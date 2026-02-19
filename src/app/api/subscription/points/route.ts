@@ -55,6 +55,8 @@ export const POST = withRecruiterValidation(
       });
 
       // 取引履歴を記録
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 3);
       await tx.pointTransaction.create({
         data: {
           companyId,
@@ -62,6 +64,7 @@ export const POST = withRecruiterValidation(
           amount,
           balance: newBalance,
           description: `${amount}ポイント追加購入 (¥${totalPrice.toLocaleString()})`,
+          expiresAt,
         },
       });
 
