@@ -47,6 +47,7 @@ const MAX_LLM_MESSAGES = 50;
 function buildSystemPrompt(
   fragments: { type: string; content: string; confidence?: number }[],
   coverage: ChatCoverageState,
+  correctFragment?: { type: string; content: string; skills: string[] } | null,
 ): string {
   if (fragments.length === 0) {
     return BASE_SYSTEM_PROMPT;
@@ -102,6 +103,14 @@ function buildSystemPrompt(
   prompt +=
     "\n\n## 中間まとめ\n会話が5〜6往復を超えたら、次の質問の前に「ここまでのお話をまとめると、○○と△△のご経験が中心ですね」のように1〜2文で整理してから次の話題に移ってください。毎回まとめる必要はありません。";
 
+  if (correctFragment) {
+    const skillsText =
+      correctFragment.skills.length > 0
+        ? `\n- スキル: ${correctFragment.skills.join(", ")}`
+        : "";
+    prompt += `\n\n## 修正対象\nユーザーは以下の記憶のかけらの修正を希望しています:\n- 種類: ${correctFragment.type}\n- 内容: ${correctFragment.content}${skillsText}\nユーザーの修正意図を踏まえて、正確な情報を引き出してください。\n修正が完了したら通常の会話に戻ってください。`;
+  }
+
   return prompt;
 }
 
@@ -132,19 +141,41 @@ const CONTEXT_MESSAGE_COUNT = 4;
 
 const chatSchema = z.object({
   message: z.string().min(1),
+  correctFragmentId: z.string().uuid().optional(),
 });
 
 export const POST = withUserValidation(
   chatSchema,
   async (body, req, session) => {
-    const { message } = body;
+    const { message, correctFragmentId } = body;
 
     // セッション取得/作成
     const chatSession = await getOrCreateUserAIChatSession(session.user.userId);
 
+    // 修正対象フラグメントの取得
+    let correctFragment: {
+      id: string;
+      type: string;
+      content: string;
+      skills: string[];
+    } | null = null;
+    if (correctFragmentId) {
+      const fragment = await prisma.fragment.findUnique({
+        where: { id: correctFragmentId },
+      });
+      if (fragment && fragment.userId === session.user.userId) {
+        correctFragment = {
+          id: fragment.id,
+          type: fragment.type,
+          content: fragment.content,
+          skills: fragment.skills,
+        };
+      }
+    }
+
     const existingFragments = await prisma.fragment.findMany({
       where: { userId: session.user.userId },
-      select: { type: true, content: true, confidence: true },
+      select: { id: true, type: true, content: true, confidence: true },
     });
 
     const coverage = calculateCoverage(existingFragments);
@@ -193,7 +224,11 @@ export const POST = withUserValidation(
         ? allDbMessages.slice(-MAX_LLM_MESSAGES)
         : allDbMessages;
 
-    const systemPrompt = buildSystemPrompt(existingFragments, coverage);
+    const systemPrompt = buildSystemPrompt(
+      existingFragments,
+      coverage,
+      correctFragment,
+    );
 
     const abortController = new AbortController();
     req.signal.addEventListener("abort", () => abortController.abort());
@@ -234,6 +269,7 @@ export const POST = withUserValidation(
         }
 
         let fragmentsExtracted = 0;
+        let fragmentCorrected = false;
         let currentCoverage = coverage;
 
         // 修正6: 新コードでは必ずユーザーメッセージがあるため常に抽出実行
@@ -259,23 +295,45 @@ export const POST = withUserValidation(
               ? contextMessages.map((m) => `${m.role}: ${m.content}`).join("\n")
               : undefined;
 
+          // 修正対象フラグメントを除外（重複検出で弾かれるのを防ぐ）
+          const fragmentsForExtraction = correctFragment
+            ? existingFragments.filter((f) => f.id !== correctFragment.id)
+            : existingFragments;
+
           const extractedData = await extractFragments(newMessagesText, {
-            existingFragments,
+            existingFragments: fragmentsForExtraction,
             contextMessages: contextMessagesText,
           });
 
           if (extractedData.fragments && extractedData.fragments.length > 0) {
-            await prisma.fragment.createMany({
-              data: extractedData.fragments.map((fragment) => ({
-                userId: session.user.userId,
-                type: (fragment.type as FragmentType) || "FACT",
-                content: fragment.content,
-                skills: fragment.skills || [],
-                keywords: fragment.keywords || [],
-                sourceType: SourceType.CONVERSATION,
-                confidence:
-                  qualityToConfidence[fragment.quality ?? "medium"] ?? 0.7,
-              })),
+            await prisma.$transaction(async (tx) => {
+              await tx.fragment.createMany({
+                data: extractedData.fragments.map((fragment) => ({
+                  userId: session.user.userId,
+                  type: (fragment.type as FragmentType) || "FACT",
+                  content: fragment.content,
+                  skills: fragment.skills || [],
+                  keywords: fragment.keywords || [],
+                  sourceType: SourceType.CONVERSATION,
+                  confidence:
+                    qualityToConfidence[fragment.quality ?? "medium"] ?? 0.7,
+                })),
+              });
+
+              // 修正対象フラグメントの削除
+              if (correctFragment) {
+                await tx.messageReference.deleteMany({
+                  where: { refType: "FRAGMENT", refId: correctFragment.id },
+                });
+                await tx.fragment.updateMany({
+                  where: { parentId: correctFragment.id },
+                  data: { parentId: null },
+                });
+                await tx.fragment.delete({
+                  where: { id: correctFragment.id },
+                });
+                fragmentCorrected = true;
+              }
             });
             fragmentsExtracted = extractedData.fragments.length;
 
@@ -295,6 +353,7 @@ export const POST = withUserValidation(
           "metadata",
           JSON.stringify({
             fragmentsExtracted,
+            fragmentCorrected,
             coverage: currentCoverage,
           }),
         );

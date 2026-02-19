@@ -1,12 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   AgentCardPanel,
   AgentPreviewDialog,
   FragmentList,
   SystemPromptEditor,
 } from "@/components/agent";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
 interface AgentProfile {
@@ -26,6 +43,7 @@ interface Fragment {
 }
 
 export default function AgentPage() {
+  const router = useRouter();
   const [agent, setAgent] = useState<AgentProfile | null>(null);
   const [fragments, setFragments] = useState<Fragment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,6 +57,9 @@ export default function AgentPage() {
   const [cardPanelHeight, setCardPanelHeight] = useState<number | undefined>(
     undefined,
   );
+  const [deleteTarget, setDeleteTarget] = useState<Fragment | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cardPanelRef = useRef<HTMLDivElement>(null);
 
@@ -191,6 +212,34 @@ export default function AgentPage() {
     e.target.value = "";
   };
 
+  const handleDeleteFragment = async (id: string) => {
+    setDeleteError(null);
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(`/api/fragments/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setFragments((prev) => prev.filter((f) => f.id !== id));
+        setDeleteTarget(null);
+      } else {
+        const data = await response.json();
+        setDeleteError(data.error || "削除に失敗しました");
+      }
+    } catch (error) {
+      console.error("Delete fragment error:", error);
+      setDeleteError("削除に失敗しました");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCorrectFragment = (fragment: Fragment) => {
+    router.push(`/my/chat?correctFragmentId=${fragment.id}`);
+  };
+
   const allSkills = [...new Set(fragments.flatMap((f) => f.skills))];
 
   if (isLoading) {
@@ -289,8 +338,64 @@ export default function AgentPage() {
             )}
           </div>
         </div>
-        <FragmentList fragments={fragments} />
+        <FragmentList
+          fragments={fragments}
+          onDelete={(id) => {
+            const target = fragments.find((f) => f.id === id);
+            if (target) {
+              setDeleteTarget(target);
+              setDeleteError(null);
+            }
+          }}
+          onCorrect={handleCorrectFragment}
+        />
       </div>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>記憶のかけらを削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              削除した記憶のかけらは元に戻せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteTarget && (
+            <div className="p-3 bg-secondary rounded-lg text-sm">
+              <p className="text-muted-foreground text-xs mb-1">
+                {deleteTarget.type}
+              </p>
+              <p>{deleteTarget.content}</p>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                event.preventDefault();
+                if (deleteTarget) {
+                  handleDeleteFragment(deleteTarget.id);
+                }
+              }}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "削除中..." : "削除する"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          {deleteError && (
+            <p className="text-xs text-destructive text-pretty" role="alert">
+              {deleteError}
+            </p>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AgentPreviewDialog
         open={isPreviewOpen}

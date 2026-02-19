@@ -1,11 +1,15 @@
 "use client";
 
+import { X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { CoverageIndicator } from "@/components/chat/CoverageIndicator";
 import { DynamicHints } from "@/components/chat/DynamicHints";
 import { FinishSuggestion } from "@/components/chat/FinishSuggestion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -19,6 +23,13 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+}
+
+interface CorrectFragmentInfo {
+  id: string;
+  type: string;
+  content: string;
+  skills: string[];
 }
 
 function buildInitialMessage(
@@ -73,13 +84,44 @@ async function* parseSSE(response: Response) {
   }
 }
 
-export default function ChatPage() {
+function ChatPageInner() {
   const { data: session, status } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fragmentCount, setFragmentCount] = useState(0);
   const [coverage, setCoverage] = useState<ChatCoverageState>(INITIAL_COVERAGE);
+  const [correctFragment, setCorrectFragment] =
+    useState<CorrectFragmentInfo | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const correctFragmentId = searchParams.get("correctFragmentId");
+
+  // 修正対象フラグメントの取得
+  useEffect(() => {
+    if (!correctFragmentId) {
+      setCorrectFragment(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/fragments/${correctFragmentId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCorrectFragment(data.fragment);
+        }
+      } catch (error) {
+        console.error("Failed to fetch correction fragment:", error);
+      }
+    })();
+  }, [correctFragmentId]);
+
+  const clearCorrectionMode = useCallback(() => {
+    setCorrectFragment(null);
+    router.replace("/my/chat", { scroll: false });
+  }, [router]);
 
   const fetchInitialData = useCallback(async (userName: string | undefined) => {
     try {
@@ -154,10 +196,17 @@ export default function ChatPage() {
     setIsLoading(true);
 
     try {
+      const body: { message: string; correctFragmentId?: string } = {
+        message: content,
+      };
+      if (correctFragment) {
+        body.correctFragmentId = correctFragment.id;
+      }
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -198,6 +247,9 @@ export default function ChatPage() {
             }
             if (meta.coverage) {
               setCoverage(meta.coverage);
+            }
+            if (meta.fragmentCorrected) {
+              clearCorrectionMode();
             }
           } else if (event === "error") {
             const errorData = JSON.parse(data);
@@ -249,6 +301,29 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-4 lg:gap-6 h-[calc(100vh-12rem)]">
       <div className="lg:col-span-3 flex flex-col gap-4 min-h-0 flex-1 order-2 lg:order-none">
+        {correctFragment && (
+          <div className="flex items-start gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">修正モード</p>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="outline" className="text-xs shrink-0">
+                  {correctFragment.type}
+                </Badge>
+                <p className="text-sm text-muted-foreground truncate">
+                  {correctFragment.content}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={clearCorrectionMode}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        )}
         {coverage.isReadyToFinish && (
           <FinishSuggestion
             coverage={coverage}
@@ -259,7 +334,9 @@ export default function ChatPage() {
           <CardHeader className="border-b">
             <CardTitle>AIとチャット</CardTitle>
             <CardDescription>
-              あなたの経験やスキルについて教えてください
+              {correctFragment
+                ? "修正したい内容をAIに伝えてください"
+                : "あなたの経験やスキルについて教えてください"}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-hidden">
@@ -268,7 +345,11 @@ export default function ChatPage() {
               onSendMessage={handleSendMessage}
               isLoading={isLoading}
               userName={session?.user?.name || undefined}
-              placeholder="経験やスキルについて話してください..."
+              placeholder={
+                correctFragment
+                  ? "修正内容を入力してください..."
+                  : "経験やスキルについて話してください..."
+              }
               inputRef={chatInputRef}
             />
           </CardContent>
@@ -293,5 +374,19 @@ export default function ChatPage() {
         <DynamicHints coverage={coverage} />
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20">
+          <div className="size-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <ChatPageInner />
+    </Suspense>
   );
 }
