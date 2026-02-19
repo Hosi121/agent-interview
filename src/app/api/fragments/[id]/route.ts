@@ -15,6 +15,13 @@ export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
 
   const fragment = await prisma.fragment.findUnique({
     where: { id },
+    select: {
+      id: true,
+      type: true,
+      content: true,
+      skills: true,
+      userId: true,
+    },
   });
 
   if (!fragment) {
@@ -25,7 +32,8 @@ export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
     throw new ForbiddenError("このフラグメントにアクセスする権限がありません");
   }
 
-  return NextResponse.json({ fragment });
+  const { userId: _, ...fragmentData } = fragment;
+  return NextResponse.json({ fragment: fragmentData });
 });
 
 export const DELETE = withUserAuth<RouteContext>(

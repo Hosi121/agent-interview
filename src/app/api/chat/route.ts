@@ -1,10 +1,10 @@
-import { type FragmentType, SourceType } from "@prisma/client";
+import { SourceType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
 import { ForbiddenError } from "@/lib/errors";
-import { qualityToConfidence } from "@/lib/fragment-utils";
+import { parseFragmentType, qualityToConfidence } from "@/lib/fragment-utils";
 import { logger } from "@/lib/logger";
 import {
   extractFragments,
@@ -159,11 +159,12 @@ export const POST = withUserValidation(
       const fragment = await prisma.fragment.findUnique({
         where: { id: correctFragmentId },
       });
-      if (!fragment) {
-        // フラグメントが見つからない場合はスキップ（既に削除済み）
-      } else if (fragment.userId !== session.user.userId) {
-        throw new ForbiddenError("このフラグメントを修正する権限がありません");
-      } else {
+      if (fragment) {
+        if (fragment.userId !== session.user.userId) {
+          throw new ForbiddenError(
+            "このフラグメントを修正する権限がありません",
+          );
+        }
         correctFragment = {
           id: fragment.id,
           type: fragment.type,
@@ -171,6 +172,7 @@ export const POST = withUserValidation(
           skills: fragment.skills,
         };
       }
+      // fragment が null の場合はスキップ（既に削除済み）
     }
 
     const existingFragments = await prisma.fragment.findMany({
@@ -317,7 +319,7 @@ export const POST = withUserValidation(
             if (correctFragment) {
               // 修正モード: 確認用にクライアントに返す（自動適用しない）
               pendingCorrection = extractedData.fragments.map((f) => ({
-                type: f.type || "FACT",
+                type: parseFragmentType(f.type),
                 content: f.content,
                 skills: f.skills || [],
                 keywords: f.keywords || [],
@@ -327,7 +329,7 @@ export const POST = withUserValidation(
               await prisma.fragment.createMany({
                 data: extractedData.fragments.map((fragment) => ({
                   userId: session.user.userId,
-                  type: (fragment.type as FragmentType) || "FACT",
+                  type: parseFragmentType(fragment.type),
                   content: fragment.content,
                   skills: fragment.skills || [],
                   keywords: fragment.keywords || [],

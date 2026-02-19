@@ -121,12 +121,20 @@ function ChatPageInner() {
         if (res.ok) {
           const data = await res.json();
           setCorrectFragment(data.fragment);
+        } else {
+          console.error("Failed to fetch correction fragment:", res.status);
+          setCorrectionError(
+            "修正対象のフラグメントが見つかりませんでした。削除済みの可能性があります。",
+          );
+          router.replace("/my/chat", { scroll: false });
         }
       } catch (error) {
         console.error("Failed to fetch correction fragment:", error);
+        setCorrectionError("修正対象のフラグメントの取得に失敗しました。");
+        router.replace("/my/chat", { scroll: false });
       }
     })();
-  }, [correctFragmentId]);
+  }, [correctFragmentId, router]);
 
   const clearCorrectionMode = useCallback(() => {
     setCorrectFragment(null);
@@ -229,6 +237,8 @@ function ChatPageInner() {
   }, [fetchInitialData, status, session?.user?.name]);
 
   const handleSendMessage = async (content: string) => {
+    // 修正結果が既に提示済みなら、再度の修正抽出は不要
+    const hasPendingResult = pendingCorrection !== null;
     setPendingCorrection(null);
 
     const userMessage: Message = {
@@ -244,7 +254,7 @@ function ChatPageInner() {
       const body: { message: string; correctFragmentId?: string } = {
         message: content,
       };
-      if (correctFragment && !pendingCorrection) {
+      if (correctFragment && !hasPendingResult) {
         body.correctFragmentId = correctFragment.id;
       }
 
@@ -346,6 +356,13 @@ function ChatPageInner() {
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-4 lg:gap-6 h-[calc(100vh-12rem)]">
       <div className="lg:col-span-3 flex flex-col gap-4 min-h-0 flex-1 order-2 lg:order-none">
+        {!correctFragment && correctionError && (
+          <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+            <p className="text-sm text-destructive" role="alert">
+              {correctionError}
+            </p>
+          </div>
+        )}
         {correctFragment && (
           <div className="flex items-start gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
             <div className="flex-1 min-w-0">

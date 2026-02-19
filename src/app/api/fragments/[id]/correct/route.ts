@@ -1,4 +1,4 @@
-import { type FragmentType, SourceType } from "@prisma/client";
+import { FragmentType, SourceType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
@@ -16,7 +16,7 @@ const correctSchema = z.object({
   newFragments: z
     .array(
       z.object({
-        type: z.string(),
+        type: z.nativeEnum(FragmentType),
         content: z.string().min(1),
         skills: z.array(z.string()).default([]),
         keywords: z.array(z.string()).default([]),
@@ -52,7 +52,7 @@ export const POST = withUserValidation<
     await tx.fragment.createMany({
       data: body.newFragments.map((f) => ({
         userId: session.user.userId,
-        type: (f.type as FragmentType) || "FACT",
+        type: f.type,
         content: f.content,
         skills: f.skills,
         keywords: f.keywords,
