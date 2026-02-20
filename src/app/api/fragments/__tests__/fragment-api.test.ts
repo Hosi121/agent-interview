@@ -13,6 +13,7 @@ vi.mock("@/lib/auth", () => ({
 // Prisma トランザクション用クライアント
 const mockTxClient = {
   fragment: {
+    findUnique: vi.fn(),
     delete: vi.fn(),
     updateMany: vi.fn(),
     createMany: vi.fn(),
@@ -187,7 +188,7 @@ describe("Fragment API", () => {
     describe("正常系", () => {
       it("自分のフラグメントを削除できる", async () => {
         mockGetServerSession.mockResolvedValue(userSession);
-        mockPrisma.fragment.findUnique.mockResolvedValue(mockFragment);
+        mockTxClient.fragment.findUnique.mockResolvedValue(mockFragment);
 
         const { DELETE } = await import("@/app/api/fragments/[id]/route");
         const request = new NextRequest(
@@ -208,7 +209,7 @@ describe("Fragment API", () => {
 
       it("削除時にトランザクション内で関連レコードも削除される", async () => {
         mockGetServerSession.mockResolvedValue(userSession);
-        mockPrisma.fragment.findUnique.mockResolvedValue(mockFragment);
+        mockTxClient.fragment.findUnique.mockResolvedValue(mockFragment);
 
         const { DELETE } = await import("@/app/api/fragments/[id]/route");
         const request = new NextRequest(
@@ -266,7 +267,7 @@ describe("Fragment API", () => {
 
       it("他ユーザーのフラグメントは削除できない", async () => {
         mockGetServerSession.mockResolvedValue(otherUserSession);
-        mockPrisma.fragment.findUnique.mockResolvedValue(mockFragment);
+        mockTxClient.fragment.findUnique.mockResolvedValue(mockFragment);
 
         const { DELETE } = await import("@/app/api/fragments/[id]/route");
         const request = new NextRequest(
@@ -281,12 +282,12 @@ describe("Fragment API", () => {
         });
 
         expect(response.status).toBe(403);
-        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+        expect(mockTxClient.fragment.delete).not.toHaveBeenCalled();
       });
 
       it("存在しないフラグメントの場合404を返す", async () => {
         mockGetServerSession.mockResolvedValue(userSession);
-        mockPrisma.fragment.findUnique.mockResolvedValue(null);
+        mockTxClient.fragment.findUnique.mockResolvedValue(null);
 
         const { DELETE } = await import("@/app/api/fragments/[id]/route");
         const request = new NextRequest(

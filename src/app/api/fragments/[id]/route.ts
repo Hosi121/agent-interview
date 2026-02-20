@@ -44,19 +44,19 @@ export const DELETE = withUserAuth<RouteContext>(
       throw new ValidationError("無効なフラグメントIDです");
     }
 
-    const fragment = await prisma.fragment.findUnique({
-      where: { id },
-    });
-
-    if (!fragment) {
-      throw new NotFoundError("フラグメントが見つかりません");
-    }
-
-    if (fragment.userId !== session.user.userId) {
-      throw new ForbiddenError("このフラグメントを削除する権限がありません");
-    }
-
     await prisma.$transaction(async (tx) => {
+      const fragment = await tx.fragment.findUnique({
+        where: { id },
+      });
+
+      if (!fragment) {
+        throw new NotFoundError("フラグメントが見つかりません");
+      }
+
+      if (fragment.userId !== session.user.userId) {
+        throw new ForbiddenError("このフラグメントを削除する権限がありません");
+      }
+
       await deleteFragmentWithRelations(tx, id);
     });
 

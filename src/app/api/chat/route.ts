@@ -40,13 +40,25 @@ const BASE_SYSTEM_PROMPT = `あなたは求職者からキャリア情報を深�
 /** LLMに送るメッセージの最大件数（古いメッセージは切り捨て） */
 const MAX_LLM_MESSAGES = 50;
 
+function appendCorrectionContext(
+  prompt: string,
+  correctFragment?: { type: string; content: string; skills: string[] } | null,
+): string {
+  if (!correctFragment) return prompt;
+  const skillsText =
+    correctFragment.skills.length > 0
+      ? `\n- スキル: ${correctFragment.skills.join(", ")}`
+      : "";
+  return `${prompt}\n\n## 修正対象\nユーザーは以下の記憶のかけらの修正を希望しています:\n- 種類: ${correctFragment.type}\n- 内容:\n\`\`\`\n${correctFragment.content}\n\`\`\`${skillsText}\nユーザーの修正意図を踏まえて、正確な情報を引き出してください。\n修正が完了したら通常の会話に戻ってください。`;
+}
+
 function buildSystemPrompt(
   fragments: { type: string; content: string; confidence?: number }[],
   coverage: ChatCoverageState,
   correctFragment?: { type: string; content: string; skills: string[] } | null,
 ): string {
   if (fragments.length === 0) {
-    return BASE_SYSTEM_PROMPT;
+    return appendCorrectionContext(BASE_SYSTEM_PROMPT, correctFragment);
   }
 
   let prompt = BASE_SYSTEM_PROMPT;
@@ -99,15 +111,7 @@ function buildSystemPrompt(
   prompt +=
     "\n\n## 中間まとめ\n会話が5〜6往復を超えたら、次の質問の前に「ここまでのお話をまとめると、○○と△△のご経験が中心ですね」のように1〜2文で整理してから次の話題に移ってください。毎回まとめる必要はありません。";
 
-  if (correctFragment) {
-    const skillsText =
-      correctFragment.skills.length > 0
-        ? `\n- スキル: ${correctFragment.skills.join(", ")}`
-        : "";
-    prompt += `\n\n## 修正対象\nユーザーは以下の記憶のかけらの修正を希望しています:\n- 種類: ${correctFragment.type}\n- 内容: ${correctFragment.content}${skillsText}\nユーザーの修正意図を踏まえて、正確な情報を引き出してください。\n修正が完了したら通常の会話に戻ってください。`;
-  }
-
-  return prompt;
+  return appendCorrectionContext(prompt, correctFragment);
 }
 
 /**
@@ -318,13 +322,23 @@ export const POST = withUserValidation(
           if (extractedData.fragments && extractedData.fragments.length > 0) {
             if (correctFragment) {
               // 修正モード: 確認用にクライアントに返す（自動適用しない）
-              pendingCorrection = extractedData.fragments.map((f) => ({
-                type: parseFragmentType(f.type),
-                content: f.content,
-                skills: f.skills || [],
-                keywords: f.keywords || [],
-                quality: f.quality ?? "medium",
-              }));
+              // /correct エンドポイントのスキーマ制約に合わせてクランプ
+              const QUALITY_VALUES = ["low", "medium", "high"];
+              pendingCorrection = extractedData.fragments
+                .slice(0, 10)
+                .map((f) => ({
+                  type: parseFragmentType(f.type),
+                  content: f.content.slice(0, 2000),
+                  skills: (f.skills || [])
+                    .slice(0, 20)
+                    .map((s) => s.slice(0, 100)),
+                  keywords: (f.keywords || [])
+                    .slice(0, 20)
+                    .map((k) => k.slice(0, 100)),
+                  quality: QUALITY_VALUES.includes(f.quality ?? "")
+                    ? (f.quality as string)
+                    : "medium",
+                }));
             } else {
               await prisma.fragment.createMany({
                 data: extractedData.fragments.map((fragment) => ({

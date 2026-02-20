@@ -13,6 +13,7 @@ vi.mock("@/lib/auth", () => ({
 // Prisma トランザクション用クライアント
 const mockTxClient = {
   fragment: {
+    findUnique: vi.fn(),
     delete: vi.fn(),
     updateMany: vi.fn(),
     createMany: vi.fn(),
@@ -86,7 +87,7 @@ describe("POST /api/fragments/[id]/correct", () => {
   describe("正常系", () => {
     it("フラグメントを修正できる（旧フラグメント削除 + 新フラグメント作成）", async () => {
       mockGetServerSession.mockResolvedValue(userSession);
-      mockPrisma.fragment.findUnique.mockResolvedValue(mockFragment);
+      mockTxClient.fragment.findUnique.mockResolvedValue(mockFragment);
 
       const { POST } = await import("@/app/api/fragments/[id]/correct/route");
       const request = new NextRequest(
@@ -108,7 +109,7 @@ describe("POST /api/fragments/[id]/correct", () => {
 
     it("トランザクション内で新フラグメント作成と旧フラグメント削除がアトミックに行われる", async () => {
       mockGetServerSession.mockResolvedValue(userSession);
-      mockPrisma.fragment.findUnique.mockResolvedValue(mockFragment);
+      mockTxClient.fragment.findUnique.mockResolvedValue(mockFragment);
 
       const { POST } = await import("@/app/api/fragments/[id]/correct/route");
       const request = new NextRequest(
@@ -158,7 +159,7 @@ describe("POST /api/fragments/[id]/correct", () => {
 
     it("複数の新フラグメントで修正できる", async () => {
       mockGetServerSession.mockResolvedValue(userSession);
-      mockPrisma.fragment.findUnique.mockResolvedValue(mockFragment);
+      mockTxClient.fragment.findUnique.mockResolvedValue(mockFragment);
 
       const multiBody = {
         newFragments: [
@@ -224,7 +225,7 @@ describe("POST /api/fragments/[id]/correct", () => {
 
     it("他ユーザーのフラグメントは修正できない", async () => {
       mockGetServerSession.mockResolvedValue(otherUserSession);
-      mockPrisma.fragment.findUnique.mockResolvedValue(mockFragment);
+      mockTxClient.fragment.findUnique.mockResolvedValue(mockFragment);
 
       const { POST } = await import("@/app/api/fragments/[id]/correct/route");
       const request = new NextRequest(
@@ -240,12 +241,12 @@ describe("POST /api/fragments/[id]/correct", () => {
       });
 
       expect(response.status).toBe(403);
-      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+      expect(mockTxClient.fragment.createMany).not.toHaveBeenCalled();
     });
 
     it("存在しないフラグメントの場合404を返す", async () => {
       mockGetServerSession.mockResolvedValue(userSession);
-      mockPrisma.fragment.findUnique.mockResolvedValue(null);
+      mockTxClient.fragment.findUnique.mockResolvedValue(null);
 
       const { POST } = await import("@/app/api/fragments/[id]/correct/route");
       const request = new NextRequest(

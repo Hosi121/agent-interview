@@ -113,11 +113,29 @@ function ChatPageInner() {
 
   // 修正対象フラグメントの取得
   useEffect(() => {
-    if (!correctFragmentId) return;
+    if (!correctFragmentId) {
+      setCorrectFragment(null);
+      setPendingCorrection(null);
+      return;
+    }
 
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(correctFragmentId)) {
+      setCorrectionError("無効なフラグメントIDです。");
+      router.replace("/my/chat", { scroll: false });
+      return;
+    }
+
+    setCorrectionError(null);
+
+    const controller = new AbortController();
     (async () => {
       try {
-        const res = await fetch(`/api/fragments/${correctFragmentId}`);
+        const res = await fetch(`/api/fragments/${correctFragmentId}`, {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
         if (res.ok) {
           const data = await res.json();
           setCorrectFragment(data.fragment);
@@ -129,11 +147,13 @@ function ChatPageInner() {
           router.replace("/my/chat", { scroll: false });
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error("Failed to fetch correction fragment:", error);
         setCorrectionError("修正対象のフラグメントの取得に失敗しました。");
         router.replace("/my/chat", { scroll: false });
       }
     })();
+    return () => controller.abort();
   }, [correctFragmentId, router]);
 
   const clearCorrectionMode = useCallback(() => {
@@ -357,10 +377,19 @@ function ChatPageInner() {
     <div className="flex flex-col lg:grid lg:grid-cols-4 gap-4 lg:gap-6 h-[calc(100vh-12rem)]">
       <div className="lg:col-span-3 flex flex-col gap-4 min-h-0 flex-1 order-2 lg:order-none">
         {!correctFragment && correctionError && (
-          <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5">
-            <p className="text-sm text-destructive" role="alert">
+          <div className="flex items-center gap-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
+            <p className="text-sm text-destructive flex-1" role="alert">
               {correctionError}
             </p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              aria-label="エラーを閉じる"
+              onClick={() => setCorrectionError(null)}
+            >
+              <X className="size-4" />
+            </Button>
           </div>
         )}
         {correctFragment && (

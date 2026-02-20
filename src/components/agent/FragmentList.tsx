@@ -45,7 +45,7 @@ export function FragmentList({
               {fragment.type}
             </Badge>
             {(onDelete || onCorrect) && (
-              <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+              <div className="ml-auto flex items-center gap-1 max-sm:opacity-100 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                 {onCorrect && (
                   <Button
                     variant="ghost"

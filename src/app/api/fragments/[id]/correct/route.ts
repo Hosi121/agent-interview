@@ -17,13 +17,14 @@ const correctSchema = z.object({
     .array(
       z.object({
         type: z.nativeEnum(FragmentType),
-        content: z.string().min(1),
-        skills: z.array(z.string()).default([]),
-        keywords: z.array(z.string()).default([]),
-        quality: z.string().default("medium"),
+        content: z.string().min(1).max(2000),
+        skills: z.array(z.string().max(100)).max(20).default([]),
+        keywords: z.array(z.string().max(100)).max(20).default([]),
+        quality: z.enum(["low", "medium", "high"]).default("medium"),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(10),
 });
 
 export const POST = withUserValidation<
@@ -36,19 +37,19 @@ export const POST = withUserValidation<
     throw new ValidationError("無効なフラグメントIDです");
   }
 
-  const fragment = await prisma.fragment.findUnique({
-    where: { id },
-  });
-
-  if (!fragment) {
-    throw new NotFoundError("フラグメントが見つかりません");
-  }
-
-  if (fragment.userId !== session.user.userId) {
-    throw new ForbiddenError("このフラグメントを修正する権限がありません");
-  }
-
   await prisma.$transaction(async (tx) => {
+    const fragment = await tx.fragment.findUnique({
+      where: { id },
+    });
+
+    if (!fragment) {
+      throw new NotFoundError("フラグメントが見つかりません");
+    }
+
+    if (fragment.userId !== session.user.userId) {
+      throw new ForbiddenError("このフラグメントを修正する権限がありません");
+    }
+
     await tx.fragment.createMany({
       data: body.newFragments.map((f) => ({
         userId: session.user.userId,
