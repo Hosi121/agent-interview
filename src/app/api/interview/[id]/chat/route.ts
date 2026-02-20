@@ -3,7 +3,7 @@ import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
-import { ForbiddenError, NotFoundError } from "@/lib/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { generateChatResponse, generateFollowUpQuestions } from "@/lib/openai";
 import { consumePointsWithOperations } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
@@ -23,7 +23,6 @@ export const POST = withRecruiterAuth<RouteContext>(
     const parsed = chatSchema.safeParse(rawBody);
 
     if (!parsed.success) {
-      const { ValidationError } = await import("@/lib/errors");
       throw new ValidationError("入力内容に問題があります", {
         fields: parsed.error.flatten().fieldErrors,
       });
