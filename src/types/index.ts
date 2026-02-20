@@ -34,6 +34,15 @@ declare module "next-auth/jwt" {
     email?: string;
     accountType?: AccountType;
     passkeyVerificationRequired?: boolean;
+    accountId?: string;
+    userId?: string;
+    userName?: string;
+    avatarPath?: string | null;
+    recruiterId?: string;
+    companyId?: string;
+    companyName?: string;
+    companyRole?: CompanyRole;
+    recruiterStatus?: CompanyMemberStatus;
   }
 }
 

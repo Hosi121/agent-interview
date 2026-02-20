@@ -3,7 +3,38 @@ import { cookies } from "next/headers";
 import type { NextAuthOptions } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { logger } from "./logger";
 import { prisma } from "./prisma";
+
+/**
+ * JWTトークンにアカウント情報を格納する
+ * ログイン時とtrigger="update"時に呼ばれる
+ */
+async function populateTokenFromDb(token: JWT): Promise<void> {
+  if (!token.email) return;
+  const account = await prisma.account.findUnique({
+    where: { email: token.email },
+    include: {
+      user: true,
+      recruiter: { include: { company: true } },
+    },
+  });
+  if (!account) return;
+  token.accountId = account.id;
+  token.accountType = account.accountType;
+  if (account.user) {
+    token.userId = account.user.id;
+    token.userName = account.user.name;
+    token.avatarPath = account.user.avatarPath;
+  }
+  if (account.recruiter) {
+    token.recruiterId = account.recruiter.id;
+    token.companyId = account.recruiter.companyId;
+    token.companyName = account.recruiter.company.name;
+    token.companyRole = account.recruiter.role;
+    token.recruiterStatus = account.recruiter.status;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -113,55 +144,18 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async session({ session, token }) {
-      if (session.user && token.email) {
-        // accountType はJWTから取得（DB不要）
-        if (token.accountType) {
-          session.user.accountType = token.accountType;
-        }
-        session.user.passkeyVerificationRequired =
-          token.passkeyVerificationRequired ?? false;
-
-        const account = await prisma.account.findUnique({
-          where: { email: token.email },
-          include: {
-            user: true,
-            recruiter: {
-              include: { company: true },
-            },
-          },
-        });
-
-        if (account) {
-          session.user.accountId = account.id;
-          if (account.user) {
-            session.user.userId = account.user.id;
-            session.user.name = account.user.name;
-            if (account.user.avatarPath) {
-              // アバター変更時にURLが変わるようavatarPathの末尾をキャッシュバスターに使用
-              const v = account.user.avatarPath.slice(-8);
-              session.user.image = `/api/applicant/avatar?v=${v}`;
-            } else {
-              session.user.image = null;
-            }
-          }
-          if (account.recruiter) {
-            session.user.recruiterId = account.recruiter.id;
-            session.user.companyId = account.recruiter.companyId;
-            session.user.companyRole = account.recruiter.role;
-            session.user.companyName = account.recruiter.company.name;
-            session.user.recruiterStatus = account.recruiter.status;
-          }
-        }
-      }
-      return session;
-    },
-    async jwt({ token, user, trigger }): Promise<JWT> {
+    async jwt({ token, user, trigger }) {
+      // ログイン時: DB全フィールドをトークンに格納
       if (user && user.email) {
         token.email = user.email;
         token.accountType = user.accountType;
         token.passkeyVerificationRequired =
           user.passkeyVerificationRequired ?? false;
+        await populateTokenFromDb(token);
+      }
+      // プロフィール変更時: DBから再取得
+      if (trigger === "update") {
+        await populateTokenFromDb(token);
       }
 
       // セッション更新トリガー: 2FA検証完了のCookieを確認
@@ -190,6 +184,38 @@ export const authOptions: NextAuthOptions = {
       }
 
       return token;
+    },
+    async session({ session, token }) {
+      const start = performance.now();
+      // JWTからセッションへ直接マッピング（DBクエリなし）
+      if (session.user) {
+        session.user.accountId = token.accountId;
+        session.user.accountType = token.accountType;
+        session.user.passkeyVerificationRequired =
+          token.passkeyVerificationRequired ?? false;
+        if (token.userId) {
+          session.user.userId = token.userId;
+          session.user.name = token.userName ?? null;
+          if (token.avatarPath) {
+            // アバター変更時にURLが変わるようavatarPathの末尾をキャッシュバスターに使用
+            const v = token.avatarPath.slice(-8);
+            session.user.image = `/api/applicant/avatar?v=${v}`;
+          } else {
+            session.user.image = null;
+          }
+        }
+        if (token.recruiterId) {
+          session.user.recruiterId = token.recruiterId;
+          session.user.companyId = token.companyId;
+          session.user.companyName = token.companyName;
+          session.user.companyRole = token.companyRole;
+          session.user.recruiterStatus = token.recruiterStatus;
+        }
+      }
+      logger.info("auth.session_callback", {
+        duration_ms: Math.round(performance.now() - start),
+      });
+      return session;
     },
   },
   pages: {
