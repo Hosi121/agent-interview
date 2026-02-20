@@ -10,6 +10,8 @@ output "parameter_arns" {
     aws_ssm_parameter.aws_region.arn,
     aws_ssm_parameter.openai_api_key.arn,
     aws_ssm_parameter.stripe_secret_key.arn,
+    aws_ssm_parameter.resend_api_key.arn,
+    aws_ssm_parameter.email_from.arn,
   ]
 }
 

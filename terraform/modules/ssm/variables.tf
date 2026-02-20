@@ -56,3 +56,14 @@ variable "analysis_callback_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "resend_api_key" {
+  type      = string
+  default   = "placeholder"
+  sensitive = true
+}
+
+variable "email_from" {
+  type    = string
+  default = "MeTalk <noreply@metalk.jp>"
+}

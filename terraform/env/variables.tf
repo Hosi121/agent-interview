@@ -42,3 +42,16 @@ variable "rds_skip_final_snapshot" {
   default     = true
   description = "Skip final snapshot on RDS destroy. Set to false for production."
 }
+
+variable "resend_api_key" {
+  type        = string
+  default     = "placeholder"
+  sensitive   = true
+  description = "Resend API key (update manually in SSM after apply)"
+}
+
+variable "email_from" {
+  type        = string
+  default     = "MeTalk <noreply@metalk.jp>"
+  description = "Email sender address for Resend"
+}

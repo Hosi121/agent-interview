@@ -1,15 +1,19 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-const EMAIL_FROM = process.env.EMAIL_FROM || "MeTalk <noreply@metalk.jp>";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+let _resend: Resend | null = null;
+function getResend(): Resend {
+  if (!_resend) {
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
 
 export async function sendVerificationEmail(
   to: string,
   token: string,
 ): Promise<void> {
-  const verifyUrl = `${APP_URL}/verify-email?token=${token}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+  const verifyUrl = `${appUrl}/verify-email?token=${token}`;
 
   // 開発環境: APIキーが未設定またはプレースホルダーの場合はコンソール出力のみ
   if (
@@ -22,8 +26,9 @@ export async function sendVerificationEmail(
     return;
   }
 
-  await resend.emails.send({
-    from: EMAIL_FROM,
+  const emailFrom = process.env.EMAIL_FROM || "MeTalk <noreply@metalk.jp>";
+  await getResend().emails.send({
+    from: emailFrom,
     to,
     subject: "【MeTalk】メールアドレスの認証",
     html: `

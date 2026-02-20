@@ -138,6 +138,8 @@ module "ssm" {
   stripe_secret_key            = var.stripe_secret_key
   document_analysis_lambda_arn = module.lambda.lambda_function_arn
   analysis_callback_secret     = random_password.analysis_callback_secret.result
+  resend_api_key               = var.resend_api_key
+  email_from                   = var.email_from
 }
 
 # --- ECS ---

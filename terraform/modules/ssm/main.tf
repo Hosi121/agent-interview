@@ -99,3 +99,21 @@ resource "aws_ssm_parameter" "analysis_callback_secret" {
   value = var.analysis_callback_secret
   tags  = local.common_tags
 }
+
+resource "aws_ssm_parameter" "resend_api_key" {
+  name  = "${local.prefix}/resend-api-key"
+  type  = "SecureString"
+  value = var.resend_api_key
+  tags  = local.common_tags
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
+resource "aws_ssm_parameter" "email_from" {
+  name  = "${local.prefix}/email-from"
+  type  = "String"
+  value = var.email_from
+  tags  = local.common_tags
+}
