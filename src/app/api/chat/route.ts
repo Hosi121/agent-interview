@@ -1,8 +1,10 @@
-import { type FragmentType, SourceType } from "@prisma/client";
+import { SourceType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserValidation } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
+import { ForbiddenError } from "@/lib/errors";
+import { parseFragmentType, qualityToConfidence } from "@/lib/fragment-utils";
 import { logger } from "@/lib/logger";
 import {
   extractFragments,
@@ -35,21 +37,28 @@ const BASE_SYSTEM_PROMPT = `あなたは求職者からキャリア情報を深�
 - 長い前置きや説明は不要。
 - 日本語で回答。`;
 
-const qualityToConfidence: Record<string, number> = {
-  low: 0.4,
-  medium: 0.7,
-  high: 1.0,
-};
-
 /** LLMに送るメッセージの最大件数（古いメッセージは切り捨て） */
 const MAX_LLM_MESSAGES = 50;
+
+function appendCorrectionContext(
+  prompt: string,
+  correctFragment?: { type: string; content: string; skills: string[] } | null,
+): string {
+  if (!correctFragment) return prompt;
+  const skillsText =
+    correctFragment.skills.length > 0
+      ? `\n- スキル: ${correctFragment.skills.join(", ")}`
+      : "";
+  return `${prompt}\n\n## 修正対象\nユーザーは以下の記憶のかけらの修正を希望しています:\n- 種類: ${correctFragment.type}\n- 内容:\n\`\`\`\n${correctFragment.content}\n\`\`\`${skillsText}\nユーザーの修正意図を踏まえて、正確な情報を引き出してください。\n修正が完了したら通常の会話に戻ってください。`;
+}
 
 function buildSystemPrompt(
   fragments: { type: string; content: string; confidence?: number }[],
   coverage: ChatCoverageState,
+  correctFragment?: { type: string; content: string; skills: string[] } | null,
 ): string {
   if (fragments.length === 0) {
-    return BASE_SYSTEM_PROMPT;
+    return appendCorrectionContext(BASE_SYSTEM_PROMPT, correctFragment);
   }
 
   let prompt = BASE_SYSTEM_PROMPT;
@@ -102,7 +111,7 @@ function buildSystemPrompt(
   prompt +=
     "\n\n## 中間まとめ\n会話が5〜6往復を超えたら、次の質問の前に「ここまでのお話をまとめると、○○と△△のご経験が中心ですね」のように1〜2文で整理してから次の話題に移ってください。毎回まとめる必要はありません。";
 
-  return prompt;
+  return appendCorrectionContext(prompt, correctFragment);
 }
 
 /**
@@ -132,19 +141,47 @@ const CONTEXT_MESSAGE_COUNT = 4;
 
 const chatSchema = z.object({
   message: z.string().min(1),
+  correctFragmentId: z.string().uuid().optional(),
 });
 
 export const POST = withUserValidation(
   chatSchema,
   async (body, req, session) => {
-    const { message } = body;
+    const { message, correctFragmentId } = body;
 
     // セッション取得/作成
     const chatSession = await getOrCreateUserAIChatSession(session.user.userId);
 
+    // 修正対象フラグメントの取得
+    let correctFragment: {
+      id: string;
+      type: string;
+      content: string;
+      skills: string[];
+    } | null = null;
+    if (correctFragmentId) {
+      const fragment = await prisma.fragment.findUnique({
+        where: { id: correctFragmentId },
+      });
+      if (fragment) {
+        if (fragment.userId !== session.user.userId) {
+          throw new ForbiddenError(
+            "このフラグメントを修正する権限がありません",
+          );
+        }
+        correctFragment = {
+          id: fragment.id,
+          type: fragment.type,
+          content: fragment.content,
+          skills: fragment.skills,
+        };
+      }
+      // fragment が null の場合はスキップ（既に削除済み）
+    }
+
     const existingFragments = await prisma.fragment.findMany({
       where: { userId: session.user.userId },
-      select: { type: true, content: true, confidence: true },
+      select: { id: true, type: true, content: true, confidence: true },
     });
 
     const coverage = calculateCoverage(existingFragments);
@@ -193,7 +230,11 @@ export const POST = withUserValidation(
         ? allDbMessages.slice(-MAX_LLM_MESSAGES)
         : allDbMessages;
 
-    const systemPrompt = buildSystemPrompt(existingFragments, coverage);
+    const systemPrompt = buildSystemPrompt(
+      existingFragments,
+      coverage,
+      correctFragment,
+    );
 
     const abortController = new AbortController();
     req.signal.addEventListener("abort", () => abortController.abort());
@@ -234,6 +275,15 @@ export const POST = withUserValidation(
         }
 
         let fragmentsExtracted = 0;
+        let pendingCorrection:
+          | {
+              type: string;
+              content: string;
+              skills: string[];
+              keywords: string[];
+              quality: string;
+            }[]
+          | null = null;
         let currentCoverage = coverage;
 
         // 修正6: 新コードでは必ずユーザーメッセージがあるため常に抽出実行
@@ -259,31 +309,57 @@ export const POST = withUserValidation(
               ? contextMessages.map((m) => `${m.role}: ${m.content}`).join("\n")
               : undefined;
 
+          // 修正対象フラグメントを除外（重複検出で弾かれるのを防ぐ）
+          const fragmentsForExtraction = correctFragment
+            ? existingFragments.filter((f) => f.id !== correctFragment.id)
+            : existingFragments;
+
           const extractedData = await extractFragments(newMessagesText, {
-            existingFragments,
+            existingFragments: fragmentsForExtraction,
             contextMessages: contextMessagesText,
           });
 
           if (extractedData.fragments && extractedData.fragments.length > 0) {
-            await prisma.fragment.createMany({
-              data: extractedData.fragments.map((fragment) => ({
-                userId: session.user.userId,
-                type: (fragment.type as FragmentType) || "FACT",
-                content: fragment.content,
-                skills: fragment.skills || [],
-                keywords: fragment.keywords || [],
-                sourceType: SourceType.CONVERSATION,
-                confidence:
-                  qualityToConfidence[fragment.quality ?? "medium"] ?? 0.7,
-              })),
-            });
-            fragmentsExtracted = extractedData.fragments.length;
+            if (correctFragment) {
+              // 修正モード: 確認用にクライアントに返す（自動適用しない）
+              // /correct エンドポイントのスキーマ制約に合わせてクランプ
+              const QUALITY_VALUES = ["low", "medium", "high"];
+              pendingCorrection = extractedData.fragments
+                .slice(0, 10)
+                .map((f) => ({
+                  type: parseFragmentType(f.type),
+                  content: f.content.slice(0, 2000),
+                  skills: (f.skills || [])
+                    .slice(0, 20)
+                    .map((s) => s.slice(0, 100)),
+                  keywords: (f.keywords || [])
+                    .slice(0, 20)
+                    .map((k) => k.slice(0, 100)),
+                  quality: QUALITY_VALUES.includes(f.quality ?? "")
+                    ? (f.quality as string)
+                    : "medium",
+                }));
+            } else {
+              await prisma.fragment.createMany({
+                data: extractedData.fragments.map((fragment) => ({
+                  userId: session.user.userId,
+                  type: parseFragmentType(fragment.type),
+                  content: fragment.content,
+                  skills: fragment.skills || [],
+                  keywords: fragment.keywords || [],
+                  sourceType: SourceType.CONVERSATION,
+                  confidence:
+                    qualityToConfidence[fragment.quality ?? "medium"] ?? 0.7,
+                })),
+              });
+              fragmentsExtracted = extractedData.fragments.length;
 
-            const allFragments = await prisma.fragment.findMany({
-              where: { userId: session.user.userId },
-              select: { type: true },
-            });
-            currentCoverage = calculateCoverage(allFragments);
+              const allFragments = await prisma.fragment.findMany({
+                where: { userId: session.user.userId },
+                select: { type: true },
+              });
+              currentCoverage = calculateCoverage(allFragments);
+            }
           }
         } catch (extractError) {
           logger.error("Fragment extraction error", extractError as Error, {
@@ -295,6 +371,7 @@ export const POST = withUserValidation(
           "metadata",
           JSON.stringify({
             fragmentsExtracted,
+            pendingCorrection,
             coverage: currentCoverage,
           }),
         );
