@@ -67,10 +67,17 @@ function LoginForm() {
       return;
     }
 
+    const session = await getSession();
+
+    // パスキー2FA検証が必要な場合
+    if (session?.user?.passkeyVerificationRequired) {
+      router.push("/verify-passkey");
+      return;
+    }
+
     if (callbackUrl) {
       router.push(callbackUrl);
     } else {
-      const session = await getSession();
       if (session?.user?.accountType === "RECRUITER") {
         router.push("/recruiter/dashboard");
       } else {

@@ -1,6 +1,7 @@
 import { compare } from "bcryptjs";
 import { cookies } from "next/headers";
 import type { NextAuthOptions } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 
@@ -92,11 +93,17 @@ export const authOptions: NextAuthOptions = {
           throw new Error("EMAIL_NOT_VERIFIED");
         }
 
+        // パスキーが登録されていれば2FA検証を要求
+        const passkeyCount = await prisma.passkey.count({
+          where: { accountId: account.id },
+        });
+
         return {
           id: account.id,
           email: account.email,
           name: account.user?.name || account.recruiter?.company?.name || "",
           accountType: account.accountType,
+          passkeyVerificationRequired: passkeyCount > 0,
         };
       },
     }),
@@ -108,6 +115,8 @@ export const authOptions: NextAuthOptions = {
         if (token.accountType) {
           session.user.accountType = token.accountType;
         }
+        session.user.passkeyVerificationRequired =
+          token.passkeyVerificationRequired ?? false;
 
         const account = await prisma.account.findUnique({
           where: { email: token.email },
@@ -143,11 +152,38 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }): Promise<JWT> {
       if (user && user.email) {
         token.email = user.email;
         token.accountType = user.accountType;
+        token.passkeyVerificationRequired =
+          user.passkeyVerificationRequired ?? false;
       }
+
+      // セッション更新トリガー: 2FA検証完了のCookieを確認
+      if (trigger === "update" && token.passkeyVerificationRequired) {
+        const cookieStore = await cookies();
+        const verifiedToken = cookieStore.get("passkey_2fa_verified")?.value;
+        if (verifiedToken) {
+          // ワンタイムトークンをアトミック削除で検証
+          const stored = await prisma.webAuthnChallenge
+            .delete({
+              where: {
+                challenge: verifiedToken,
+                type: "2fa_verified",
+                expiresAt: { gt: new Date() },
+              },
+            })
+            .catch(() => null);
+
+          if (stored && stored.accountId === token.sub) {
+            token.passkeyVerificationRequired = false;
+          }
+
+          cookieStore.delete("passkey_2fa_verified");
+        }
+      }
+
       return token;
     },
   },

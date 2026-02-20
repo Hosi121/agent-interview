@@ -10,6 +10,9 @@ const publicRoutes = [
   "/verify-email",
 ];
 
+// パスキー2FA検証中でもアクセスを許可するルート
+const passkeyVerificationAllowedRoutes = ["/verify-passkey", "/setup/passkey"];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -34,6 +37,25 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // パスキー2FA検証が必要な場合
+  if (token.passkeyVerificationRequired) {
+    const isAllowed = passkeyVerificationAllowedRoutes.some(
+      (route) => pathname === route || pathname.startsWith(`${route}/`),
+    );
+    if (!isAllowed) {
+      return NextResponse.redirect(new URL("/verify-passkey", request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // 2FA不要で /verify-passkey にアクセスした場合はダッシュボードへ
+  if (pathname === "/verify-passkey") {
+    const accountType = token.accountType;
+    const dashboardUrl =
+      accountType === "RECRUITER" ? "/recruiter/dashboard" : "/my/dashboard";
+    return NextResponse.redirect(new URL(dashboardUrl, request.url));
   }
 
   const accountType = token.accountType;
