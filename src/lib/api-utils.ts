@@ -30,6 +30,7 @@ export interface AuthenticatedSession {
     companyName?: string;
     companyRole?: CompanyRole;
     recruiterStatus?: CompanyMemberStatus;
+    passkeyVerificationRequired?: boolean;
   };
 }
 
@@ -175,6 +176,10 @@ export function withRecruiterAuth<T = unknown>(
         throw new UnauthorizedError();
       }
 
+      if (session.user.passkeyVerificationRequired) {
+        throw new ForbiddenError("2要素認証が完了していません");
+      }
+
       if (!session.user.recruiterId) {
         throw new ForbiddenError("採用担当者権限が必要です");
       }
@@ -238,6 +243,10 @@ export function withUserAuth<T = unknown>(
         throw new UnauthorizedError();
       }
 
+      if (session.user.passkeyVerificationRequired) {
+        throw new ForbiddenError("2要素認証が完了していません");
+      }
+
       if (!session.user.userId) {
         throw new ForbiddenError("ユーザー権限が必要です");
       }
@@ -278,9 +287,11 @@ export function withUserValidation<TBody, TContext = unknown>(
 
 /**
  * 認証のみを必要とするAPIルートのラッパー（採用担当者/ユーザーどちらでも可）
+ * @param options.skip2faCheck 2FA検証チェックをスキップする（verify-2faなど2FA完了前にアクセスが必要なルート用）
  */
 export function withAuth<T = unknown>(
   handler: AuthenticatedHandler<T>,
+  options?: { skip2faCheck?: boolean },
 ): (req: NextRequest, context?: T) => Promise<NextResponse> {
   return async (req: NextRequest, context?: T) => {
     try {
@@ -288,6 +299,10 @@ export function withAuth<T = unknown>(
 
       if (!session?.user) {
         throw new UnauthorizedError();
+      }
+
+      if (!options?.skip2faCheck && session.user.passkeyVerificationRequired) {
+        throw new ForbiddenError("2要素認証が完了していません");
       }
 
       if (

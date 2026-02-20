@@ -176,6 +176,7 @@ export const authOptions: NextAuthOptions = {
             })
             .catch(() => null);
 
+          // token.sub は CredentialsProvider の authorize() で返した id (= account.id) と一致する
           if (stored && stored.accountId === token.sub) {
             token.passkeyVerificationRequired = false;
           }

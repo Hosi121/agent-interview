@@ -11,7 +11,7 @@ const publicRoutes = [
 ];
 
 // パスキー2FA検証中でもアクセスを許可するルート
-const passkeyVerificationAllowedRoutes = ["/verify-passkey", "/setup/passkey"];
+const passkeyVerificationAllowedRoutes = ["/verify-passkey"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
