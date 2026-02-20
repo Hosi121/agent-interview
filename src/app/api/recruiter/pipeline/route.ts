@@ -67,6 +67,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
       },
     },
     orderBy: { updatedAt: "desc" },
+    take: 200,
   });
 
   // ステージ別にグループ化

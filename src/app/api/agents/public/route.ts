@@ -39,6 +39,7 @@ export const GET = withRecruiterAuth(async (request, session) => {
       },
     },
     orderBy: { updatedAt: "desc" },
+    take: 100,
   });
 
   // 求人フィルタがある場合

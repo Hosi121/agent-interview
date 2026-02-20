@@ -3,13 +3,9 @@ import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
-import {
-  ForbiddenError,
-  InsufficientPointsError,
-  NotFoundError,
-} from "@/lib/errors";
+import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { generateChatResponse, generateFollowUpQuestions } from "@/lib/openai";
-import { checkPointBalance, consumePoints } from "@/lib/points";
+import { consumePointsWithOperations } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -89,35 +85,26 @@ export const POST = withRecruiterAuth<RouteContext>(
         throw new ForbiddenError("会社に所属していません");
       }
 
-      const pointCheck = await checkPointBalance(
+      // セッション作成とポイント消費をアトミックに実行
+      const { result: newSession } = await consumePointsWithOperations(
         session.user.companyId,
         "CONVERSATION",
-      );
-      if (!pointCheck.canProceed) {
-        throw new InsufficientPointsError(
-          pointCheck.required,
-          pointCheck.available,
-        );
-      }
-
-      chatSession = await prisma.session.create({
-        data: {
-          sessionType: "RECRUITER_AGENT_CHAT",
-          recruiterId: session.user.recruiterId,
-          agentId: id,
+        async (tx) => {
+          return tx.session.create({
+            data: {
+              sessionType: "RECRUITER_AGENT_CHAT",
+              recruiterId: session.user.recruiterId,
+              agentId: id,
+            },
+            include: {
+              messages: true,
+            },
+          });
         },
-        include: {
-          messages: true,
-        },
-      });
-
-      // ポイント消費
-      await consumePoints(
-        session.user.companyId,
-        "CONVERSATION",
-        chatSession.id,
+        undefined,
         `エージェント会話: ${agent.user.name}`,
       );
+      chatSession = newSession;
     }
 
     // TypeScript型絞り込み（既存セッション取得または新規作成のどちらかで必ず存在）

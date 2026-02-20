@@ -124,7 +124,14 @@ export const POST = withValidation(registerSchema, async (body, req) => {
   await createAndSendVerificationToken(account.id, email);
 
   return NextResponse.json(
-    { account, requiresVerification: true },
+    {
+      account: {
+        id: account.id,
+        email: account.email,
+        accountType: account.accountType,
+      },
+      requiresVerification: true,
+    },
     { status: 201 },
   );
 });

@@ -30,8 +30,6 @@ export const GET = withAuth(async (_req, session) => {
     orderBy: { createdAt: "desc" },
   });
 
-  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-
   return NextResponse.json({
     company: {
       id: company.id,
@@ -48,14 +46,16 @@ export const GET = withAuth(async (_req, session) => {
       createdAt: m.createdAt,
       joinedAt: m.joinedAt,
     })),
-    invites: invites.map((inv) => ({
-      id: inv.id,
-      email: inv.email,
-      role: inv.role,
-      status: inv.status,
-      expiresAt: inv.expiresAt,
-      createdAt: inv.createdAt,
-      acceptUrl: `${baseUrl}/invite/${inv.token}`,
-    })),
+    invites:
+      recruiter.role === "OWNER" || recruiter.role === "ADMIN"
+        ? invites.map((inv) => ({
+            id: inv.id,
+            email: inv.email,
+            role: inv.role,
+            status: inv.status,
+            expiresAt: inv.expiresAt,
+            createdAt: inv.createdAt,
+          }))
+        : [],
   });
 });

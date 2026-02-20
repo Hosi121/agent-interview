@@ -34,6 +34,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
       },
     },
     orderBy: { createdAt: "desc" },
+    take: 200,
   });
 
   // 連絡先は開示済みの場合のみ返す
