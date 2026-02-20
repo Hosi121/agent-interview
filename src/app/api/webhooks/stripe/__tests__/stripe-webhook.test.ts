@@ -32,6 +32,7 @@ function createRequest(body: string, signature: string | null) {
 describe("Stripe Webhook", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   });
 
   it("署名なしの場合、400を返す", async () => {
@@ -60,7 +61,11 @@ describe("Stripe Webhook", () => {
     mockStripe.webhooks.constructEvent.mockReturnValue({
       type: "invoice.payment_failed",
       data: {
-        object: { subscription: "sub_123" },
+        object: {
+          parent: {
+            subscription_details: { subscription: "sub_123" },
+          },
+        },
       },
     });
     mockPrisma.subscription.findFirst.mockResolvedValue({
@@ -87,7 +92,11 @@ describe("Stripe Webhook", () => {
     mockStripe.webhooks.constructEvent.mockReturnValue({
       type: "invoice.paid",
       data: {
-        object: { subscription: "sub_123" },
+        object: {
+          parent: {
+            subscription_details: { subscription: "sub_123" },
+          },
+        },
       },
     });
     mockPrisma.subscription.findFirst.mockResolvedValue({

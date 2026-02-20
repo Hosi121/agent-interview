@@ -1,5 +1,6 @@
 import type { SubscriptionStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
+import type Stripe from "stripe";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
@@ -33,13 +34,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
 
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!,
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    logger.error(
+      "STRIPE_WEBHOOK_SECRET is not configured",
+      new Error("Missing environment variable"),
     );
+    return NextResponse.json(
+      { error: "Webhook not configured" },
+      { status: 500 },
+    );
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
     logger.error("Stripe webhook signature verification failed", err as Error);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
@@ -47,10 +56,9 @@ export async function POST(req: Request) {
 
   switch (event.type) {
     case "invoice.payment_failed": {
-      const invoice = event.data.object as unknown as Record<string, unknown>;
-      const sub = invoice.subscription;
-      const stripeSubscriptionId =
-        typeof sub === "string" ? sub : (sub as { id?: string })?.id;
+      const invoice = event.data.object as Stripe.Invoice;
+      const sub = invoice.parent?.subscription_details?.subscription;
+      const stripeSubscriptionId = typeof sub === "string" ? sub : sub?.id;
       if (stripeSubscriptionId) {
         await updateSubscriptionStatus(stripeSubscriptionId, "PAST_DUE");
         logger.info("Subscription marked as PAST_DUE", {
@@ -60,10 +68,9 @@ export async function POST(req: Request) {
       break;
     }
     case "invoice.paid": {
-      const invoice = event.data.object as unknown as Record<string, unknown>;
-      const sub = invoice.subscription;
-      const stripeSubscriptionId =
-        typeof sub === "string" ? sub : (sub as { id?: string })?.id;
+      const invoice = event.data.object as Stripe.Invoice;
+      const sub = invoice.parent?.subscription_details?.subscription;
+      const stripeSubscriptionId = typeof sub === "string" ? sub : sub?.id;
       if (stripeSubscriptionId) {
         await updateSubscriptionStatus(stripeSubscriptionId, "ACTIVE");
         logger.info("Subscription marked as ACTIVE", {
