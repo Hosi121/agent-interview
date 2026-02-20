@@ -12,7 +12,10 @@ export async function sendVerificationEmail(
   to: string,
   token: string,
 ): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    "http://localhost:3001";
   const verifyUrl = `${appUrl}/verify-email?token=${token}`;
 
   // 開発環境: APIキーが未設定またはプレースホルダーの場合はコンソール出力のみ
