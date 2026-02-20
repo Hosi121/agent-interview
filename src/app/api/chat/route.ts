@@ -150,7 +150,10 @@ export const POST = withUserValidation(
     const { message, correctFragmentId } = body;
 
     // セッション取得/作成
-    const chatSession = await getOrCreateUserAIChatSession(session.user.userId);
+    const chatSession = await getOrCreateUserAIChatSession(
+      session.user.userId,
+      MAX_LLM_MESSAGES + 10,
+    );
 
     // 修正対象フラグメントの取得
     let correctFragment: {
