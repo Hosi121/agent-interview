@@ -66,6 +66,10 @@ export const POST = withUserAuth<RouteContext>(
         }),
       );
     } catch (error) {
+      logger.error("Lambda invocation failed", error as Error, {
+        documentId: id,
+        lambdaArn,
+      });
       await prisma.document.update({
         where: { id },
         data: {
