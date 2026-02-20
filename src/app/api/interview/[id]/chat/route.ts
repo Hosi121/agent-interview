@@ -130,6 +130,13 @@ export const POST = withRecruiterAuth<RouteContext>(
 
     const fragments = await prisma.fragment.findMany({
       where: { userId: agent.userId },
+      select: {
+        id: true,
+        type: true,
+        content: true,
+        skills: true,
+        keywords: true,
+      },
     });
 
     // 質問に関連するフラグメントをスコアリング
