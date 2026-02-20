@@ -4,47 +4,67 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
+  const { data: session, update } = useSession();
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading",
   );
   const [errorMessage, setErrorMessage] = useState("");
+  const hasVerified = useRef(false);
 
+  const handleVerify = useCallback(async () => {
+    if (hasVerified.current) return;
+    hasVerified.current = true;
+
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+
+      if (res.ok) {
+        setStatus("success");
+      } else {
+        const data = await res.json();
+        setStatus("error");
+        setErrorMessage(data.error || "認証に失敗しました");
+      }
+    } catch {
+      setStatus("error");
+      setErrorMessage("認証に失敗しました");
+    }
+  }, [token]);
+
+  // トークン検証
   useEffect(() => {
     if (!token) {
       setStatus("error");
       setErrorMessage("認証トークンがありません");
       return;
     }
+    handleVerify();
+  }, [token, handleVerify]);
 
-    const verify = async () => {
-      try {
-        const res = await fetch("/api/auth/verify-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
+  // 認証成功後、セッションがあればJWTを更新してリダイレクト
+  const hasRedirected = useRef(false);
+  useEffect(() => {
+    if (status !== "success" || !session || hasRedirected.current) return;
+    hasRedirected.current = true;
 
-        if (res.ok) {
-          setStatus("success");
-        } else {
-          const data = await res.json();
-          setStatus("error");
-          setErrorMessage(data.error || "認証に失敗しました");
-        }
-      } catch {
-        setStatus("error");
-        setErrorMessage("認証に失敗しました");
-      }
+    const redirectAfterUpdate = async () => {
+      await update();
+      // 完全リロードでmiddlewareが最新JWTを読み取れるようにする
+      window.location.href = "/setup/passkey";
     };
-
-    verify();
-  }, [token]);
+    redirectAfterUpdate();
+  }, [status, session, update]);
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4">
@@ -76,13 +96,21 @@ function VerifyEmailContent() {
               <h1 className="text-xl font-bold tracking-tight">
                 認証が完了しました
               </h1>
-              <p className="text-sm text-muted-foreground">
-                メールアドレスの認証が完了しました。ログインしてご利用ください。
-              </p>
+              {session ? (
+                <p className="text-sm text-muted-foreground">
+                  メールアドレスの認証が完了しました。リダイレクトしています...
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  メールアドレスの認証が完了しました。ログインしてご利用ください。
+                </p>
+              )}
             </div>
-            <Button asChild className="w-full">
-              <Link href="/login">ログインする</Link>
-            </Button>
+            {!session && (
+              <Button asChild className="w-full">
+                <Link href="/login">ログインする</Link>
+              </Button>
+            )}
           </div>
         )}
 

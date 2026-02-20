@@ -22,6 +22,7 @@ async function populateTokenFromDb(token: JWT): Promise<void> {
   if (!account) return;
   token.accountId = account.id;
   token.accountType = account.accountType;
+  token.emailVerified = !!account.emailVerified;
   if (account.user) {
     token.userId = account.user.id;
     token.userName = account.user.name;
@@ -94,6 +95,7 @@ export const authOptions: NextAuthOptions = {
             email: account.email,
             name: account.user?.name || account.recruiter?.company?.name || "",
             accountType: account.accountType,
+            emailVerified: !!account.emailVerified,
           };
         }
 
@@ -124,21 +126,22 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        if (!account.emailVerified) {
-          throw new Error("EMAIL_NOT_VERIFIED");
+        // パスキーが登録されていれば2FA検証を要求（メール認証済みの場合のみ）
+        let passkeyVerificationRequired = false;
+        if (account.emailVerified) {
+          const passkeyCount = await prisma.passkey.count({
+            where: { accountId: account.id },
+          });
+          passkeyVerificationRequired = passkeyCount > 0;
         }
-
-        // パスキーが登録されていれば2FA検証を要求
-        const passkeyCount = await prisma.passkey.count({
-          where: { accountId: account.id },
-        });
 
         return {
           id: account.id,
           email: account.email,
           name: account.user?.name || account.recruiter?.company?.name || "",
           accountType: account.accountType,
-          passkeyVerificationRequired: passkeyCount > 0,
+          emailVerified: !!account.emailVerified,
+          passkeyVerificationRequired,
         };
       },
     }),
@@ -149,6 +152,7 @@ export const authOptions: NextAuthOptions = {
       if (user && user.email) {
         token.email = user.email;
         token.accountType = user.accountType;
+        token.emailVerified = !!user.emailVerified;
         token.passkeyVerificationRequired =
           user.passkeyVerificationRequired ?? false;
         await populateTokenFromDb(token);
@@ -191,6 +195,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.accountId = token.accountId;
         session.user.accountType = token.accountType;
+        session.user.emailVerified = token.emailVerified ?? false;
         session.user.passkeyVerificationRequired =
           token.passkeyVerificationRequired ?? false;
         if (token.userId) {

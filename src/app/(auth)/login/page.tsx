@@ -58,16 +58,18 @@ function LoginForm() {
     });
 
     if (result?.error) {
-      if (result.error.includes("EMAIL_NOT_VERIFIED")) {
-        router.push(`/check-email?email=${encodeURIComponent(email)}`);
-        return;
-      }
       setError("メールアドレスまたはパスワードが正しくありません");
       setLoading(false);
       return;
     }
 
     const session = await getSession();
+
+    // メール未認証の場合は/check-emailへ
+    if (session?.user?.emailVerified === false) {
+      router.push("/check-email");
+      return;
+    }
 
     // パスキー2FA検証が必要な場合
     if (session?.user?.passkeyVerificationRequired) {
