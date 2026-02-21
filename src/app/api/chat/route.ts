@@ -140,7 +140,7 @@ const NEW_MESSAGE_COUNT = 4;
 const CONTEXT_MESSAGE_COUNT = 4;
 
 const chatSchema = z.object({
-  message: z.string().min(1),
+  message: z.string().min(1).max(5000),
   correctFragmentId: z.string().uuid().optional(),
 });
 

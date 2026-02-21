@@ -54,41 +54,66 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  switch (event.type) {
-    case "invoice.payment_failed": {
-      const invoice = event.data.object as Stripe.Invoice;
-      const sub = invoice.parent?.subscription_details?.subscription;
-      const stripeSubscriptionId = typeof sub === "string" ? sub : sub?.id;
-      if (stripeSubscriptionId) {
-        await updateSubscriptionStatus(stripeSubscriptionId, "PAST_DUE");
-        logger.info("Subscription marked as PAST_DUE", {
-          stripeSubscriptionId,
-        });
+  try {
+    switch (event.type) {
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const sub = invoice.parent?.subscription_details?.subscription;
+        const stripeSubscriptionId = typeof sub === "string" ? sub : sub?.id;
+        if (stripeSubscriptionId) {
+          await updateSubscriptionStatus(stripeSubscriptionId, "PAST_DUE");
+          logger.info("Subscription marked as PAST_DUE", {
+            stripeSubscriptionId,
+            eventId: event.id,
+          });
+        } else {
+          logger.warn("Stripe webhook: no subscription ID in invoice", {
+            eventId: event.id,
+            eventType: event.type,
+          });
+        }
+        break;
       }
-      break;
-    }
-    case "invoice.paid": {
-      const invoice = event.data.object as Stripe.Invoice;
-      const sub = invoice.parent?.subscription_details?.subscription;
-      const stripeSubscriptionId = typeof sub === "string" ? sub : sub?.id;
-      if (stripeSubscriptionId) {
-        await updateSubscriptionStatus(stripeSubscriptionId, "ACTIVE");
-        logger.info("Subscription marked as ACTIVE", {
-          stripeSubscriptionId,
-        });
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const sub = invoice.parent?.subscription_details?.subscription;
+        const stripeSubscriptionId = typeof sub === "string" ? sub : sub?.id;
+        if (stripeSubscriptionId) {
+          await updateSubscriptionStatus(stripeSubscriptionId, "ACTIVE");
+          logger.info("Subscription marked as ACTIVE", {
+            stripeSubscriptionId,
+            eventId: event.id,
+          });
+        } else {
+          logger.warn("Stripe webhook: no subscription ID in invoice", {
+            eventId: event.id,
+            eventType: event.type,
+          });
+        }
+        break;
       }
-      break;
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object;
+        await updateSubscriptionStatus(subscription.id, "CANCELED");
+        logger.info("Subscription marked as CANCELED", {
+          stripeSubscriptionId: subscription.id,
+          eventId: event.id,
+        });
+        break;
+      }
+      default:
+        break;
     }
-    case "customer.subscription.deleted": {
-      const subscription = event.data.object;
-      await updateSubscriptionStatus(subscription.id, "CANCELED");
-      logger.info("Subscription marked as CANCELED", {
-        stripeSubscriptionId: subscription.id,
-      });
-      break;
-    }
-    default:
-      break;
+  } catch (error) {
+    logger.error("Stripe webhook event processing failed", error as Error, {
+      eventId: event.id,
+      eventType: event.type,
+    });
+    // 500を返してStripeにリトライさせる
+    return NextResponse.json(
+      { error: "Webhook processing failed" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ received: true });

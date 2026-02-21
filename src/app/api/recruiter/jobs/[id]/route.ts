@@ -60,19 +60,19 @@ export const GET = withRecruiterAuth<RouteContext>(
 );
 
 const jobUpdateSchema = z.object({
-  title: z.string().min(1).optional(),
-  description: z.string().min(1).optional(),
-  requirements: z.string().optional().nullable(),
-  preferredSkills: z.string().optional().nullable(),
-  skills: z.array(z.string()).optional(),
-  keywords: z.array(z.string()).optional(),
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().min(1).max(10000).optional(),
+  requirements: z.string().max(5000).optional().nullable(),
+  preferredSkills: z.string().max(5000).optional().nullable(),
+  skills: z.array(z.string().max(200)).max(50).optional(),
+  keywords: z.array(z.string().max(200)).max(50).optional(),
   employmentType: z
     .enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP", "FREELANCE"])
     .optional(),
   experienceLevel: z
     .enum(["ENTRY", "JUNIOR", "MID", "SENIOR", "LEAD"])
     .optional(),
-  location: z.string().optional().nullable(),
+  location: z.string().max(500).optional().nullable(),
   salaryMin: z.number().optional().nullable(),
   salaryMax: z.number().optional().nullable(),
   isRemote: z.boolean().optional(),

@@ -11,6 +11,8 @@ const lambda = new LambdaClient({
   region: process.env.AWS_REGION || "ap-northeast-1",
 });
 
+const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10分
+
 export const POST = withUserAuth<RouteContext>(
   async (req, session, context) => {
     const { id } = await context.params;
@@ -24,32 +26,46 @@ export const POST = withUserAuth<RouteContext>(
       throw new InternalError("ドキュメント解析サービスが設定されていません");
     }
 
-    const document = await prisma.document.findFirst({
-      where: {
-        id,
-        userId: session.user.userId,
-      },
-    });
+    // トランザクション内でFOR UPDATEロックを取得し、ステータスチェックと更新を原子的に実行
+    // これにより、同一ドキュメントへの同時解析リクエストによる二重Lambda起動を防止
+    const document = await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<
+        Array<{
+          id: string;
+          userId: string;
+          fileName: string;
+          filePath: string;
+          analysisStatus: string;
+          analyzedAt: Date | null;
+          createdAt: Date;
+        }>
+      >`SELECT id, "userId", "fileName", "filePath", "analysisStatus", "analyzedAt", "createdAt"
+        FROM "Document"
+        WHERE id = ${id} AND "userId" = ${session.user.userId}
+        FOR UPDATE`;
 
-    if (!document) {
-      throw new NotFoundError("ドキュメントが見つかりません");
-    }
-
-    if (document.analysisStatus === "ANALYZING") {
-      const startedAt = document.analyzedAt ?? document.createdAt;
-      const STALE_THRESHOLD = 10 * 60 * 1000;
-      if (Date.now() - new Date(startedAt).getTime() < STALE_THRESHOLD) {
-        throw new ConflictError("このドキュメントは現在解析中です");
+      const doc = rows[0];
+      if (!doc) {
+        throw new NotFoundError("ドキュメントが見つかりません");
       }
-    }
 
-    await prisma.document.update({
-      where: { id },
-      data: {
-        analysisStatus: "ANALYZING",
-        analysisError: null,
-        analyzedAt: new Date(),
-      },
+      if (doc.analysisStatus === "ANALYZING") {
+        const startedAt = doc.analyzedAt ?? doc.createdAt;
+        if (Date.now() - new Date(startedAt).getTime() < STALE_THRESHOLD_MS) {
+          throw new ConflictError("このドキュメントは現在解析中です");
+        }
+      }
+
+      await tx.document.update({
+        where: { id },
+        data: {
+          analysisStatus: "ANALYZING",
+          analysisError: null,
+          analyzedAt: new Date(),
+        },
+      });
+
+      return doc;
     });
 
     try {

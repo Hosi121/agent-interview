@@ -53,13 +53,20 @@ export const PATCH = withRecruiterValidation(
       );
     }
 
-    const updated = await prisma.recruiter.update({
-      where: { id: target.id },
+    // TOCTOU防止: ステータス条件付き更新で同時リクエストを防ぐ
+    const result = await prisma.recruiter.updateMany({
+      where: { id: target.id, companyId: company.id, status: target.status },
       data: { status: body.status },
     });
 
+    if (result.count === 0) {
+      throw new ConflictError(
+        "メンバーのステータスが変更されたため、処理を完了できません",
+      );
+    }
+
     return NextResponse.json(
-      { id: updated.id, status: updated.status },
+      { id: target.id, status: body.status },
       { status: 200 },
     );
   },
@@ -102,14 +109,24 @@ export const DELETE = withRecruiterAuth<RouteContext>(
     }
 
     // メンバーをソフトデリート（DISABLEDに変更）
-    // 関連データを保持しつつアクセスを無効化
-    const updated = await prisma.recruiter.update({
-      where: { id: target.id },
+    // TOCTOU防止: ステータス条件付き更新で同時リクエストを防ぐ
+    const result = await prisma.recruiter.updateMany({
+      where: {
+        id: target.id,
+        companyId: company.id,
+        status: { not: "DISABLED" },
+      },
       data: { status: "DISABLED" },
     });
 
+    if (result.count === 0) {
+      throw new ConflictError(
+        "メンバーは既に無効化されているか、ステータスが変更されました",
+      );
+    }
+
     return NextResponse.json(
-      { id: updated.id, status: "DISABLED" },
+      { id: target.id, status: "DISABLED" },
       { status: 200 },
     );
   },

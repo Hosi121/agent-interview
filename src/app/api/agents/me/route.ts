@@ -150,8 +150,8 @@ export const GET = withUserAuth(async (req, session) => {
 });
 
 const updateAgentSchema = z.object({
-  systemPrompt: z.string().optional(),
-  status: z.enum(["DRAFT", "PUBLIC", "PRIVATE"]).optional(),
+  systemPrompt: z.string().max(10000).optional(),
+  status: z.enum(["PUBLIC", "PRIVATE"]).optional(),
 });
 
 export const PATCH = withUserAuth(async (req, session) => {
@@ -173,7 +173,7 @@ export const PATCH = withUserAuth(async (req, session) => {
   }
 
   if (status !== undefined) {
-    updateData.status = status as AgentStatus;
+    updateData.status = status;
   }
 
   // 現在のステータスを取得

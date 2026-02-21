@@ -29,12 +29,12 @@ export const GET = withRecruiterAuth(async (request, session) => {
 });
 
 const jobPostingSchema = z.object({
-  title: z.string().min(1, "タイトルは必須です"),
-  description: z.string().min(1, "説明は必須です"),
-  requirements: z.string().optional(),
-  preferredSkills: z.string().optional(),
-  skills: z.array(z.string()).default([]),
-  keywords: z.array(z.string()).default([]),
+  title: z.string().min(1, "タイトルは必須です").max(200),
+  description: z.string().min(1, "説明は必須です").max(10000),
+  requirements: z.string().max(5000).optional(),
+  preferredSkills: z.string().max(5000).optional(),
+  skills: z.array(z.string().max(200)).max(50).default([]),
+  keywords: z.array(z.string().max(200)).max(50).default([]),
   employmentType: z.enum(
     ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP", "FREELANCE"],
     {
@@ -46,7 +46,7 @@ const jobPostingSchema = z.object({
     message:
       "経験レベルはENTRY, JUNIOR, MID, SENIOR, LEADのいずれかを指定してください",
   }),
-  location: z.string().optional(),
+  location: z.string().max(500).optional(),
   salaryMin: z.number().optional(),
   salaryMax: z.number().optional(),
   isRemote: z.boolean().default(false),

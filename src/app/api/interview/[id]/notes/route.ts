@@ -54,7 +54,7 @@ export const GET = withRecruiterAuth<RouteContext>(
 );
 
 const noteSchema = z.object({
-  content: z.string().min(1, "メモの内容を入力してください"),
+  content: z.string().min(1, "メモの内容を入力してください").max(5000),
 });
 
 export const POST = withRecruiterAuth<RouteContext>(

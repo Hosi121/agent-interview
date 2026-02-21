@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
@@ -8,6 +9,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 // 興味表明一覧取得
@@ -54,7 +56,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
 
 const createInterestSchema = z.object({
   agentId: z.string().min(1, "エージェントIDが必要です"),
-  message: z.string().optional(),
+  message: z.string().max(2000).optional(),
 });
 
 // 興味表明（無料）
@@ -88,53 +90,57 @@ export const POST = withRecruiterAuth(async (req, session) => {
     throw new ForbiddenError("この候補者へのアクセスが制限されています");
   }
 
-  // 既存の興味表明をチェック
-  const existingInterest = await prisma.interest.findUnique({
-    where: {
-      recruiterId_userId: {
+  // 興味表明を作成（ユニーク制約で重複を防止）
+  let interest;
+  try {
+    interest = await prisma.interest.create({
+      data: {
         recruiterId: session.user.recruiterId,
         userId: agent.userId,
+        agentId,
+        message: message || null,
       },
-    },
-  });
-
-  if (existingInterest) {
-    throw new ConflictError("既に興味表明済みです");
-  }
-
-  // 興味表明を作成
-  const interest = await prisma.interest.create({
-    data: {
-      recruiterId: session.user.recruiterId,
-      userId: agent.userId,
-      agentId,
-      message: message || null,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new ConflictError("既に興味表明済みです");
+    }
+    throw error;
+  }
 
-  // 求職者に通知を作成
+  // 求職者に通知を作成（非クリティカル）
+  // 通知失敗でも興味表明の作成自体は成功として返す
   const companyName = session.user.companyName || "企業";
-  await prisma.notification.create({
-    data: {
-      accountId: agent.user.accountId,
-      type: "NEW_CANDIDATE_MATCH",
-      title: "企業からの興味表明",
-      body: `${companyName}があなたに興味を持っています`,
+  try {
+    await prisma.notification.create({
       data: {
-        interestId: interest.id,
-        recruiterId: session.user.recruiterId,
-        companyName,
+        accountId: agent.user.accountId,
+        type: "NEW_CANDIDATE_MATCH",
+        title: "企業からの興味表明",
+        body: `${companyName}があなたに興味を持っています`,
+        data: {
+          interestId: interest.id,
+          recruiterId: session.user.recruiterId,
+          companyName,
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    logger.error("興味表明の通知作成に失敗しました", error as Error, {
+      interestId: interest.id,
+    });
+  }
 
   return NextResponse.json({ interest }, { status: 201 });
 });

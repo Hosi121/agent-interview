@@ -1,7 +1,9 @@
+import { Prisma } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 import { withErrorHandling, withValidation } from "@/lib/api-utils";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { inviteAcceptSchema } from "@/lib/validations";
 
@@ -84,47 +86,61 @@ export const POST = withValidation(
       });
     }
 
-    const existingAccount = await prisma.account.findUnique({
-      where: { email: invite.email },
-    });
-    if (existingAccount) {
-      throw new ConflictError(
-        "このメールアドレスは既に使用されています。別のメールを指定してください。",
-      );
-    }
-
     const passwordHash = await hash(body.password, 12);
 
-    const account = await prisma.$transaction(async (tx) => {
-      const createdAccount = await tx.account.create({
-        data: {
-          email: invite.email,
-          passwordHash,
-          accountType: "RECRUITER",
-          emailVerified: true,
-          recruiter: {
-            create: {
-              companyId: invite.companyId,
-              role: invite.role,
-              status: "ACTIVE",
-              invitedByAccountId: invite.invitedByAccountId,
-              joinedAt: new Date(),
+    let account: { id: string };
+    try {
+      account = await prisma.$transaction(async (tx) => {
+        const createdAccount = await tx.account.create({
+          data: {
+            email: invite.email,
+            passwordHash,
+            accountType: "RECRUITER",
+            emailVerified: true,
+            recruiter: {
+              create: {
+                companyId: invite.companyId,
+                role: invite.role,
+                status: "ACTIVE",
+                invitedByAccountId: invite.invitedByAccountId,
+                joinedAt: new Date(),
+              },
             },
           },
-        },
-      });
+        });
 
-      await tx.invite.update({
-        where: { id: invite.id },
-        data: {
-          status: "USED",
-          usedAccountId: createdAccount.id,
-          usedAt: new Date(),
-        },
-      });
+        // TOCTOU防止: ステータス条件付き更新で同時リクエストによる二重使用を防ぐ
+        const inviteUpdate = await tx.invite.updateMany({
+          where: { id: invite.id, status: "PENDING" },
+          data: {
+            status: "USED",
+            usedAccountId: createdAccount.id,
+            usedAt: new Date(),
+          },
+        });
 
-      return createdAccount;
-    });
+        if (inviteUpdate.count === 0) {
+          throw new ConflictError("この招待は既に使用されています");
+        }
+
+        return createdAccount;
+      });
+    } catch (error) {
+      // メールアドレスのユニーク制約違反（同時リクエストによる競合）
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        logger.warn("Invite acceptance email conflict", {
+          email: invite.email,
+          inviteId: invite.id,
+        });
+        throw new ConflictError(
+          "このメールアドレスは既に使用されています。別のメールを指定してください。",
+        );
+      }
+      throw error;
+    }
 
     return NextResponse.json({ accountId: account.id }, { status: 201 });
   },
