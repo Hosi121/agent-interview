@@ -148,14 +148,19 @@ export function useVoiceConversation({
     if (isActive) {
       isActiveRef.current = false;
       setIsActive(false);
-      recordingRef.current
-        ?.stopRecording()
+      const rec = recordingRef.current;
+      if (!rec) {
+        setVoiceState("inactive");
+        return;
+      }
+      rec
+        .stopRecording()
         .then(() => {
-          recordingRef.current?.releaseStream();
+          rec.releaseStream();
           setVoiceState("inactive");
         })
         .catch(() => {
-          recordingRef.current?.releaseStream();
+          rec.releaseStream();
           setVoiceState("inactive");
         });
     } else {
@@ -163,14 +168,21 @@ export function useVoiceConversation({
       isActiveRef.current = true;
       setIsActive(true);
       setVoiceState("recording");
-      recordingRef.current
-        ?.acquireStream()
+      const rec = recordingRef.current;
+      if (!rec) {
+        setIsActive(false);
+        isActiveRef.current = false;
+        setVoiceState("inactive");
+        return;
+      }
+      rec
+        .acquireStream()
         .then(() => {
-          return recordingRef.current?.startRecording();
+          return rec.startRecording();
         })
         .catch(() => {
           setError("録音の開始に失敗しました");
-          recordingRef.current?.releaseStream();
+          rec.releaseStream();
           setIsActive(false);
           isActiveRef.current = false;
           setVoiceState("inactive");

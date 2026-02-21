@@ -106,7 +106,7 @@ export function ChatWindow({
   );
 
   const isVoiceBusy =
-    voice.voiceState !== "inactive" && voice.voiceState !== "recording";
+    voice.voiceState === "transcribing" || voice.voiceState === "waiting";
 
   return (
     <div className="flex flex-col h-full">

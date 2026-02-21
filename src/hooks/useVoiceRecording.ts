@@ -82,7 +82,7 @@ export function useVoiceRecording(
       streamRef.current = null;
     }
     if (audioContextRef.current) {
-      audioContextRef.current.close();
+      audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
     }
     analyserRef.current = null;
@@ -257,9 +257,17 @@ export function useVoiceRecording(
 
     return new Promise<Blob | null>((resolve) => {
       resolveStopRef.current = resolve;
-      mediaRecorderRef.current?.stop();
+      try {
+        mediaRecorderRef.current?.stop();
+      } catch {
+        // ストリーム切断等で stop() が失敗した場合、Promise がハングしないよう resolve
+        resolveStopRef.current = null;
+        cleanupRecording();
+        setState("idle");
+        resolve(null);
+      }
     });
-  }, []);
+  }, [cleanupRecording]);
 
   return {
     state,

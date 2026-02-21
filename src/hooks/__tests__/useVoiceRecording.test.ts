@@ -41,7 +41,7 @@ const mockTrackStop = vi.fn();
 // AudioContext モック
 const mockGetByteTimeDomainData = vi.fn();
 const mockConnect = vi.fn();
-const mockClose = vi.fn();
+const mockClose = vi.fn().mockResolvedValue(undefined);
 
 const mockAnalyser = {
   fftSize: 2048,
