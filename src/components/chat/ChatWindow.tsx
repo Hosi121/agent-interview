@@ -178,67 +178,31 @@ export function ChatWindow({
             />
           </div>
           {/* マイクボタン */}
-          {voice.mode === "push-to-talk" ? (
-            <div className="relative">
-              {voice.voiceState === "recording" && (
-                <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30" />
-              )}
-              <Button
-                type="button"
-                size="icon"
-                variant={
-                  voice.voiceState === "recording" ? "destructive" : "outline"
-                }
-                className={cn(
-                  "relative",
-                  voice.voiceState === "recording" &&
-                    "ring-2 ring-destructive/50",
-                )}
-                disabled={isVoiceBusy}
-                onPointerDown={voice.onPressStart}
-                onPointerUp={voice.onPressEnd}
-                onPointerLeave={
-                  voice.voiceState === "recording"
-                    ? voice.onPressEnd
-                    : undefined
-                }
-                title="押して話す"
-              >
-                <Mic className="size-4" />
-              </Button>
-            </div>
-          ) : voice.isActive ? (
-            <div className="relative">
-              {voice.voiceState === "recording" && (
-                <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30" />
-              )}
-              <Button
-                type="button"
-                size="icon"
-                variant="destructive"
-                className={cn(
-                  "relative",
-                  voice.voiceState === "recording" &&
-                    "ring-2 ring-destructive/50",
-                )}
-                onClick={voice.toggleContinuous}
-                title="音声会話を停止"
-              >
-                <Square className="size-4" />
-              </Button>
-            </div>
-          ) : (
+          <div className="relative">
+            {voice.isActive && voice.voiceState === "recording" && (
+              <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30" />
+            )}
             <Button
               type="button"
               size="icon"
-              variant="outline"
-              onClick={voice.toggleContinuous}
+              variant={voice.isActive ? "destructive" : "outline"}
+              className={cn(
+                "relative",
+                voice.isActive &&
+                  voice.voiceState === "recording" &&
+                  "ring-2 ring-destructive/50",
+              )}
+              onClick={voice.toggleVoice}
               disabled={isVoiceBusy}
-              title="連続会話を開始"
+              title={voice.isActive ? "音声会話を停止" : "音声会話を開始"}
             >
-              <Mic className="size-4" />
+              {voice.isActive ? (
+                <Square className="size-4" />
+              ) : (
+                <Mic className="size-4" />
+              )}
             </Button>
-          )}
+          </div>
           {/* 送信ボタン */}
           <Button
             type="submit"
@@ -250,23 +214,6 @@ export function ChatWindow({
           </Button>
         </div>
         <div className="flex items-center gap-2 mt-2">
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() =>
-              voice.setMode(
-                voice.mode === "push-to-talk" ? "continuous" : "push-to-talk",
-              )
-            }
-            disabled={voice.isActive}
-            title={
-              voice.mode === "push-to-talk"
-                ? "連続会話モードに切替"
-                : "Push-to-talkモードに切替"
-            }
-          >
-            {voice.mode === "push-to-talk" ? "PTT" : "連続"}
-          </button>
           <span className="text-xs text-muted-foreground">
             {voice.voiceState === "recording"
               ? formatDuration(voice.duration)

@@ -14,6 +14,8 @@ interface UseVoiceRecordingReturn {
   state: RecordingState;
   duration: number;
   error: string | null;
+  acquireStream: () => Promise<void>;
+  releaseStream: () => void;
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<Blob | null>;
 }
@@ -37,7 +39,7 @@ export function useVoiceRecording(
   const {
     onSilenceDetected,
     silenceThreshold = 10,
-    silenceDuration = 3000,
+    silenceDuration = 1500,
   } = options;
 
   const [state, setState] = useState<RecordingState>("idle");
@@ -54,7 +56,8 @@ export function useVoiceRecording(
   const silenceRafRef = useRef<number | null>(null);
   const resolveStopRef = useRef<((blob: Blob | null) => void) | null>(null);
 
-  const cleanup = useCallback(() => {
+  // MediaRecorder・タイマー・無音監視のみ停止（ストリームは残す）
+  const cleanupRecording = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -67,6 +70,11 @@ export function useVoiceRecording(
       cancelAnimationFrame(silenceRafRef.current);
       silenceRafRef.current = null;
     }
+    mediaRecorderRef.current = null;
+  }, []);
+
+  // ストリーム・AudioContext含む全リソース解放
+  const cleanupStream = useCallback(() => {
     if (streamRef.current) {
       for (const track of streamRef.current.getTracks()) {
         track.stop();
@@ -78,7 +86,6 @@ export function useVoiceRecording(
       audioContextRef.current = null;
     }
     analyserRef.current = null;
-    mediaRecorderRef.current = null;
   }, []);
 
   const monitorSilence = useCallback(() => {
@@ -123,25 +130,65 @@ export function useVoiceRecording(
     check();
   }, [onSilenceDetected, silenceThreshold, silenceDuration]);
 
-  const startRecording = useCallback(async () => {
+  // マイクストリーム取得（1回だけ呼ぶ）
+  const acquireStream = useCallback(async () => {
+    if (streamRef.current) return;
+
     try {
       setError(null);
-      chunksRef.current = [];
-
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1 },
       });
       streamRef.current = stream;
 
-      if (onSilenceDetected) {
-        const audioContext = new AudioContext();
-        audioContextRef.current = audioContext;
-        const source = audioContext.createMediaStreamSource(stream);
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
-        source.connect(analyser);
-        analyserRef.current = analyser;
+      // ストリーム切断検知
+      for (const track of stream.getTracks()) {
+        track.onended = () => {
+          setError("マイクが切断されました");
+          cleanupRecording();
+          cleanupStream();
+          setState("idle");
+        };
       }
+
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+    } catch (err) {
+      cleanupStream();
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        setError("マイクへのアクセスが許可されていません");
+      } else {
+        setError("マイクの取得に失敗しました");
+      }
+      throw err;
+    }
+  }, [cleanupRecording, cleanupStream]);
+
+  // 全リソース解放（会話終了時・アンマウント時）
+  const releaseStream = useCallback(() => {
+    cleanupRecording();
+    cleanupStream();
+    setState("idle");
+    setDuration(0);
+  }, [cleanupRecording, cleanupStream]);
+
+  const startRecording = useCallback(async () => {
+    try {
+      setError(null);
+      chunksRef.current = [];
+
+      // 既存ストリームがなければfallbackで取得
+      if (!streamRef.current) {
+        await acquireStream();
+      }
+
+      const stream = streamRef.current;
+      if (!stream) return;
 
       const mimeType = getSupportedMimeType();
       const mediaRecorder = new MediaRecorder(stream, {
@@ -159,7 +206,8 @@ export function useVoiceRecording(
         const blob = new Blob(chunksRef.current, {
           type: mimeType ?? "audio/webm",
         });
-        cleanup();
+        cleanupRecording();
+        setState("idle");
         if (resolveStopRef.current) {
           resolveStopRef.current(blob);
           resolveStopRef.current = null;
@@ -179,7 +227,7 @@ export function useVoiceRecording(
         monitorSilence();
       }
     } catch (err) {
-      cleanup();
+      cleanupRecording();
       setState("idle");
       if (err instanceof DOMException && err.name === "NotAllowedError") {
         setError("マイクへのアクセスが許可されていません");
@@ -187,12 +235,15 @@ export function useVoiceRecording(
         setError("録音の開始に失敗しました");
       }
     }
-  }, [cleanup, monitorSilence, onSilenceDetected]);
+  }, [acquireStream, cleanupRecording, monitorSilence, onSilenceDetected]);
 
   // アンマウント時にリソースを解放
   useEffect(() => {
-    return () => cleanup();
-  }, [cleanup]);
+    return () => {
+      cleanupRecording();
+      cleanupStream();
+    };
+  }, [cleanupRecording, cleanupStream]);
 
   const stopRecording = useCallback(async (): Promise<Blob | null> => {
     if (
@@ -214,6 +265,8 @@ export function useVoiceRecording(
     state,
     duration,
     error,
+    acquireStream,
+    releaseStream,
     startRecording,
     stopRecording,
   };

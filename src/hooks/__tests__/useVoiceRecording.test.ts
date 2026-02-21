@@ -66,14 +66,20 @@ vi.stubGlobal("navigator", {
 });
 
 describe("useVoiceRecording", () => {
+  let mockTrack: {
+    stop: ReturnType<typeof vi.fn>;
+    onended: (() => void) | null;
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     mockOndataavailable = null;
     mockOnstop = null;
 
+    mockTrack = { stop: mockTrackStop, onended: null };
     mockGetUserMedia.mockResolvedValue({
-      getTracks: () => [{ stop: mockTrackStop }],
+      getTracks: () => [mockTrack],
     });
   });
 
@@ -118,7 +124,7 @@ describe("useVoiceRecording", () => {
     expect(result.current.duration).toBe(2);
   });
 
-  it("stopRecordingで録音が停止しBlobが返される", async () => {
+  it("stopRecordingで録音が停止しBlobが返される（ストリームは維持）", async () => {
     const { result } = renderHook(() => useVoiceRecording());
 
     await act(async () => {
@@ -142,6 +148,8 @@ describe("useVoiceRecording", () => {
 
     expect(blob).not.toBeNull();
     expect(blob).toBeInstanceOf(Blob);
+    // ストリームは停止されない（永続化のため）
+    expect(mockTrackStop).not.toHaveBeenCalled();
   });
 
   it("マイク権限エラー時にエラーメッセージが設定される", async () => {
@@ -197,5 +205,54 @@ describe("useVoiceRecording", () => {
     });
 
     expect(blob).toBeNull();
+  });
+
+  it("acquireStreamでマイクストリームが取得される", async () => {
+    const { result } = renderHook(() => useVoiceRecording());
+
+    await act(async () => {
+      await result.current.acquireStream();
+    });
+
+    expect(mockGetUserMedia).toHaveBeenCalledWith({
+      audio: { channelCount: 1 },
+    });
+    // AudioContextも作成される
+    expect(mockConnect).toHaveBeenCalled();
+  });
+
+  it("acquireStream後のstartRecordingはgetUserMediaを再呼出しない", async () => {
+    const { result } = renderHook(() => useVoiceRecording());
+
+    await act(async () => {
+      await result.current.acquireStream();
+    });
+
+    expect(mockGetUserMedia).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.startRecording();
+    });
+
+    // acquireStreamで1回だけ呼ばれ、startRecordingでは再呼出しされない
+    expect(mockGetUserMedia).toHaveBeenCalledTimes(1);
+    expect(mockStart).toHaveBeenCalledWith(100);
+    expect(result.current.state).toBe("recording");
+  });
+
+  it("releaseStreamで全リソースが解放される", async () => {
+    const { result } = renderHook(() => useVoiceRecording());
+
+    await act(async () => {
+      await result.current.acquireStream();
+    });
+
+    act(() => {
+      result.current.releaseStream();
+    });
+
+    expect(mockTrackStop).toHaveBeenCalled();
+    expect(mockClose).toHaveBeenCalled();
+    expect(result.current.state).toBe("idle");
   });
 });
