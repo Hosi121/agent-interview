@@ -65,10 +65,24 @@ export function useVoiceConversation({
     releaseStream: () => void;
   } | null>(null);
 
+  const restartOrDeactivate = useCallback(() => {
+    if (isActiveRef.current) {
+      setVoiceState("recording");
+      recordingRef.current?.startRecording().catch(() => {
+        setError("録音の開始に失敗しました");
+        isActiveRef.current = false;
+        setIsActive(false);
+        setVoiceState("inactive");
+      });
+    } else {
+      setVoiceState("inactive");
+    }
+  }, []);
+
   const handleRecordingComplete = useCallback(
     async (blob: Blob | null) => {
       if (!blob || blob.size === 0) {
-        setVoiceState(isActiveRef.current ? "recording" : "inactive");
+        restartOrDeactivate();
         return;
       }
 
@@ -79,44 +93,26 @@ export function useVoiceConversation({
           onSendMessage(text.trim());
           setVoiceState("waiting");
         } else {
-          if (isActiveRef.current) {
-            setVoiceState("recording");
-            recordingRef.current?.startRecording().catch(() => {
-              setError("録音の開始に失敗しました");
-              setVoiceState("inactive");
-            });
-          } else {
-            setVoiceState("inactive");
-          }
+          restartOrDeactivate();
         }
       } catch {
         setError("文字起こしに失敗しました");
-        if (isActiveRef.current) {
-          setVoiceState("recording");
-          recordingRef.current?.startRecording().catch(() => {
-            setError("録音の開始に失敗しました");
-            setVoiceState("inactive");
-          });
-        } else {
-          setVoiceState("inactive");
-        }
+        restartOrDeactivate();
       }
     },
-    [onSendMessage],
+    [onSendMessage, restartOrDeactivate],
   );
 
   const handleSilenceDetected = useCallback(() => {
     if (isActiveRef.current) {
-      recordingRef.current?.stopRecording().then(handleRecordingComplete);
+      recordingRef.current
+        ?.stopRecording()
+        .then(handleRecordingComplete)
+        .catch(() => {
+          restartOrDeactivate();
+        });
     }
-  }, [handleRecordingComplete]);
-
-  const startRecordingWithErrorHandling = useCallback(() => {
-    recordingRef.current?.startRecording().catch(() => {
-      setError("録音の開始に失敗しました");
-      setVoiceState(isActiveRef.current ? "recording" : "inactive");
-    });
-  }, []);
+  }, [handleRecordingComplete, restartOrDeactivate]);
 
   const recording = useVoiceRecording({
     onSilenceDetected: handleSilenceDetected,
@@ -142,27 +138,24 @@ export function useVoiceConversation({
     if (wasLoading && !isLoading && voiceState === "waiting") {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage?.role === "assistant" && lastMessage.content) {
-        setVoiceState(isActiveRef.current ? "recording" : "inactive");
-        if (isActiveRef.current) {
-          startRecordingWithErrorHandling();
-        }
+        restartOrDeactivate();
       }
     }
-  }, [isLoading, messages, voiceState, startRecordingWithErrorHandling]);
+  }, [isLoading, messages, voiceState, restartOrDeactivate]);
 
   // 連続会話: トグル
   const toggleVoice = useCallback(() => {
     if (isActive) {
       isActiveRef.current = false;
       setIsActive(false);
-      recording
-        .stopRecording()
+      recordingRef.current
+        ?.stopRecording()
         .then(() => {
-          recording.releaseStream();
+          recordingRef.current?.releaseStream();
           setVoiceState("inactive");
         })
         .catch(() => {
-          recording.releaseStream();
+          recordingRef.current?.releaseStream();
           setVoiceState("inactive");
         });
     } else {
@@ -170,25 +163,20 @@ export function useVoiceConversation({
       isActiveRef.current = true;
       setIsActive(true);
       setVoiceState("recording");
-      recording
-        .acquireStream()
+      recordingRef.current
+        ?.acquireStream()
         .then(() => {
-          return recording.startRecording();
+          return recordingRef.current?.startRecording();
         })
         .catch(() => {
           setError("録音の開始に失敗しました");
+          recordingRef.current?.releaseStream();
           setIsActive(false);
           isActiveRef.current = false;
           setVoiceState("inactive");
         });
     }
-  }, [
-    isActive,
-    recording.startRecording,
-    recording.stopRecording,
-    recording.acquireStream,
-    recording.releaseStream,
-  ]);
+  }, [isActive]);
 
   return {
     isActive,
