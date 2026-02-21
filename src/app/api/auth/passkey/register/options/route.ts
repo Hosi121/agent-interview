@@ -3,6 +3,7 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-utils";
 import { ConflictError, UnauthorizedError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import {
   buildSetCookieHeader,
@@ -35,7 +36,11 @@ export const POST = withAuth(async (_req, session) => {
     .deleteMany({
       where: { expiresAt: { lt: new Date() } },
     })
-    .catch(() => {});
+    .catch((err) => {
+      logger.warn("Failed to cleanup expired WebAuthn challenges", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 
   // webauthnUserId がなければ生成してAccountに保存
   let webauthnUserId = account.webauthnUserId;
