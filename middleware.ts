@@ -68,6 +68,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // メール未認証ユーザーの制限
+  // /check-email, /verify-email は publicRoutes で処理済みのためここには到達しない
   if (!token.emailVerified) {
     if (isApiRoute) {
       return NextResponse.json(
@@ -75,14 +76,7 @@ export async function middleware(request: NextRequest) {
         { status: 403 },
       );
     }
-    const emailVerificationAllowedRoutes = ["/check-email", "/verify-email"];
-    const isAllowed = emailVerificationAllowedRoutes.some(
-      (route) => pathname === route || pathname.startsWith(`${route}/`),
-    );
-    if (!isAllowed) {
-      return NextResponse.redirect(new URL("/check-email", request.url));
-    }
-    return NextResponse.next();
+    return NextResponse.redirect(new URL("/check-email", request.url));
   }
 
   // 2FA不要で /verify-passkey にアクセスした場合はダッシュボードへ

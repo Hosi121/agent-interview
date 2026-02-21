@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
-  const { data: session, update } = useSession();
+  const { data: session, status: sessionStatus, update } = useSession();
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading",
   );
@@ -55,7 +55,13 @@ function VerifyEmailContent() {
   // 認証成功後、セッションがあればJWTを更新してリダイレクト
   const hasRedirected = useRef(false);
   useEffect(() => {
-    if (status !== "success" || !session || hasRedirected.current) return;
+    if (
+      status !== "success" ||
+      sessionStatus === "loading" ||
+      hasRedirected.current
+    )
+      return;
+    if (!session) return; // セッションなし = 別ブラウザでの認証
     hasRedirected.current = true;
 
     const redirectAfterUpdate = async () => {
@@ -64,7 +70,7 @@ function VerifyEmailContent() {
       window.location.href = "/setup/passkey";
     };
     redirectAfterUpdate();
-  }, [status, session, update]);
+  }, [status, session, sessionStatus, update]);
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4">
@@ -96,7 +102,11 @@ function VerifyEmailContent() {
               <h1 className="text-xl font-bold tracking-tight">
                 認証が完了しました
               </h1>
-              {session ? (
+              {sessionStatus === "loading" ? (
+                <p className="text-sm text-muted-foreground">
+                  メールアドレスの認証が完了しました。リダイレクト準備中...
+                </p>
+              ) : session ? (
                 <p className="text-sm text-muted-foreground">
                   メールアドレスの認証が完了しました。リダイレクトしています...
                 </p>
@@ -106,7 +116,7 @@ function VerifyEmailContent() {
                 </p>
               )}
             </div>
-            {!session && (
+            {sessionStatus === "unauthenticated" && (
               <Button asChild className="w-full">
                 <Link href="/login">ログインする</Link>
               </Button>
