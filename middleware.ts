@@ -29,10 +29,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 認証系APIは公開
+  // 認証不要のAPIルート
   if (
     pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/webhooks/")
+    pathname.startsWith("/api/webhooks/") ||
+    pathname === "/api/health"
   ) {
     return NextResponse.next();
   }
