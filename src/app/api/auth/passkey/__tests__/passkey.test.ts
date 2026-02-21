@@ -44,6 +44,7 @@ const mockPrisma = {
     findUnique: vi.fn(),
     create: vi.fn(),
     delete: vi.fn(),
+    deleteMany: vi.fn(),
     update: vi.fn(),
   },
   webAuthnChallenge: {
@@ -182,7 +183,7 @@ describe("パスキーAPI - 結合テスト", () => {
           id: "00000000-0000-4000-8000-000000000001",
           accountId: "account-1",
         });
-        mockPrisma.passkey.delete.mockResolvedValue({});
+        mockPrisma.passkey.deleteMany.mockResolvedValue({ count: 1 });
 
         const { DELETE } = await import("../[passkeyId]/route");
         const request = new NextRequest(
