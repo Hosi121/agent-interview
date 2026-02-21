@@ -33,7 +33,7 @@ export function SystemPromptEditor({
           <Textarea
             value={prompt}
             onChange={(e) => onChange(e.target.value)}
-            className="flex-1 min-h-0 text-sm resize-none"
+            className="flex-1 min-h-0 text-sm resize-none overflow-y-auto [field-sizing:fixed]"
             placeholder="エージェントのシステムプロンプト..."
           />
           <div className="flex gap-2 shrink-0">

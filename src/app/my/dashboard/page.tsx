@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 interface DashboardData {
   agent: {
-    status: "PRIVATE" | "PUBLIC" | "DRAFT";
+    status: "PRIVATE" | "PUBLIC";
     systemPrompt: string;
   } | null;
   fragments: {

@@ -315,7 +315,7 @@ export default function AgentPage() {
 
         {/* 右: システムプロンプト — 左パネルの高さに揃えてスクロール */}
         <div
-          className="flex flex-col p-6 rounded-xl border bg-card gap-4 min-h-0 overflow-hidden"
+          className="flex flex-col p-6 rounded-xl border bg-card gap-4 min-h-0"
           style={cardPanelHeight ? { height: cardPanelHeight } : undefined}
         >
           <SystemPromptEditor
