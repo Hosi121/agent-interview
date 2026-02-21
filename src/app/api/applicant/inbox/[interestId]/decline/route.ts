@@ -70,12 +70,21 @@ export const POST = withUserAuth<RouteContext>(
       throw new ConflictError("既に連絡先が開示されています");
     }
 
+    if (interest.status === "DECLINED") {
+      return NextResponse.json({ status: "DECLINED" });
+    }
+
     await prisma.$transaction(async (tx) => {
-      if (interest.status !== "DECLINED") {
-        await tx.interest.update({
-          where: { id: interestId },
-          data: { status: "DECLINED" },
-        });
+      // トランザクション内で状態を原子的にチェック＆更新（TOCTOU防止）
+      const updated = await tx.interest.updateMany({
+        where: {
+          id: interestId,
+          status: { notIn: ["DECLINED", "CONTACT_DISCLOSED"] },
+        },
+        data: { status: "DECLINED" },
+      });
+      if (updated.count === 0) {
+        throw new ConflictError("この興味表明は既に処理されています");
       }
 
       if (preference === "DENY") {

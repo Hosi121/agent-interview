@@ -80,10 +80,19 @@ export const POST = withRecruiterAuth<RouteContext>(
 
     if (accessPreference?.status === "DENY") {
       await prisma.$transaction(async (tx) => {
-        await tx.interest.update({
-          where: { id: interestId },
+        // TOCTOU防止: ステータス条件付き更新で同時リクエストを防ぐ
+        const statusCheck = await tx.interest.updateMany({
+          where: {
+            id: interestId,
+            status: { in: ["EXPRESSED", "CONTACT_REQUESTED"] },
+          },
           data: { status: "DECLINED" },
         });
+        if (statusCheck.count === 0) {
+          throw new ConflictError(
+            "ステータスが変更されたため、処理を完了できません",
+          );
+        }
 
         await tx.notification.create({
           data: {
@@ -119,10 +128,19 @@ export const POST = withRecruiterAuth<RouteContext>(
         session.user.companyId,
         "CONTACT_DISCLOSURE",
         async (tx) => {
-          await tx.interest.update({
-            where: { id: interestId },
+          // TOCTOU防止: ステータス条件付き更新で二重ポイント消費を防ぐ
+          const statusCheck = await tx.interest.updateMany({
+            where: {
+              id: interestId,
+              status: { in: ["EXPRESSED", "CONTACT_REQUESTED"] },
+            },
             data: { status: "CONTACT_DISCLOSED" },
           });
+          if (statusCheck.count === 0) {
+            throw new ConflictError(
+              "ステータスが変更されたため、連絡先開示を完了できません",
+            );
+          }
 
           await tx.notification.create({
             data: {
@@ -155,10 +173,16 @@ export const POST = withRecruiterAuth<RouteContext>(
 
     if (interest.status !== "CONTACT_REQUESTED") {
       await prisma.$transaction(async (tx) => {
-        await tx.interest.update({
-          where: { id: interestId },
+        // TOCTOU防止: ステータス条件付き更新
+        const statusCheck = await tx.interest.updateMany({
+          where: { id: interestId, status: "EXPRESSED" },
           data: { status: "CONTACT_REQUESTED" },
         });
+        if (statusCheck.count === 0) {
+          throw new ConflictError(
+            "ステータスが変更されたため、処理を完了できません",
+          );
+        }
 
         await tx.notification.create({
           data: {

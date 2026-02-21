@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withAuth } from "@/lib/api-utils";
 import {
+  ConflictError,
   ForbiddenError,
-  InsufficientPointsError,
   NotFoundError,
   ValidationError,
 } from "@/lib/errors";
-import { checkPointBalance, consumePointsWithOperations } from "@/lib/points";
+import { consumePointsWithOperations } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -67,7 +67,7 @@ export const GET = withAuth<RouteContext>(async (req, session, context) => {
 });
 
 const sendMessageSchema = z.object({
-  content: z.string().min(1, "メッセージを入力してください"),
+  content: z.string().min(1, "メッセージを入力してください").max(5000),
 });
 
 // メッセージ送信（採用担当者のみ3pt消費、求職者は無料）
@@ -143,22 +143,26 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
     : `${interest.user.name}からメッセージが届きました`;
 
   // 採用担当者の場合はポイント消費 + メッセージ作成を同一トランザクションで
+  // consumePointsWithOperations内でFOR UPDATEロック付きで残高チェックするため
+  // 事前のcheckPointBalanceは不要（TOCTOU防止）
   if (isRecruiter && session.user.companyId) {
-    const pointCheck = await checkPointBalance(
-      session.user.companyId,
-      "MESSAGE_SEND",
-    );
-    if (!pointCheck.canProceed) {
-      throw new InsufficientPointsError(
-        pointCheck.required,
-        pointCheck.available,
-      );
-    }
-
     const { result: message } = await consumePointsWithOperations(
       session.user.companyId,
       "MESSAGE_SEND",
       async (tx) => {
+        // ステータスを再検証（TOCTOU防止: 外側のチェックとこのトランザクション間で
+        // ステータスが変更されている可能性がある）
+        // updateManyの条件で原子的にチェック＋ロックする
+        const statusCheck = await tx.interest.updateMany({
+          where: { id: interestId, status: "CONTACT_DISCLOSED" },
+          data: { updatedAt: new Date() },
+        });
+        if (statusCheck.count === 0) {
+          throw new ConflictError(
+            "連絡先の開示状態が変更されたため、メッセージを送信できません",
+          );
+        }
+
         const msg = await tx.directMessage.create({
           data: {
             interestId,
@@ -182,11 +186,6 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
           },
         });
 
-        await tx.interest.update({
-          where: { id: interestId },
-          data: { updatedAt: new Date() },
-        });
-
         return msg;
       },
       interestId,
@@ -198,6 +197,18 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
 
   // 求職者の場合はポイント消費不要だがトランザクションで囲む
   const message = await prisma.$transaction(async (tx) => {
+    // ステータスを再検証（TOCTOU防止: 外側のチェックとこのトランザクション間で
+    // ステータスが変更されている可能性がある）
+    const statusCheck = await tx.interest.updateMany({
+      where: { id: interestId, status: "CONTACT_DISCLOSED" },
+      data: { updatedAt: new Date() },
+    });
+    if (statusCheck.count === 0) {
+      throw new ConflictError(
+        "連絡先の開示状態が変更されたため、メッセージを送信できません",
+      );
+    }
+
     const msg = await tx.directMessage.create({
       data: {
         interestId,
@@ -219,11 +230,6 @@ export const POST = withAuth<RouteContext>(async (req, session, context) => {
           messageId: msg.id,
         },
       },
-    });
-
-    await tx.interest.update({
-      where: { id: interestId },
-      data: { updatedAt: new Date() },
     });
 
     return msg;

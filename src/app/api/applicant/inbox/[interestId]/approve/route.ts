@@ -7,7 +7,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "@/lib/errors";
-import { checkPointBalance, consumePointsWithOperations } from "@/lib/points";
+import { consumePointsWithOperations } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ interestId: string }> };
@@ -89,23 +89,20 @@ export const POST = withUserAuth<RouteContext>(
       throw new ValidationError("連絡先開示リクエストがありません");
     }
 
-    const pointCheck = await checkPointBalance(
-      interest.recruiter.companyId,
-      "CONTACT_DISCLOSURE",
-    );
-
-    if (!pointCheck.canProceed) {
-      throw new ConflictError("企業側のポイントが不足しています");
-    }
-
+    // ポイント消費と状態更新をトランザクション内で原子的に実行
+    // 同時リクエストによる二重消費を防止
     await consumePointsWithOperations(
       interest.recruiter.companyId,
       "CONTACT_DISCLOSURE",
       async (tx) => {
-        await tx.interest.update({
-          where: { id: interestId },
+        // トランザクション内で状態を再チェック（TOCTOU防止）
+        const updated = await tx.interest.updateMany({
+          where: { id: interestId, status: "CONTACT_REQUESTED" },
           data: { status: "CONTACT_DISCLOSED" },
         });
+        if (updated.count === 0) {
+          throw new ConflictError("この興味表明は既に処理されています");
+        }
 
         if (preference === "ALLOW") {
           await tx.companyAccess.upsert({
