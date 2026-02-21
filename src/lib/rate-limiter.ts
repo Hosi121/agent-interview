@@ -10,6 +10,10 @@ export type RateLimitPreset = {
 export const RATE_LIMIT_PRESETS = {
   /** 認証系公開エンドポイント: 10req/60s per IP */
   PUBLIC_AUTH: { points: 10, duration: 60 } satisfies RateLimitPreset,
+  /** アカウント登録: 5req/300s per IP（ブルートフォース防止） */
+  REGISTER: { points: 5, duration: 300 } satisfies RateLimitPreset,
+  /** メール認証・再送: 3req/300s per IP（スパム防止） */
+  VERIFY_EMAIL: { points: 3, duration: 300 } satisfies RateLimitPreset,
 } as const;
 
 const limiters = new Map<string, RateLimiterMemory>();

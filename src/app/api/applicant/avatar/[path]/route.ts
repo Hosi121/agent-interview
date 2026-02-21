@@ -1,3 +1,4 @@
+import nodePath from "node:path";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/api-utils";
 import { NotFoundError } from "@/lib/errors";
@@ -12,7 +13,13 @@ export const GET = withAuth(
       throw new NotFoundError("画像が見つかりません");
     }
 
-    const url = await getFileUrl(path);
+    // パストラバーサル防止: ".." を含むパスや正規化後にavatars/外になるパスを拒否
+    const normalized = nodePath.posix.normalize(path);
+    if (!normalized.startsWith("avatars/") || normalized.includes("..")) {
+      throw new NotFoundError("画像が見つかりません");
+    }
+
+    const url = await getFileUrl(normalized);
     return NextResponse.redirect(url);
   },
 );

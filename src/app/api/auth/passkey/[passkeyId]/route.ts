@@ -34,7 +34,14 @@ export const DELETE = withAuth(async (_req, session, context) => {
     throw new ForbiddenError("このパスキーを削除する権限がありません");
   }
 
-  await prisma.passkey.delete({ where: { id: passkeyId } });
+  // TOCTOU防止: accountId条件付きdeleteで所有権を原子的に検証
+  const result = await prisma.passkey.deleteMany({
+    where: { id: passkeyId, accountId },
+  });
+
+  if (result.count === 0) {
+    throw new NotFoundError("パスキーの削除に失敗しました");
+  }
 
   return apiSuccess({ deleted: true });
 });

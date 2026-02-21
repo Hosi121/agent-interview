@@ -29,10 +29,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 認証不要のAPIルート
+  // 認証不要のAPIルート（公開認証API、Webhook、ヘルスチェック、内部API）
+  // 内部APIは独自のAPIキー認証を使用するため、JWTチェックをバイパス
   if (
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/webhooks/") ||
+    pathname.startsWith("/api/internal/") ||
     pathname === "/api/health"
   ) {
     return NextResponse.next();
