@@ -9,6 +9,7 @@ declare module "next-auth" {
   interface User {
     accountType?: AccountType;
     passkeyVerificationRequired?: boolean;
+    emailVerified?: boolean;
   }
 
   interface Session {
@@ -25,6 +26,7 @@ declare module "next-auth" {
       companyRole?: CompanyRole;
       recruiterStatus?: CompanyMemberStatus;
       passkeyVerificationRequired?: boolean;
+      emailVerified?: boolean;
     };
   }
 }
@@ -34,6 +36,7 @@ declare module "next-auth/jwt" {
     email?: string;
     accountType?: AccountType;
     passkeyVerificationRequired?: boolean;
+    emailVerified?: boolean;
     accountId?: string;
     userId?: string;
     userName?: string;

@@ -16,24 +16,35 @@ const passkeyVerificationAllowedRoutes = ["/verify-passkey"];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 公開ルート・APIルート・静的ファイルはスキップ
+  // 公開ルート・静的ファイルはスキップ
   if (
     publicRoutes.some(
       (route) =>
         pathname === route ||
         (route !== "/" && pathname.startsWith(`${route}/`)),
     ) ||
-    pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
     /\.\w+$/.test(pathname)
   ) {
     return NextResponse.next();
   }
 
+  // 認証系APIは公開
+  if (
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/webhooks/")
+  ) {
+    return NextResponse.next();
+  }
+
+  const isApiRoute = pathname.startsWith("/api/");
   const token = await getToken({ req: request });
 
-  // 未認証 → ログインへ（元URLを保持）
+  // 未認証 → ログインへ（元URLを保持）/ APIは401
   if (!token) {
+    if (isApiRoute) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
@@ -41,6 +52,12 @@ export async function middleware(request: NextRequest) {
 
   // パスキー2FA検証が必要な場合
   if (token.passkeyVerificationRequired) {
+    if (isApiRoute) {
+      return NextResponse.json(
+        { error: "2FA verification required" },
+        { status: 403 },
+      );
+    }
     const isAllowed = passkeyVerificationAllowedRoutes.some(
       (route) => pathname === route || pathname.startsWith(`${route}/`),
     );
@@ -48,6 +65,18 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/verify-passkey", request.url));
     }
     return NextResponse.next();
+  }
+
+  // メール未認証ユーザーの制限
+  // /check-email, /verify-email は publicRoutes で処理済みのためここには到達しない
+  if (!token.emailVerified) {
+    if (isApiRoute) {
+      return NextResponse.json(
+        { error: "Email not verified" },
+        { status: 403 },
+      );
+    }
+    return NextResponse.redirect(new URL("/check-email", request.url));
   }
 
   // 2FA不要で /verify-passkey にアクセスした場合はダッシュボードへ

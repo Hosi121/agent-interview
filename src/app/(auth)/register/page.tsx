@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Suspense, useState } from "react";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,19 @@ function RegisterForm() {
         throw new Error(data.error || "登録に失敗しました");
       }
 
-      router.push(`/check-email?email=${encodeURIComponent(email)}`);
+      // 登録成功後に自動サインイン
+      const signInResult = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (signInResult?.ok) {
+        router.push("/check-email");
+      } else {
+        // サインイン失敗時はフォールバック
+        router.push(`/check-email?email=${encodeURIComponent(email)}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
     } finally {

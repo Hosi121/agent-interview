@@ -3,7 +3,8 @@
 import { Mail } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -11,10 +12,24 @@ const COOLDOWN_SECONDS = 60;
 
 function CheckEmailContent() {
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") || "";
+  const router = useRouter();
+  const { data: session } = useSession();
+  const emailFromParams = searchParams.get("email") || "";
+  const email = session?.user?.email || emailFromParams;
   const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
+
+  // メール認証済みならダッシュボードへリダイレクト
+  useEffect(() => {
+    if (session?.user?.emailVerified) {
+      const dashboardUrl =
+        session.user.accountType === "RECRUITER"
+          ? "/recruiter/dashboard"
+          : "/my/dashboard";
+      router.replace(dashboardUrl);
+    }
+  }, [session, router]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -91,7 +106,7 @@ function CheckEmailContent() {
           <Button
             variant="outline"
             className="w-full"
-            disabled={cooldown > 0 || sending}
+            disabled={cooldown > 0 || sending || !email}
             onClick={handleResend}
           >
             {sending
@@ -106,13 +121,15 @@ function CheckEmailContent() {
           )}
         </div>
 
-        <div className="pt-4 border-t">
-          <p className="text-sm text-muted-foreground">
-            <Link href="/login" className="text-primary hover:underline">
-              ログインに戻る
-            </Link>
-          </p>
-        </div>
+        {!session && (
+          <div className="pt-4 border-t">
+            <p className="text-sm text-muted-foreground">
+              <Link href="/login" className="text-primary hover:underline">
+                ログインに戻る
+              </Link>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
