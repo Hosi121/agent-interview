@@ -51,7 +51,9 @@ export function FinishSuggestion({
                 : "text-blue-800 dark:text-blue-200",
             )}
           >
-            {isComplete ? "情報収集が完了しました" : "そろそろ終わりにできます"}
+            {isComplete
+              ? "あなたのことが分かりました！"
+              : "かなりあなたのことが分かってきました"}
           </p>
           <p
             className={cn(
@@ -62,8 +64,8 @@ export function FinishSuggestion({
             )}
           >
             {isComplete
-              ? "十分な情報が集まりました。エージェントを作成できます。"
-              : `進捗${coverage.percentage}% - もう少し話すとより良いエージェントになります。`}
+              ? "あなたらしいエージェントを作る準備ができました！"
+              : "もう少し話してくれると、さらにあなたらしいエージェントが作れます。"}
           </p>
         </div>
       </div>
