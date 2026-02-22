@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarSrc } from "@/lib/utils";
 
 export interface InterestCardInterest {
   id: string;
@@ -68,7 +68,7 @@ export function InterestCard({
           <Avatar className="size-12">
             {interest.user.avatarPath && (
               <AvatarImage
-                src={`/api/applicant/avatar/${interest.user.avatarPath}`}
+                src={getAvatarSrc(interest.user.avatarPath)}
                 alt={interest.user.name}
               />
             )}

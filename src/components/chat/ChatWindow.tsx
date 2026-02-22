@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarSrc } from "@/lib/utils";
 import { FragmentCard } from "./FragmentCard";
 import { MessageBubble } from "./MessageBubble";
 
@@ -156,12 +156,7 @@ export function ChatWindow({
               <Avatar className="size-7 flex-shrink-0">
                 {assistantAvatarPath && (
                   <AvatarImage
-                    src={
-                      assistantAvatarPath.startsWith("http://") ||
-                      assistantAvatarPath.startsWith("https://")
-                        ? assistantAvatarPath
-                        : `/api/applicant/avatar/${assistantAvatarPath}`
-                    }
+                    src={getAvatarSrc(assistantAvatarPath)}
                     alt={assistantName || "AI"}
                   />
                 )}

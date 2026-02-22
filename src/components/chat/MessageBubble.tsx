@@ -9,7 +9,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { fragmentTypeLabels } from "@/lib/fragment-utils";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarSrc } from "@/lib/utils";
 
 interface FragmentReference {
   id: string;
@@ -52,12 +52,7 @@ export function MessageBubble({
       <Avatar className="size-7 flex-shrink-0 mt-0.5">
         {!isUser && assistantAvatarPath && (
           <AvatarImage
-            src={
-              assistantAvatarPath.startsWith("http://") ||
-              assistantAvatarPath.startsWith("https://")
-                ? assistantAvatarPath
-                : `/api/applicant/avatar/${assistantAvatarPath}`
-            }
+            src={getAvatarSrc(assistantAvatarPath)}
             alt={assistantName || "AI"}
           />
         )}
