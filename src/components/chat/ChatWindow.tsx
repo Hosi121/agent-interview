@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -152,11 +153,22 @@ export function ChatWindow({
           ))}
           {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-2.5">
-              <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-xs text-primary">
+              <Avatar className="size-7 flex-shrink-0">
+                {assistantAvatarPath && (
+                  <AvatarImage
+                    src={
+                      assistantAvatarPath.startsWith("http://") ||
+                      assistantAvatarPath.startsWith("https://")
+                        ? assistantAvatarPath
+                        : `/api/applicant/avatar/${assistantAvatarPath}`
+                    }
+                    alt={assistantName || "AI"}
+                  />
+                )}
+                <AvatarFallback className="text-xs bg-primary/10 text-primary">
                   {assistantName?.[0] || "AI"}
-                </span>
-              </div>
+                </AvatarFallback>
+              </Avatar>
               <div className="bg-secondary rounded-lg px-3.5 py-2">
                 <div className="flex gap-1">
                   <span className="size-1.5 bg-muted-foreground/60 rounded-full animate-bounce" />

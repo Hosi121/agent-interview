@@ -489,7 +489,12 @@ export default function InterviewPage({
           <Avatar className="size-10">
             {agentInfo.user.avatarPath && (
               <AvatarImage
-                src={`/api/applicant/avatar/${agentInfo.user.avatarPath}`}
+                src={
+                  agentInfo.user.avatarPath.startsWith("http://") ||
+                  agentInfo.user.avatarPath.startsWith("https://")
+                    ? agentInfo.user.avatarPath
+                    : `/api/applicant/avatar/${agentInfo.user.avatarPath}`
+                }
                 alt={agentInfo.user.name}
               />
             )}
