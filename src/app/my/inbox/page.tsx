@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { type MouseEvent, useCallback, useEffect, useState } from "react";
 import type { DirectMessage, InboxInterest } from "@/components/inbox";
 import { DirectMessageDialog, InboxInterestCard } from "@/components/inbox";
@@ -54,6 +53,25 @@ export default function InboxPage() {
     null,
   );
   const [declineError, setDeclineError] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const handlePublish = async () => {
+    setIsPublishing(true);
+    try {
+      const response = await fetch("/api/agents/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "PUBLIC" }),
+      });
+      if (response.ok) {
+        setAgentStatus("PUBLIC");
+      }
+    } catch (error) {
+      console.error("Failed to publish agent:", error);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -321,11 +339,14 @@ export default function InboxPage() {
                 <p className="text-xs text-muted-foreground text-center">
                   エージェントを公開すると、企業から興味表明を受け取れます
                 </p>
-                <Link href="/my/agent">
-                  <Button variant="outline" size="sm">
-                    エージェントを公開する
-                  </Button>
-                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePublish}
+                  disabled={isPublishing}
+                >
+                  {isPublishing ? "公開中..." : "エージェントを公開する"}
+                </Button>
               </>
             )}
           </div>
