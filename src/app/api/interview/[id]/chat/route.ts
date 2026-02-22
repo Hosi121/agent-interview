@@ -23,7 +23,7 @@ class DuplicateSessionError extends Error {
 type RouteContext = { params: Promise<{ id: string }> };
 
 const chatSchema = z.object({
-  message: z.string().min(1, "メッセージは必須です"),
+  message: z.string().min(1, "メッセージは必須です").max(5000),
   jobId: z.string().optional(),
   missingInfo: z.array(z.string()).optional(),
 });

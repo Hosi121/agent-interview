@@ -1,4 +1,4 @@
-import type { PipelineStage } from "@prisma/client";
+import { type PipelineStage, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
@@ -203,8 +203,10 @@ export const POST = withRecruiterAuth(async (req, session) => {
     return NextResponse.json({ pipeline }, { status: 201 });
   } catch (error) {
     // jobIdがnon-nullの場合、ユニーク制約違反で重複を検出
-    const prismaError = error as { code?: string };
-    if (prismaError.code === "P2002") {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
       throw new ConflictError("この候補者は既にパイプラインに追加されています");
     }
     throw error;

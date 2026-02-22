@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -170,9 +171,10 @@ describe("POST /api/recruiter/pipeline", () => {
     });
 
     it("P2002ユニーク制約違反は409を返す", async () => {
-      const p2002Error = Object.assign(new Error("Unique constraint failed"), {
-        code: "P2002",
-      });
+      const p2002Error = new Prisma.PrismaClientKnownRequestError(
+        "Unique constraint failed",
+        { code: "P2002", clientVersion: "6.0.0" },
+      );
       mockPrisma.$transaction.mockRejectedValue(p2002Error);
       const { POST } = await import("@/app/api/recruiter/pipeline/route");
 

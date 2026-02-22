@@ -23,6 +23,15 @@ async function populateTokenFromDb(token: JWT): Promise<void> {
   token.accountId = account.id;
   token.accountType = account.accountType;
   token.emailVerified = !!account.emailVerified;
+  // ロール変更時にstaleデータが残らないようリセット
+  token.userId = undefined;
+  token.userName = undefined;
+  token.avatarPath = undefined;
+  token.recruiterId = undefined;
+  token.companyId = undefined;
+  token.companyName = undefined;
+  token.companyRole = undefined;
+  token.recruiterStatus = undefined;
   if (account.user) {
     token.userId = account.user.id;
     token.userName = account.user.name;

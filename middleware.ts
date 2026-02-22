@@ -72,7 +72,7 @@ export async function middleware(request: NextRequest) {
 
   // メール未認証ユーザーの制限
   // /check-email, /verify-email は publicRoutes で処理済みのためここには到達しない
-  if (!token.emailVerified) {
+  if (token.emailVerified === false) {
     if (isApiRoute) {
       return NextResponse.json(
         { error: "Email not verified" },
