@@ -70,10 +70,14 @@ export const GET = withUserAuth<RouteContext>(
             }
 
             if (doc.analysisStatus === "COMPLETED") {
+              const fragmentCount = await prisma.fragment.count({
+                where: { sourceType: "DOCUMENT", sourceId: id },
+              });
               send("completed", {
                 status: "COMPLETED",
                 summary: doc.summary,
                 analyzedAt: doc.analyzedAt,
+                fragmentCount,
               });
               controller.close();
               return;

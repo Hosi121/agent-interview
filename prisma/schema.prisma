@@ -266,6 +266,7 @@ model Fragment {
   createdAt    DateTime     @default(now())
 
   @@index([userId])
+  @@index([sourceType, sourceId])
 }
 
 model AgentProfile {
