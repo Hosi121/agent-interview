@@ -52,6 +52,9 @@ export default function AgentPage() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [userName, setUserName] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [savedSystemPrompt, setSavedSystemPrompt] = useState<string | null>(
+    null,
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [cardPanelHeight, setCardPanelHeight] = useState<number | undefined>(
@@ -69,6 +72,7 @@ export default function AgentPage() {
       if (response.ok) {
         const data = await response.json();
         setAgent(data.agent);
+        setSavedSystemPrompt(data.agent?.systemPrompt ?? null);
         setFragments(data.fragments || []);
       }
     } catch (error) {
@@ -116,6 +120,7 @@ export default function AgentPage() {
       if (response.ok) {
         const data = await response.json();
         setAgent(data.agent);
+        setSavedSystemPrompt(data.agent.systemPrompt);
       }
     } catch (error) {
       console.error("Failed to generate prompt:", error);
@@ -139,6 +144,7 @@ export default function AgentPage() {
       if (response.ok) {
         const data = await response.json();
         setAgent(data.agent);
+        setSavedSystemPrompt(data.agent.systemPrompt);
       }
     } catch (error) {
       console.error("Failed to update status:", error);
@@ -160,6 +166,7 @@ export default function AgentPage() {
       if (response.ok) {
         const data = await response.json();
         setAgent(data.agent);
+        setSavedSystemPrompt(data.agent.systemPrompt);
       }
     } catch (error) {
       console.error("Failed to update prompt:", error);
@@ -315,11 +322,13 @@ export default function AgentPage() {
 
         {/* 右: システムプロンプト — 左パネルの高さに揃えてスクロール */}
         <div
-          className="flex flex-col p-6 rounded-xl border bg-card gap-4 min-h-0"
+          className="relative flex flex-col p-6 rounded-xl border bg-card gap-4 min-h-0 overflow-hidden"
           style={cardPanelHeight ? { height: cardPanelHeight } : undefined}
         >
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
           <SystemPromptEditor
             prompt={agent ? agent.systemPrompt : null}
+            savedPrompt={savedSystemPrompt}
             onChange={(value) =>
               agent && setAgent({ ...agent, systemPrompt: value })
             }
