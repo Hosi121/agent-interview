@@ -8,6 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { fragmentTypeLabels } from "@/lib/fragment-utils";
 import { cn } from "@/lib/utils";
 
 interface FragmentReference {
@@ -26,17 +27,6 @@ interface MessageBubbleProps {
   references?: FragmentReference[];
   messageId?: string;
 }
-
-const fragmentTypeLabels: Record<string, string> = {
-  ACHIEVEMENT: "実績",
-  ACTION: "行動",
-  CHALLENGE: "課題",
-  LEARNING: "学び",
-  VALUE: "価値観",
-  EMOTION: "感情",
-  FACT: "事実",
-  SKILL_USAGE: "スキル活用",
-};
 
 export function MessageBubble({
   content,

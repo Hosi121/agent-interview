@@ -1,18 +1,31 @@
 "use client";
 
 import { Mic, SendHorizontal, Square } from "lucide-react";
-import type { RefObject } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment as ReactFragment,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { cn } from "@/lib/utils";
+import { FragmentCard } from "./FragmentCard";
 import { MessageBubble } from "./MessageBubble";
 
 interface FragmentReference {
   id: string;
+  type: string;
+  content: string;
+  skills: string[];
+}
+
+interface ExtractedFragmentInfo {
   type: string;
   content: string;
   skills: string[];
@@ -23,6 +36,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   references?: FragmentReference[];
+  extractedFragments?: ExtractedFragmentInfo[];
 }
 
 interface ChatWindowProps {
@@ -119,16 +133,22 @@ export function ChatWindow({
             </div>
           )}
           {messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              messageId={message.id}
-              content={message.content}
-              role={message.role}
-              senderName={userName}
-              assistantName={assistantName}
-              assistantAvatarPath={assistantAvatarPath}
-              references={message.references}
-            />
+            <ReactFragment key={message.id}>
+              <MessageBubble
+                messageId={message.id}
+                content={message.content}
+                role={message.role}
+                senderName={userName}
+                assistantName={assistantName}
+                assistantAvatarPath={assistantAvatarPath}
+                references={message.references}
+              />
+              {message.role === "assistant" &&
+                message.extractedFragments &&
+                message.extractedFragments.length > 0 && (
+                  <FragmentCard fragments={message.extractedFragments} />
+                )}
+            </ReactFragment>
           ))}
           {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-2.5">

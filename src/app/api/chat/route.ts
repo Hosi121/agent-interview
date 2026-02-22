@@ -278,6 +278,11 @@ export const POST = withUserValidation(
         }
 
         let fragmentsExtracted = 0;
+        let extractedFragmentDetails: {
+          type: string;
+          content: string;
+          skills: string[];
+        }[] = [];
         let pendingCorrection:
           | {
               type: string;
@@ -356,6 +361,11 @@ export const POST = withUserValidation(
                 })),
               });
               fragmentsExtracted = extractedData.fragments.length;
+              extractedFragmentDetails = extractedData.fragments.map((f) => ({
+                type: parseFragmentType(f.type),
+                content: f.content,
+                skills: f.skills || [],
+              }));
 
               const allFragments = await prisma.fragment.findMany({
                 where: { userId: session.user.userId },
@@ -374,6 +384,7 @@ export const POST = withUserValidation(
           "metadata",
           JSON.stringify({
             fragmentsExtracted,
+            fragments: extractedFragmentDetails,
             pendingCorrection,
             coverage: currentCoverage,
           }),
