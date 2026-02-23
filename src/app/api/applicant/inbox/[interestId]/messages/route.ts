@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserAuth } from "@/lib/api-utils";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ interestId: string }> };
@@ -56,7 +61,7 @@ export const GET = withUserAuth<RouteContext>(async (req, session, context) => {
 });
 
 const sendMessageSchema = z.object({
-  content: z.string().min(1, "メッセージを入力してください"),
+  content: z.string().min(1, "メッセージを入力してください").max(5000),
 });
 
 // メッセージ送信
@@ -96,6 +101,18 @@ export const POST = withUserAuth<RouteContext>(
     }
 
     const message = await prisma.$transaction(async (tx) => {
+      // ステータスを再検証（TOCTOU防止: 外側のチェックとこのトランザクション間で
+      // ステータスが変更されている可能性がある）
+      const statusCheck = await tx.interest.updateMany({
+        where: { id: interestId, status: "CONTACT_DISCLOSED" },
+        data: { updatedAt: new Date() },
+      });
+      if (statusCheck.count === 0) {
+        throw new ConflictError(
+          "連絡先の開示状態が変更されたため、メッセージを送信できません",
+        );
+      }
+
       const msg = await tx.directMessage.create({
         data: {
           interestId,
@@ -123,12 +140,6 @@ export const POST = withUserAuth<RouteContext>(
             messageId: msg.id,
           },
         },
-      });
-
-      // 興味表明のupdatedAtを更新
-      await tx.interest.update({
-        where: { id: interestId },
-        data: { updatedAt: new Date() },
       });
 
       return msg;

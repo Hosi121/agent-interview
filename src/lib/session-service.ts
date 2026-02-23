@@ -2,13 +2,25 @@ import { prisma } from "./prisma";
 
 /**
  * 求職者AIチャットセッションを取得または作成
+ * @param messageLimit 取得するメッセージの最大件数（最新N件を取得）
  */
-export async function getOrCreateUserAIChatSession(userId: string) {
+export async function getOrCreateUserAIChatSession(
+  userId: string,
+  messageLimit?: number,
+) {
   let session = await prisma.session.findFirst({
     where: { userId, sessionType: "USER_AI_CHAT" },
     orderBy: { createdAt: "desc" },
-    include: { messages: { orderBy: { createdAt: "asc" } } },
+    include: {
+      messages: messageLimit
+        ? { orderBy: { createdAt: "desc" }, take: messageLimit }
+        : { orderBy: { createdAt: "asc" } },
+    },
   });
+  // messageLimit使用時はdesc順で取得しているのでasc順に並び替え
+  if (session && messageLimit) {
+    session.messages.reverse();
+  }
   if (!session) {
     session = await prisma.session.create({
       data: { sessionType: "USER_AI_CHAT", userId },

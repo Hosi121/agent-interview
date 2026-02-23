@@ -1,4 +1,4 @@
-import type { PipelineStage } from "@prisma/client";
+import { type PipelineStage, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
@@ -67,6 +67,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
       },
     },
     orderBy: { updatedAt: "desc" },
+    take: 200,
   });
 
   // ステージ別にグループ化
@@ -106,7 +107,7 @@ const addToPipelineSchema = z.object({
       "WITHDRAWN",
     ])
     .optional(),
-  note: z.string().optional(),
+  note: z.string().max(5000).optional(),
 });
 
 // パイプラインに候補者追加
@@ -149,47 +150,65 @@ export const POST = withRecruiterAuth(async (req, session) => {
     }
   }
 
-  const existingPipeline = await prisma.candidatePipeline.findFirst({
-    where: {
-      recruiterId: session.user.recruiterId,
-      agentId,
-      jobId: jobId || null,
-    },
-  });
-
-  if (existingPipeline) {
-    throw new ConflictError("この候補者は既にパイプラインに追加されています");
-  }
-
   const initialStage: PipelineStage = stage || "INTERESTED";
 
-  const pipeline = await prisma.candidatePipeline.create({
-    data: {
-      recruiterId: session.user.recruiterId,
-      agentId,
-      jobId,
-      stage: initialStage,
-      note,
-      history: {
-        create: {
-          toStage: initialStage,
-          note: "パイプラインに追加",
+  // トランザクション内で重複チェックと作成を原子的に実行（TOCTOU防止）
+  // PostgreSQLではNULL値はユニーク制約で等価比較されないため、
+  // jobId=nullの場合はトランザクション内チェックが必須
+  try {
+    const pipeline = await prisma.$transaction(async (tx) => {
+      const existingPipeline = await tx.candidatePipeline.findFirst({
+        where: {
+          recruiterId: session.user.recruiterId,
+          agentId,
+          jobId: jobId || null,
         },
-      },
-    },
-    include: {
-      agent: {
-        include: {
-          user: {
-            select: { name: true },
+      });
+
+      if (existingPipeline) {
+        throw new ConflictError(
+          "この候補者は既にパイプラインに追加されています",
+        );
+      }
+
+      return tx.candidatePipeline.create({
+        data: {
+          recruiterId: session.user.recruiterId,
+          agentId,
+          jobId,
+          stage: initialStage,
+          note,
+          history: {
+            create: {
+              toStage: initialStage,
+              note: "パイプラインに追加",
+            },
           },
         },
-      },
-      job: {
-        select: { id: true, title: true },
-      },
-    },
-  });
+        include: {
+          agent: {
+            include: {
+              user: {
+                select: { name: true },
+              },
+            },
+          },
+          job: {
+            select: { id: true, title: true },
+          },
+        },
+      });
+    });
 
-  return NextResponse.json({ pipeline }, { status: 201 });
+    return NextResponse.json({ pipeline }, { status: 201 });
+  } catch (error) {
+    // jobIdがnon-nullの場合、ユニーク制約違反で重複を検出
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new ConflictError("この候補者は既にパイプラインに追加されています");
+    }
+    throw error;
+  }
 });

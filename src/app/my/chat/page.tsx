@@ -19,10 +19,17 @@ import {
 } from "@/components/ui/card";
 import type { ChatCoverageState } from "@/types";
 
+interface ExtractedFragmentInfo {
+  type: string;
+  content: string;
+  skills: string[];
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  extractedFragments?: ExtractedFragmentInfo[];
 }
 
 interface CorrectFragmentInfo {
@@ -319,6 +326,19 @@ function ChatPageInner() {
             const meta = JSON.parse(data);
             if (meta.fragmentsExtracted) {
               setFragmentCount((prev) => prev + meta.fragmentsExtracted);
+            }
+            if (meta.fragments && meta.fragments.length > 0) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const lastMsg = updated[updated.length - 1];
+                if (lastMsg?.role === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...lastMsg,
+                    extractedFragments: meta.fragments,
+                  };
+                }
+                return updated;
+              });
             }
             if (meta.coverage) {
               setCoverage(meta.coverage);

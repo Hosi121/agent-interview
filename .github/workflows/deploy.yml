@@ -296,7 +296,9 @@ jobs:
             {"name":"DOCUMENT_ANALYSIS_LAMBDA_ARN","valueFrom":"'"$SSM_PREFIX"'/document-analysis-lambda-arn"},
             {"name":"ANALYSIS_CALLBACK_SECRET","valueFrom":"'"$SSM_PREFIX"'/analysis-callback-secret"},
             {"name":"WEBAUTHN_RP_ID","valueFrom":"'"$SSM_PREFIX"'/webauthn-rp-id"},
-            {"name":"WEBAUTHN_ORIGIN","valueFrom":"'"$SSM_PREFIX"'/webauthn-origin"}
+            {"name":"WEBAUTHN_ORIGIN","valueFrom":"'"$SSM_PREFIX"'/webauthn-origin"},
+            {"name":"RESEND_API_KEY","valueFrom":"'"$SSM_PREFIX"'/resend-api-key"},
+            {"name":"EMAIL_FROM","valueFrom":"'"$SSM_PREFIX"'/email-from"}
           ]'
           NEW_TASK_DEF=$(echo "$TASK_DEF" | jq \
             --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \

@@ -11,6 +11,17 @@ export const qualityToConfidence: Record<string, number> = {
 
 const FRAGMENT_TYPE_VALUES = new Set<string>(Object.values(FragmentType));
 
+export const fragmentTypeLabels: Record<string, string> = {
+  ACHIEVEMENT: "実績",
+  ACTION: "行動",
+  CHALLENGE: "課題",
+  LEARNING: "学び",
+  VALUE: "価値観",
+  EMOTION: "感情",
+  FACT: "事実",
+  SKILL_USAGE: "スキル活用",
+};
+
 /** 文字列を FragmentType に変換する。無効な値は "FACT" にフォールバック */
 export function parseFragmentType(value: string | undefined): FragmentType {
   if (value && FRAGMENT_TYPE_VALUES.has(value)) {

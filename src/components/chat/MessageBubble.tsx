@@ -8,7 +8,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { cn } from "@/lib/utils";
+import { fragmentTypeLabels } from "@/lib/fragment-utils";
+import { cn, getAvatarSrc } from "@/lib/utils";
 
 interface FragmentReference {
   id: string;
@@ -26,17 +27,6 @@ interface MessageBubbleProps {
   references?: FragmentReference[];
   messageId?: string;
 }
-
-const fragmentTypeLabels: Record<string, string> = {
-  ACHIEVEMENT: "実績",
-  ACTION: "行動",
-  CHALLENGE: "課題",
-  LEARNING: "学び",
-  VALUE: "価値観",
-  EMOTION: "感情",
-  FACT: "事実",
-  SKILL_USAGE: "スキル活用",
-};
 
 export function MessageBubble({
   content,
@@ -62,7 +52,7 @@ export function MessageBubble({
       <Avatar className="size-7 flex-shrink-0 mt-0.5">
         {!isUser && assistantAvatarPath && (
           <AvatarImage
-            src={`/api/applicant/avatar/${assistantAvatarPath}`}
+            src={getAvatarSrc(assistantAvatarPath)}
             alt={assistantName || "AI"}
           />
         )}

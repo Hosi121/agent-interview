@@ -244,7 +244,8 @@ ${input.missingInfoHints.length > 0 ? input.missingInfoHints.join("\n") : "特�
     });
 
     return output ?? { questions: [], missingInfo: [], focusAreas: [] };
-  } catch {
+  } catch (error) {
+    logger.error("Interview guide generation failed", error as Error);
     return { questions: [], missingInfo: [], focusAreas: [] };
   }
 }
@@ -296,7 +297,8 @@ ${input.answer}`,
     });
 
     return output?.followUps ?? [];
-  } catch {
+  } catch (error) {
+    logger.error("Follow-up question generation failed", error as Error);
     return [];
   }
 }
@@ -426,7 +428,8 @@ ${conversationText}`,
     });
 
     return text;
-  } catch {
+  } catch (error) {
+    logger.error("Conversation summary generation failed", error as Error);
     return "";
   }
 }
@@ -471,7 +474,11 @@ export async function generateCandidateComparison(
     });
 
     return output ?? { summary: "分析結果を取得できませんでした" };
-  } catch {
+  } catch (error) {
+    logger.error(
+      "Candidate comparison structured output failed, falling back to text",
+      error as Error,
+    );
     try {
       const { text } = await generateText({
         model: defaultModel,
@@ -480,7 +487,11 @@ export async function generateCandidateComparison(
       });
 
       return { summary: text };
-    } catch {
+    } catch (fallbackError) {
+      logger.error(
+        "Candidate comparison fallback also failed",
+        fallbackError as Error,
+      );
       return { summary: "分析結果を取得できませんでした" };
     }
   }

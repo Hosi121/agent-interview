@@ -1,18 +1,32 @@
 "use client";
 
 import { Mic, SendHorizontal, Square } from "lucide-react";
-import type { RefObject } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment as ReactFragment,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { FollowUpSuggestions } from "@/components/interview/FollowUpSuggestions";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarSrc } from "@/lib/utils";
+import { FragmentCard } from "./FragmentCard";
 import { MessageBubble } from "./MessageBubble";
 
 interface FragmentReference {
   id: string;
+  type: string;
+  content: string;
+  skills: string[];
+}
+
+interface ExtractedFragmentInfo {
   type: string;
   content: string;
   skills: string[];
@@ -23,6 +37,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   references?: FragmentReference[];
+  extractedFragments?: ExtractedFragmentInfo[];
 }
 
 interface ChatWindowProps {
@@ -106,7 +121,7 @@ export function ChatWindow({
   );
 
   const isVoiceBusy =
-    voice.voiceState !== "inactive" && voice.voiceState !== "recording";
+    voice.voiceState === "transcribing" || voice.voiceState === "waiting";
 
   return (
     <div className="flex flex-col h-full">
@@ -119,24 +134,36 @@ export function ChatWindow({
             </div>
           )}
           {messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              messageId={message.id}
-              content={message.content}
-              role={message.role}
-              senderName={userName}
-              assistantName={assistantName}
-              assistantAvatarPath={assistantAvatarPath}
-              references={message.references}
-            />
+            <ReactFragment key={message.id}>
+              <MessageBubble
+                messageId={message.id}
+                content={message.content}
+                role={message.role}
+                senderName={userName}
+                assistantName={assistantName}
+                assistantAvatarPath={assistantAvatarPath}
+                references={message.references}
+              />
+              {message.role === "assistant" &&
+                message.extractedFragments &&
+                message.extractedFragments.length > 0 && (
+                  <FragmentCard fragments={message.extractedFragments} />
+                )}
+            </ReactFragment>
           ))}
           {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-2.5">
-              <div className="size-7 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-xs text-primary">
+              <Avatar className="size-7 flex-shrink-0">
+                {assistantAvatarPath && (
+                  <AvatarImage
+                    src={getAvatarSrc(assistantAvatarPath)}
+                    alt={assistantName || "AI"}
+                  />
+                )}
+                <AvatarFallback className="text-xs bg-primary/10 text-primary">
                   {assistantName?.[0] || "AI"}
-                </span>
-              </div>
+                </AvatarFallback>
+              </Avatar>
               <div className="bg-secondary rounded-lg px-3.5 py-2">
                 <div className="flex gap-1">
                   <span className="size-1.5 bg-muted-foreground/60 rounded-full animate-bounce" />
@@ -178,67 +205,31 @@ export function ChatWindow({
             />
           </div>
           {/* マイクボタン */}
-          {voice.mode === "push-to-talk" ? (
-            <div className="relative">
-              {voice.voiceState === "recording" && (
-                <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30" />
-              )}
-              <Button
-                type="button"
-                size="icon"
-                variant={
-                  voice.voiceState === "recording" ? "destructive" : "outline"
-                }
-                className={cn(
-                  "relative",
-                  voice.voiceState === "recording" &&
-                    "ring-2 ring-destructive/50",
-                )}
-                disabled={isVoiceBusy}
-                onPointerDown={voice.onPressStart}
-                onPointerUp={voice.onPressEnd}
-                onPointerLeave={
-                  voice.voiceState === "recording"
-                    ? voice.onPressEnd
-                    : undefined
-                }
-                title="押して話す"
-              >
-                <Mic className="size-4" />
-              </Button>
-            </div>
-          ) : voice.isActive ? (
-            <div className="relative">
-              {voice.voiceState === "recording" && (
-                <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30" />
-              )}
-              <Button
-                type="button"
-                size="icon"
-                variant="destructive"
-                className={cn(
-                  "relative",
-                  voice.voiceState === "recording" &&
-                    "ring-2 ring-destructive/50",
-                )}
-                onClick={voice.toggleContinuous}
-                title="音声会話を停止"
-              >
-                <Square className="size-4" />
-              </Button>
-            </div>
-          ) : (
+          <div className="relative">
+            {voice.isActive && voice.voiceState === "recording" && (
+              <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30" />
+            )}
             <Button
               type="button"
               size="icon"
-              variant="outline"
-              onClick={voice.toggleContinuous}
+              variant={voice.isActive ? "destructive" : "outline"}
+              className={cn(
+                "relative",
+                voice.isActive &&
+                  voice.voiceState === "recording" &&
+                  "ring-2 ring-destructive/50",
+              )}
+              onClick={voice.toggleVoice}
               disabled={isVoiceBusy}
-              title="連続会話を開始"
+              title={voice.isActive ? "音声会話を停止" : "音声会話を開始"}
             >
-              <Mic className="size-4" />
+              {voice.isActive ? (
+                <Square className="size-4" />
+              ) : (
+                <Mic className="size-4" />
+              )}
             </Button>
-          )}
+          </div>
           {/* 送信ボタン */}
           <Button
             type="submit"
@@ -250,23 +241,6 @@ export function ChatWindow({
           </Button>
         </div>
         <div className="flex items-center gap-2 mt-2">
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() =>
-              voice.setMode(
-                voice.mode === "push-to-talk" ? "continuous" : "push-to-talk",
-              )
-            }
-            disabled={voice.isActive}
-            title={
-              voice.mode === "push-to-talk"
-                ? "連続会話モードに切替"
-                : "Push-to-talkモードに切替"
-            }
-          >
-            {voice.mode === "push-to-talk" ? "PTT" : "連続"}
-          </button>
           <span className="text-xs text-muted-foreground">
             {voice.voiceState === "recording"
               ? formatDuration(voice.duration)

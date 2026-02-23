@@ -34,15 +34,17 @@ export const GET = withUserAuth(async (req, session) => {
 });
 
 const updateSettingsSchema = z.object({
-  name: z.string().min(1, "名前を入力してください").optional(),
+  name: z.string().min(1, "名前を入力してください").max(100).optional(),
   email: z
     .string()
     .email("メールアドレスの形式が不正です")
+    .max(254)
     .optional()
     .nullable()
     .or(z.literal("")),
   phone: z
     .string()
+    .max(30)
     .regex(/^[\d\-+().\s]*$/, "電話番号の形式が不正です")
     .optional()
     .nullable()

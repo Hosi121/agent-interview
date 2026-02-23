@@ -41,13 +41,20 @@ export const PATCH = withRecruiterValidation(
       throw new ConflictError("この招待はキャンセルできません");
     }
 
-    const updated = await prisma.invite.update({
-      where: { id: invite.id },
+    // TOCTOU防止: ステータス条件付き更新で同時リクエストを防ぐ
+    const result = await prisma.invite.updateMany({
+      where: { id: invite.id, status: "PENDING" },
       data: { status: body.status },
     });
 
+    if (result.count === 0) {
+      throw new ConflictError(
+        "招待のステータスが変更されたため、処理を完了できません",
+      );
+    }
+
     return NextResponse.json(
-      { id: updated.id, status: updated.status },
+      { id: invite.id, status: body.status },
       { status: 200 },
     );
   },

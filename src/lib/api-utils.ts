@@ -169,6 +169,7 @@ export function withRecruiterAuth<T = unknown>(
   handler: RecruiterHandler<T>,
 ): (req: NextRequest, context?: T) => Promise<NextResponse> {
   return async (req: NextRequest, context?: T) => {
+    const start = performance.now();
     try {
       const session = await getServerSession(authOptions);
 
@@ -195,14 +196,27 @@ export function withRecruiterAuth<T = unknown>(
         throw new ForbiddenError("会社に所属していません");
       }
 
-      return await handler(
+      const response = await handler(
         req,
         session as unknown as AuthenticatedSession & {
           user: { recruiterId: string; companyId: string };
         },
         context as T,
       );
+      logger.info("api.response", {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        status: response.status,
+        duration_ms: Math.round(performance.now() - start),
+      });
+      return response;
     } catch (error) {
+      logger.info("api.response", {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        status: "error",
+        duration_ms: Math.round(performance.now() - start),
+      });
       return handleError(error, req?.nextUrl?.pathname);
     }
   };
@@ -236,6 +250,7 @@ export function withUserAuth<T = unknown>(
   handler: UserHandler<T>,
 ): (req: NextRequest, context?: T) => Promise<NextResponse> {
   return async (req: NextRequest, context?: T) => {
+    const start = performance.now();
     try {
       const session = await getServerSession(authOptions);
 
@@ -251,14 +266,27 @@ export function withUserAuth<T = unknown>(
         throw new ForbiddenError("ユーザー権限が必要です");
       }
 
-      return await handler(
+      const response = await handler(
         req,
         session as unknown as AuthenticatedSession & {
           user: { userId: string };
         },
         context as T,
       );
+      logger.info("api.response", {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        status: response.status,
+        duration_ms: Math.round(performance.now() - start),
+      });
+      return response;
     } catch (error) {
+      logger.info("api.response", {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        status: "error",
+        duration_ms: Math.round(performance.now() - start),
+      });
       return handleError(error, req?.nextUrl?.pathname);
     }
   };
@@ -294,6 +322,7 @@ export function withAuth<T = unknown>(
   options?: { skip2faCheck?: boolean },
 ): (req: NextRequest, context?: T) => Promise<NextResponse> {
   return async (req: NextRequest, context?: T) => {
+    const start = performance.now();
     try {
       const session = await getServerSession(authOptions);
 
@@ -312,12 +341,25 @@ export function withAuth<T = unknown>(
         throw new ForbiddenError("会社へのアクセス権が無効です");
       }
 
-      return await handler(
+      const response = await handler(
         req,
         session as unknown as AuthenticatedSession,
         context as T,
       );
+      logger.info("api.response", {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        status: response.status,
+        duration_ms: Math.round(performance.now() - start),
+      });
+      return response;
     } catch (error) {
+      logger.info("api.response", {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        status: "error",
+        duration_ms: Math.round(performance.now() - start),
+      });
       return handleError(error, req?.nextUrl?.pathname);
     }
   };
@@ -351,9 +393,23 @@ export function withErrorHandling<T = unknown>(
   handler: (req: NextRequest, context: T) => Promise<NextResponse>,
 ): (req: NextRequest, context?: T) => Promise<NextResponse> {
   return async (req: NextRequest, context?: T) => {
+    const start = performance.now();
     try {
-      return await handler(req, context as T);
+      const response = await handler(req, context as T);
+      logger.info("api.response", {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        status: response.status,
+        duration_ms: Math.round(performance.now() - start),
+      });
+      return response;
     } catch (error) {
+      logger.info("api.response", {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        status: "error",
+        duration_ms: Math.round(performance.now() - start),
+      });
       return handleError(error, req?.nextUrl?.pathname);
     }
   };

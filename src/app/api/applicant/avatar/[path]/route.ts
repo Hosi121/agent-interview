@@ -1,18 +1,25 @@
+import nodePath from "node:path";
 import { NextResponse } from "next/server";
-import { withErrorHandling } from "@/lib/api-utils";
+import { withAuth } from "@/lib/api-utils";
 import { NotFoundError } from "@/lib/errors";
 import { getFileUrl } from "@/lib/minio";
 
 // アバター画像を配信（presigned URL へリダイレクト）
-export const GET = withErrorHandling(
-  async (_req, context: { params: Promise<{ path: string }> }) => {
+export const GET = withAuth(
+  async (_req, session, context: { params: Promise<{ path: string }> }) => {
     const { path } = await context.params;
 
-    if (!path) {
+    if (!path || !path.startsWith("avatars/")) {
       throw new NotFoundError("画像が見つかりません");
     }
 
-    const url = await getFileUrl(path);
+    // パストラバーサル防止: ".." を含むパスや正規化後にavatars/外になるパスを拒否
+    const normalized = nodePath.posix.normalize(path);
+    if (!normalized.startsWith("avatars/") || normalized.includes("..")) {
+      throw new NotFoundError("画像が見つかりません");
+    }
+
+    const url = await getFileUrl(normalized);
     return NextResponse.redirect(url);
   },
 );

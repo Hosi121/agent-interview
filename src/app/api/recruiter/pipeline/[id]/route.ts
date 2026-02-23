@@ -94,7 +94,7 @@ const updatePipelineSchema = z.object({
       "WITHDRAWN",
     ])
     .optional(),
-  note: z.string().optional(),
+  note: z.string().max(5000).optional(),
 });
 
 // パイプラインステージ更新
@@ -112,37 +112,43 @@ export const PATCH = withRecruiterAuth<RouteContext>(
 
     const { stage, note } = parsed.data;
 
-    const existingPipeline = await prisma.candidatePipeline.findFirst({
-      where: {
-        id,
-        recruiterId: session.user.recruiterId,
-      },
-      include: {
-        agent: {
-          select: { userId: true },
-        },
-      },
-    });
-
-    if (!existingPipeline) {
-      throw new NotFoundError("パイプラインが見つかりません");
-    }
-
-    if (
-      await isCompanyAccessDenied(
-        session.user.companyId,
-        existingPipeline.agent.userId,
-      )
-    ) {
-      throw new ForbiddenError("アクセスが拒否されています");
-    }
-
     const updateData: { stage?: PipelineStage; note?: string } = {};
     if (stage) updateData.stage = stage;
     if (note !== undefined) updateData.note = note;
 
-    // ステージ変更があれば履歴に記録
+    // トランザクション内で取得・検証・更新を原子的に実行（TOCTOU防止）
     const pipeline = await prisma.$transaction(async (tx) => {
+      const existingPipeline = await tx.candidatePipeline.findFirst({
+        where: {
+          id,
+          recruiterId: session.user.recruiterId,
+        },
+        include: {
+          agent: {
+            select: { userId: true },
+          },
+        },
+      });
+
+      if (!existingPipeline) {
+        throw new NotFoundError("パイプラインが見つかりません");
+      }
+
+      // アクセス拒否チェック
+      const accessDenied = await tx.companyAccess.findUnique({
+        where: {
+          userId_companyId: {
+            userId: existingPipeline.agent.userId,
+            companyId: session.user.companyId,
+          },
+        },
+        select: { status: true },
+      });
+      if (accessDenied?.status === "DENY") {
+        throw new ForbiddenError("アクセスが拒否されています");
+      }
+
+      // ステージ変更があれば履歴に記録（トランザクション内で最新のstageを参照）
       if (stage && stage !== existingPipeline.stage) {
         await tx.pipelineHistory.create({
           data: {
@@ -185,33 +191,41 @@ export const DELETE = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
     const { id } = await context.params;
 
-    const existingPipeline = await prisma.candidatePipeline.findFirst({
-      where: {
-        id,
-        recruiterId: session.user.recruiterId,
-      },
-      include: {
-        agent: {
-          select: { userId: true },
+    // トランザクション内で取得・検証・削除を原子的に実行（TOCTOU防止）
+    await prisma.$transaction(async (tx) => {
+      const existingPipeline = await tx.candidatePipeline.findFirst({
+        where: {
+          id,
+          recruiterId: session.user.recruiterId,
         },
-      },
-    });
+        include: {
+          agent: {
+            select: { userId: true },
+          },
+        },
+      });
 
-    if (!existingPipeline) {
-      throw new NotFoundError("パイプラインが見つかりません");
-    }
+      if (!existingPipeline) {
+        throw new NotFoundError("パイプラインが見つかりません");
+      }
 
-    if (
-      await isCompanyAccessDenied(
-        session.user.companyId,
-        existingPipeline.agent.userId,
-      )
-    ) {
-      throw new ForbiddenError("アクセスが拒否されています");
-    }
+      // アクセス拒否チェック
+      const accessDenied = await tx.companyAccess.findUnique({
+        where: {
+          userId_companyId: {
+            userId: existingPipeline.agent.userId,
+            companyId: session.user.companyId,
+          },
+        },
+        select: { status: true },
+      });
+      if (accessDenied?.status === "DENY") {
+        throw new ForbiddenError("アクセスが拒否されています");
+      }
 
-    await prisma.candidatePipeline.delete({
-      where: { id },
+      await tx.candidatePipeline.delete({
+        where: { id },
+      });
     });
 
     return NextResponse.json({ success: true });

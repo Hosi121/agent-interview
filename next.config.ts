@@ -5,4 +5,12 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdf-to-img", "pdfjs-dist", "sharp"],
 };
 
-export default nextConfig;
+export default async (): Promise<NextConfig> => {
+  if (process.env.ANALYZE === "true") {
+    const withBundleAnalyzer = (await import("@next/bundle-analyzer")).default({
+      enabled: true,
+    });
+    return withBundleAnalyzer(nextConfig);
+  }
+  return nextConfig;
+};

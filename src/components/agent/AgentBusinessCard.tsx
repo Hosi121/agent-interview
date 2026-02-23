@@ -1,7 +1,7 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarSrc } from "@/lib/utils";
 
 interface AgentBusinessCardProps {
   name: string;
@@ -25,7 +25,7 @@ export function AgentBusinessCard({
   const avatarSrc = avatarUrl
     ? avatarUrl
     : avatarPath
-      ? `/api/applicant/avatar/${avatarPath}`
+      ? getAvatarSrc(avatarPath)
       : undefined;
   return (
     <div

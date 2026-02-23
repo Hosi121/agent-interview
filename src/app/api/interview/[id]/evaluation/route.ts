@@ -54,7 +54,7 @@ const evaluationSchema = z.object({
   technicalRating: z.number().int().min(1).max(5),
   communicationRating: z.number().int().min(1).max(5),
   cultureRating: z.number().int().min(1).max(5),
-  comment: z.string().optional(),
+  comment: z.string().max(5000).optional(),
 });
 
 export const POST = withRecruiterAuth<RouteContext>(

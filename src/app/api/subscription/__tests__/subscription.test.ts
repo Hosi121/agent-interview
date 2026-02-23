@@ -146,455 +146,137 @@ describe("サブスクリプションAPI - 結合テスト", () => {
     });
   });
 
-  describe("POST /api/subscription/change - プラン変更", () => {
-    describe("正常系: 新規プラン選択", () => {
-      it("新規ユーザーがLIGHTプランを選択すると100ポイントが付与される", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
-
-        mockPrisma.subscription.findUnique.mockResolvedValue(null);
-        mockPrisma.$transaction.mockImplementation(async (callback) => {
-          const tx = {
-            subscription: {
-              create: vi.fn().mockResolvedValue({
-                id: "sub-1",
-                planType: "LIGHT",
-                pointBalance: 100,
-              }),
-            },
-            pointTransaction: {
-              create: vi.fn(),
-            },
-          };
-          return callback(tx);
-        });
-
-        const { POST } = await import("../change/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/change",
-          {
-            method: "POST",
-            body: JSON.stringify({ planType: "LIGHT" }),
-          },
-        );
-
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(response.status).toBe(200);
-        expect(data.message).toContain("プランを選択");
+  describe("POST /api/subscription/change - プラン変更（Stripe連携未実装のため無効化）", () => {
+    it("認証済みでも403を返す（Stripe連携未実装）", async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: {
+          recruiterId: "recruiter-1",
+          companyId: "company-1",
+          companyRole: "OWNER",
+        },
       });
 
-      it("新規ユーザーがSTANDARDプランを選択すると300ポイントが付与される", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
+      const { POST } = await import("../change/route");
+      const request = new NextRequest(
+        "http://localhost/api/subscription/change",
+        {
+          method: "POST",
+          body: JSON.stringify({ planType: "LIGHT" }),
+        },
+      );
 
-        mockPrisma.subscription.findUnique.mockResolvedValue(null);
-        mockPrisma.$transaction.mockImplementation(async (callback) => {
-          const tx = {
-            subscription: {
-              create: vi.fn().mockResolvedValue({
-                id: "sub-1",
-                planType: "STANDARD",
-                pointBalance: 300,
-              }),
-            },
-            pointTransaction: {
-              create: vi.fn(),
-            },
-          };
-          return callback(tx);
-        });
+      const response = await POST(request);
 
-        const { POST } = await import("../change/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/change",
-          {
-            method: "POST",
-            body: JSON.stringify({ planType: "STANDARD" }),
-          },
-        );
-
-        const response = await POST(request);
-
-        expect(response.status).toBe(200);
-      });
-
-      it("新規ユーザーがENTERPRISEプランを選択すると1000ポイントが付与される", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
-
-        mockPrisma.subscription.findUnique.mockResolvedValue(null);
-        mockPrisma.$transaction.mockImplementation(async (callback) => {
-          const tx = {
-            subscription: {
-              create: vi.fn().mockResolvedValue({
-                id: "sub-1",
-                planType: "ENTERPRISE",
-                pointBalance: 1000,
-              }),
-            },
-            pointTransaction: {
-              create: vi.fn(),
-            },
-          };
-          return callback(tx);
-        });
-
-        const { POST } = await import("../change/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/change",
-          {
-            method: "POST",
-            body: JSON.stringify({ planType: "ENTERPRISE" }),
-          },
-        );
-
-        const response = await POST(request);
-
-        expect(response.status).toBe(200);
-      });
+      expect(response.status).toBe(403);
     });
 
-    describe("正常系: プラン変更", () => {
-      it("既存ユーザーがプランをアップグレードできる", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
+    it("未認証の場合、401を返す", async () => {
+      mockGetServerSession.mockResolvedValue(null);
 
-        mockPrisma.subscription.findUnique.mockResolvedValue({
-          id: "sub-1",
-          planType: "LIGHT",
-          pointBalance: 50,
-        });
+      const { POST } = await import("../change/route");
+      const request = new NextRequest(
+        "http://localhost/api/subscription/change",
+        {
+          method: "POST",
+          body: JSON.stringify({ planType: "LIGHT" }),
+        },
+      );
 
-        mockPrisma.subscription.update.mockResolvedValue({
-          id: "sub-1",
-          planType: "STANDARD",
-          pointsIncluded: 300,
-        });
+      const response = await POST(request);
 
-        const { POST } = await import("../change/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/change",
-          {
-            method: "POST",
-            body: JSON.stringify({ planType: "STANDARD" }),
-          },
-        );
-
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(response.status).toBe(200);
-        expect(data.message).toContain("プランを変更");
-      });
-
-      it("既存ユーザーがプランをダウングレードできる", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
-
-        mockPrisma.subscription.findUnique.mockResolvedValue({
-          id: "sub-1",
-          planType: "ENTERPRISE",
-          pointBalance: 500,
-        });
-
-        mockPrisma.subscription.update.mockResolvedValue({
-          id: "sub-1",
-          planType: "LIGHT",
-          pointsIncluded: 100,
-        });
-
-        const { POST } = await import("../change/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/change",
-          {
-            method: "POST",
-            body: JSON.stringify({ planType: "LIGHT" }),
-          },
-        );
-
-        const response = await POST(request);
-
-        expect(response.status).toBe(200);
-      });
+      expect(response.status).toBe(401);
     });
 
-    describe("異常系", () => {
-      it("未認証の場合、401を返す", async () => {
-        mockGetServerSession.mockResolvedValue(null);
-
-        const { POST } = await import("../change/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/change",
-          {
-            method: "POST",
-            body: JSON.stringify({ planType: "LIGHT" }),
-          },
-        );
-
-        const response = await POST(request);
-
-        expect(response.status).toBe(401);
+    it("無効なプランタイプの場合、400を返す", async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: {
+          recruiterId: "recruiter-1",
+          companyId: "company-1",
+          companyRole: "OWNER",
+        },
       });
 
-      it("無効なプランタイプの場合、400を返す", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
+      const { POST } = await import("../change/route");
+      const request = new NextRequest(
+        "http://localhost/api/subscription/change",
+        {
+          method: "POST",
+          body: JSON.stringify({ planType: "INVALID_PLAN" }),
+        },
+      );
 
-        const { POST } = await import("../change/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/change",
-          {
-            method: "POST",
-            body: JSON.stringify({ planType: "INVALID_PLAN" }),
-          },
-        );
+      const response = await POST(request);
+      const data = await response.json();
 
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(response.status).toBe(400);
-        expect(data.error).toContain("入力内容に問題があります");
-      });
-
-      it("planTypeが指定されていない場合、400を返す", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
-
-        const { POST } = await import("../change/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/change",
-          {
-            method: "POST",
-            body: JSON.stringify({}),
-          },
-        );
-
-        const response = await POST(request);
-
-        expect(response.status).toBe(400);
-      });
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("入力内容に問題があります");
     });
   });
 
-  describe("POST /api/subscription/points - ポイント購入", () => {
-    describe("正常系", () => {
-      it("100ポイントを購入できる", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
-
-        mockPrisma.subscription.findUnique.mockResolvedValue({
-          id: "sub-1",
-          planType: "STANDARD",
-          pointBalance: 50,
-        });
-
-        mockPrisma.$transaction.mockImplementation(async (callback) => {
-          const tx = {
-            subscription: {
-              update: vi.fn().mockResolvedValue({ pointBalance: 150 }),
-            },
-            pointTransaction: {
-              create: vi.fn(),
-            },
-          };
-          return callback(tx);
-        });
-
-        const { POST } = await import("../points/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/points",
-          {
-            method: "POST",
-            body: JSON.stringify({ amount: 100 }),
-          },
-        );
-
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(response.status).toBe(200);
-        expect(data.success).toBe(true);
-        expect(data.newBalance).toBe(150);
-        expect(data.purchased).toBe(100);
+  describe("POST /api/subscription/points - ポイント購入（Stripe連携未実装のため無効化）", () => {
+    it("認証済みでも403を返す（Stripe連携未実装）", async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: {
+          recruiterId: "recruiter-1",
+          companyId: "company-1",
+          companyRole: "OWNER",
+        },
       });
 
-      it("プランに応じた単価で計算される（STANDARDは400円/pt）", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
+      const { POST } = await import("../points/route");
+      const request = new NextRequest(
+        "http://localhost/api/subscription/points",
+        {
+          method: "POST",
+          body: JSON.stringify({ amount: 100 }),
+        },
+      );
 
-        mockPrisma.subscription.findUnique.mockResolvedValue({
-          id: "sub-1",
-          planType: "STANDARD",
-          pointBalance: 0,
-        });
+      const response = await POST(request);
 
-        mockPrisma.$transaction.mockImplementation(async (callback) => {
-          const tx = {
-            subscription: {
-              update: vi.fn().mockResolvedValue({ pointBalance: 100 }),
-            },
-            pointTransaction: {
-              create: vi.fn(),
-            },
-          };
-          return callback(tx);
-        });
-
-        const { POST } = await import("../points/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/points",
-          {
-            method: "POST",
-            body: JSON.stringify({ amount: 100 }),
-          },
-        );
-
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(data.price).toBe(40000); // 100pt × 400円
-      });
+      expect(response.status).toBe(403);
     });
 
-    describe("異常系", () => {
-      it("未認証の場合、401を返す", async () => {
-        mockGetServerSession.mockResolvedValue(null);
+    it("未認証の場合、401を返す", async () => {
+      mockGetServerSession.mockResolvedValue(null);
 
-        const { POST } = await import("../points/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/points",
-          {
-            method: "POST",
-            body: JSON.stringify({ amount: 100 }),
-          },
-        );
+      const { POST } = await import("../points/route");
+      const request = new NextRequest(
+        "http://localhost/api/subscription/points",
+        {
+          method: "POST",
+          body: JSON.stringify({ amount: 100 }),
+        },
+      );
 
-        const response = await POST(request);
+      const response = await POST(request);
 
-        expect(response.status).toBe(401);
+      expect(response.status).toBe(401);
+    });
+
+    it("10ポイント未満の購入は400を返す", async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: {
+          recruiterId: "recruiter-1",
+          companyId: "company-1",
+          companyRole: "OWNER",
+        },
       });
 
-      it("10ポイント未満の購入は400を返す", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
+      const { POST } = await import("../points/route");
+      const request = new NextRequest(
+        "http://localhost/api/subscription/points",
+        {
+          method: "POST",
+          body: JSON.stringify({ amount: 5 }),
+        },
+      );
 
-        const { POST } = await import("../points/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/points",
-          {
-            method: "POST",
-            body: JSON.stringify({ amount: 5 }),
-          },
-        );
+      const response = await POST(request);
+      const data = await response.json();
 
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(response.status).toBe(400);
-        expect(data.error).toContain("入力内容に問題があります");
-      });
-
-      it("amountが数値でない場合、400を返す", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
-
-        const { POST } = await import("../points/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/points",
-          {
-            method: "POST",
-            body: JSON.stringify({ amount: "invalid" }),
-          },
-        );
-
-        const response = await POST(request);
-
-        expect(response.status).toBe(400);
-      });
-
-      it("サブスクリプションがない場合、402を返す", async () => {
-        mockGetServerSession.mockResolvedValue({
-          user: {
-            recruiterId: "recruiter-1",
-            companyId: "company-1",
-            companyRole: "OWNER",
-          },
-        });
-
-        mockPrisma.subscription.findUnique.mockResolvedValue(null);
-
-        const { POST } = await import("../points/route");
-        const request = new NextRequest(
-          "http://localhost/api/subscription/points",
-          {
-            method: "POST",
-            body: JSON.stringify({ amount: 100 }),
-          },
-        );
-
-        const response = await POST(request);
-        const data = await response.json();
-
-        expect(response.status).toBe(402);
-        expect(data.error).toContain("サブスクリプション");
-      });
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("入力内容に問題があります");
     });
   });
 

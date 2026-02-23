@@ -140,7 +140,7 @@ const NEW_MESSAGE_COUNT = 4;
 const CONTEXT_MESSAGE_COUNT = 4;
 
 const chatSchema = z.object({
-  message: z.string().min(1),
+  message: z.string().min(1).max(5000),
   correctFragmentId: z.string().uuid().optional(),
 });
 
@@ -150,7 +150,10 @@ export const POST = withUserValidation(
     const { message, correctFragmentId } = body;
 
     // セッション取得/作成
-    const chatSession = await getOrCreateUserAIChatSession(session.user.userId);
+    const chatSession = await getOrCreateUserAIChatSession(
+      session.user.userId,
+      MAX_LLM_MESSAGES + 10,
+    );
 
     // 修正対象フラグメントの取得
     let correctFragment: {
@@ -275,6 +278,11 @@ export const POST = withUserValidation(
         }
 
         let fragmentsExtracted = 0;
+        let extractedFragmentDetails: {
+          type: string;
+          content: string;
+          skills: string[];
+        }[] = [];
         let pendingCorrection:
           | {
               type: string;
@@ -353,6 +361,11 @@ export const POST = withUserValidation(
                 })),
               });
               fragmentsExtracted = extractedData.fragments.length;
+              extractedFragmentDetails = extractedData.fragments.map((f) => ({
+                type: parseFragmentType(f.type),
+                content: f.content,
+                skills: f.skills || [],
+              }));
 
               const allFragments = await prisma.fragment.findMany({
                 where: { userId: session.user.userId },
@@ -371,6 +384,7 @@ export const POST = withUserValidation(
           "metadata",
           JSON.stringify({
             fragmentsExtracted,
+            fragments: extractedFragmentDetails,
             pendingCorrection,
             coverage: currentCoverage,
           }),

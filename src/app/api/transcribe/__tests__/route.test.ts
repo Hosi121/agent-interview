@@ -12,6 +12,15 @@ vi.mock("@/lib/auth", () => ({
   authOptions: {},
 }));
 
+// loggerのモック
+vi.mock("@/lib/logger", () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 // OpenAIのモック
 const mockCreate = vi.hoisted(() => vi.fn());
 vi.mock("openai", () => ({
@@ -67,7 +76,23 @@ describe("POST /api/transcribe", () => {
         model: "whisper-1",
         language: "ja",
       }),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      }),
     );
+  });
+
+  it("OpenAI APIエラー時にエラーが伝播する", async () => {
+    mockCreate.mockRejectedValue(new Error("OpenAI API Error"));
+
+    const file = new File(["audio-data"], "test.webm", {
+      type: "audio/webm",
+    });
+    const req = createRequestWithFormData(file);
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(500);
   });
 
   it("ファイルがない場合400エラーを返す", async () => {

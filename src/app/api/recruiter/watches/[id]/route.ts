@@ -54,14 +54,14 @@ export const GET = withRecruiterAuth<RouteContext>(
 );
 
 const updateWatchSchema = z.object({
-  name: z.string().min(1).optional(),
-  skills: z.array(z.string()).optional(),
-  keywords: z.array(z.string()).optional(),
+  name: z.string().min(1).max(200).optional(),
+  skills: z.array(z.string().max(200)).max(50).optional(),
+  keywords: z.array(z.string().max(200)).max(50).optional(),
   experienceLevel: z
     .enum(["JUNIOR", "MID", "SENIOR", "LEAD"])
     .optional()
     .nullable(),
-  locationPref: z.string().optional().nullable(),
+  locationPref: z.string().max(500).optional().nullable(),
   salaryMin: z.number().optional().nullable(),
   isActive: z.boolean().optional(),
 });
@@ -92,9 +92,19 @@ export const PATCH = withRecruiterAuth<RouteContext>(
       throw new NotFoundError("ウォッチリストが見つかりません");
     }
 
-    const watch = await prisma.candidateWatch.update({
-      where: { id },
+    // TOCTOU防止: recruiterId条件付きupdateManyで所有権を原子的に検証
+    const result = await prisma.candidateWatch.updateMany({
+      where: { id, recruiterId: session.user.recruiterId },
       data: body,
+    });
+
+    if (result.count === 0) {
+      throw new NotFoundError("ウォッチリストの更新に失敗しました");
+    }
+
+    // 更新後のデータを返す
+    const watch = await prisma.candidateWatch.findFirst({
+      where: { id, recruiterId: session.user.recruiterId },
     });
 
     return NextResponse.json({ watch });
@@ -117,9 +127,14 @@ export const DELETE = withRecruiterAuth<RouteContext>(
       throw new NotFoundError("ウォッチリストが見つかりません");
     }
 
-    await prisma.candidateWatch.delete({
-      where: { id },
+    // TOCTOU防止: recruiterId条件付きdeleteManyで所有権を原子的に検証
+    const result = await prisma.candidateWatch.deleteMany({
+      where: { id, recruiterId: session.user.recruiterId },
     });
+
+    if (result.count === 0) {
+      throw new NotFoundError("ウォッチリストの削除に失敗しました");
+    }
 
     return NextResponse.json({ success: true });
   },

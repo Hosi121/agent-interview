@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withUserAuth } from "@/lib/api-utils";
-import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ interestId: string }> };
@@ -13,10 +18,21 @@ const declineSchema = z.object({
 export const POST = withUserAuth<RouteContext>(
   async (req, session, context) => {
     const { interestId } = await context.params;
-    const rawBody = await req.json().catch(() => ({}));
+    let rawBody: unknown;
+    try {
+      rawBody = await req.json();
+    } catch {
+      rawBody = {};
+    }
     const parsed = declineSchema.safeParse(rawBody);
 
-    const preference = parsed.success ? parsed.data.preference : "NONE";
+    if (!parsed.success) {
+      throw new ValidationError("入力内容に問題があります", {
+        fields: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const preference = parsed.data.preference;
 
     const interest = await prisma.interest.findUnique({
       where: { id: interestId },
@@ -54,12 +70,21 @@ export const POST = withUserAuth<RouteContext>(
       throw new ConflictError("既に連絡先が開示されています");
     }
 
+    if (interest.status === "DECLINED") {
+      return NextResponse.json({ status: "DECLINED" });
+    }
+
     await prisma.$transaction(async (tx) => {
-      if (interest.status !== "DECLINED") {
-        await tx.interest.update({
-          where: { id: interestId },
-          data: { status: "DECLINED" },
-        });
+      // トランザクション内で状態を原子的にチェック＆更新（TOCTOU防止）
+      const updated = await tx.interest.updateMany({
+        where: {
+          id: interestId,
+          status: { notIn: ["DECLINED", "CONTACT_DISCLOSED"] },
+        },
+        data: { status: "DECLINED" },
+      });
+      if (updated.count === 0) {
+        throw new ConflictError("この興味表明は既に処理されています");
       }
 
       if (preference === "DENY") {

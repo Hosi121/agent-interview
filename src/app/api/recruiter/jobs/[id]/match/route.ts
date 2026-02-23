@@ -232,7 +232,10 @@ export const GET = withRecruiterAuth<RouteContext>(
   async (req, session, context) => {
     const { id: jobId } = await context.params;
     const searchParams = req.nextUrl.searchParams;
-    const minScore = Number.parseFloat(searchParams.get("minScore") || "0");
+    const rawMinScore = Number.parseFloat(searchParams.get("minScore") || "0");
+    const minScore = Number.isNaN(rawMinScore)
+      ? 0
+      : Math.max(0, Math.min(1, rawMinScore));
 
     const job = await prisma.jobPosting.findFirst({
       where: {

@@ -26,6 +26,7 @@ vi.mock("@/lib/auth", () => ({
 const mockTxClient = {
   interest: {
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
   companyAccess: {
     upsert: vi.fn(),
@@ -139,6 +140,8 @@ describe("連絡先開示フロー - 結合テスト", () => {
         return callback(mockTxClient);
       },
     );
+    // updateManyのデフォルト: 1件更新成功
+    mockTxClient.interest.updateMany.mockResolvedValue({ count: 1 });
   });
 
   // =========================================================
@@ -369,7 +372,7 @@ describe("連絡先開示フロー - 結合テスト", () => {
         expect(data.status).toBe("DECLINED");
         // トランザクション内で実行されることを確認
         expect(mockPrisma.$transaction).toHaveBeenCalled();
-        expect(mockTxClient.interest.update).toHaveBeenCalled();
+        expect(mockTxClient.interest.updateMany).toHaveBeenCalled();
         expect(mockTxClient.notification.create).toHaveBeenCalled();
       });
 
@@ -400,7 +403,7 @@ describe("連絡先開示フロー - 結合テスト", () => {
         );
       });
 
-      it("既に辞退済みの場合でもステータス更新をスキップする", async () => {
+      it("既に辞退済みの場合は冪等にDECLINEDを返す", async () => {
         mockGetServerSession.mockResolvedValue(userSession);
         mockPrisma.interest.findUnique.mockResolvedValue({
           ...mockInterest,
@@ -420,9 +423,10 @@ describe("連絡先開示フロー - 結合テスト", () => {
         });
 
         expect(response.status).toBe(200);
-        // ステータス更新はスキップされるが通知は作成される
-        expect(mockTxClient.interest.update).not.toHaveBeenCalled();
-        expect(mockTxClient.notification.create).toHaveBeenCalled();
+        const data = await response.json();
+        expect(data.status).toBe("DECLINED");
+        // トランザクションに入らずに早期リターン
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
       });
     });
 
@@ -577,7 +581,7 @@ describe("連絡先開示フロー - 結合テスト", () => {
         // トランザクション内で実行されることを確認
         expect(mockPrisma.$transaction).toHaveBeenCalled();
         expect(mockTxClient.notification.create).toHaveBeenCalled();
-        expect(mockTxClient.interest.update).toHaveBeenCalled();
+        expect(mockTxClient.interest.updateMany).toHaveBeenCalled();
       });
     });
 

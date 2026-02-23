@@ -1,6 +1,7 @@
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { NextResponse } from "next/server";
 import { withRateLimit } from "@/lib/api-utils";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { RATE_LIMIT_PRESETS } from "@/lib/rate-limiter";
 import { buildSetCookieHeader, CHALLENGE_TTL_MS, rpID } from "@/lib/webauthn";
@@ -11,7 +12,11 @@ export const POST = withRateLimit(RATE_LIMIT_PRESETS.PUBLIC_AUTH, async () => {
     .deleteMany({
       where: { expiresAt: { lt: new Date() } },
     })
-    .catch(() => {});
+    .catch((err) => {
+      logger.warn("Failed to cleanup expired WebAuthn challenges", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 
   const options = await generateAuthenticationOptions({
     rpID,

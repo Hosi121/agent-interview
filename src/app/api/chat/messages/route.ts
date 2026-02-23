@@ -11,6 +11,7 @@ export const GET = withUserAuth(async (_req, session) => {
     include: {
       messages: {
         orderBy: { createdAt: "asc" },
+        take: 500,
       },
     },
   });

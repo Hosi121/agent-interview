@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarSrc } from "@/lib/utils";
 
 interface Agent {
   id: string;
@@ -310,7 +310,7 @@ export function AgentsAllView({ onSwitchToWatches }: AgentsAllViewProps) {
                   <Avatar className="size-11 ring-2 ring-border group-hover:ring-primary/20 transition-colors">
                     {agent.user.avatarPath && (
                       <AvatarImage
-                        src={`/api/applicant/avatar/${agent.user.avatarPath}`}
+                        src={getAvatarSrc(agent.user.avatarPath)}
                         alt={agent.user.name}
                       />
                     )}

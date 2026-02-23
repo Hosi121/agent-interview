@@ -28,7 +28,32 @@ export const GET = withUserAuth(async (req, session) => {
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json({ documents });
+  // 解析済みドキュメントの Fragment 件数を取得
+  const completedDocIds = documents
+    .filter((doc) => doc.analysisStatus === "COMPLETED")
+    .map((doc) => doc.id);
+
+  let fragmentCountMap: Record<string, number> = {};
+  if (completedDocIds.length > 0) {
+    const counts = await prisma.fragment.groupBy({
+      by: ["sourceId"],
+      where: {
+        sourceType: "DOCUMENT",
+        sourceId: { in: completedDocIds },
+      },
+      _count: { id: true },
+    });
+    fragmentCountMap = Object.fromEntries(
+      counts.map((c) => [c.sourceId, c._count.id]),
+    );
+  }
+
+  const documentsWithCount = documents.map((doc) => ({
+    ...doc,
+    fragmentCount: fragmentCountMap[doc.id] ?? 0,
+  }));
+
+  return NextResponse.json({ documents: documentsWithCount });
 });
 
 export const POST = withUserAuth(async (req, session) => {

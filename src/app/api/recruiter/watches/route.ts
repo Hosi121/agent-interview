@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 // ウォッチリスト一覧取得
@@ -36,12 +37,12 @@ export const GET = withRecruiterAuth(async (req, session) => {
 });
 
 const createWatchSchema = z.object({
-  name: z.string().min(1, "名前は必須です"),
+  name: z.string().min(1, "名前は必須です").max(200),
   jobId: z.string().optional(),
-  skills: z.array(z.string()).default([]),
-  keywords: z.array(z.string()).default([]),
+  skills: z.array(z.string().max(200)).max(50).default([]),
+  keywords: z.array(z.string().max(200)).max(50).default([]),
   experienceLevel: z.enum(["JUNIOR", "MID", "SENIOR", "LEAD"]).optional(),
-  locationPref: z.string().optional(),
+  locationPref: z.string().max(500).optional(),
   salaryMin: z.number().optional(),
 });
 
@@ -96,8 +97,17 @@ export const POST = withRecruiterAuth(async (req, session) => {
     },
   });
 
-  // 既存の公開エージェントとマッチング確認
-  await checkExistingAgentsForWatch(watch.id);
+  // 既存の公開エージェントとマッチング確認（非クリティカル）
+  // マッチング失敗でもウォッチ作成自体は成功として返す
+  try {
+    await checkExistingAgentsForWatch(watch.id);
+  } catch (error) {
+    logger.error(
+      "ウォッチ作成後のマッチング処理に失敗しました",
+      error as Error,
+      { watchId: watch.id },
+    );
+  }
 
   return NextResponse.json({ watch }, { status: 201 });
 });

@@ -225,6 +225,8 @@ model Document {
   analysisError   String?
   analyzedAt      DateTime?
   createdAt       DateTime       @default(now())
+
+  @@index([userId])
 }
 
 model Experience {
@@ -262,6 +264,9 @@ model Fragment {
   sourceId     String?
   confidence   Float        @default(1.0)
   createdAt    DateTime     @default(now())
+
+  @@index([userId])
+  @@index([sourceType, sourceId])
 }
 
 model AgentProfile {
@@ -293,6 +298,9 @@ model Session {
   messages   Message[]
   notes      InterviewNote[]
   evaluation InterviewEvaluation?
+
+  @@index([recruiterId, agentId, sessionType])
+  @@index([userId, sessionType])
 }
 
 model Message {
@@ -305,6 +313,8 @@ model Message {
   createdAt  DateTime   @default(now())
 
   references MessageReference[]
+
+  @@index([sessionId, createdAt])
 }
 
 model MessageReference {
@@ -313,6 +323,8 @@ model MessageReference {
   message   Message @relation(fields: [messageId], references: [id])
   refType   RefType
   refId     String
+
+  @@index([messageId])
 }
 
 model Tag {
@@ -416,6 +428,8 @@ model JobPosting {
   matches   CandidateMatch[]
   pipelines CandidatePipeline[]
   watches   CandidateWatch[]
+
+  @@index([recruiterId])
 }
 
 // ==========================================

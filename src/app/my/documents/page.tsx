@@ -12,6 +12,7 @@ import {
   type DocumentData,
   DocumentListItem,
   DocumentUploadDialog,
+  type FragmentData,
 } from "@/components/documents";
 import {
   AlertDialog,
@@ -33,6 +34,15 @@ export default function DocumentsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const eventSourcesRef = useRef<Map<string, EventSource>>(new Map());
+
+  // Fragment 展開状態
+  const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  const [documentFragments, setDocumentFragments] = useState<
+    Record<string, FragmentData[]>
+  >({});
+  const [loadingFragmentsFor, setLoadingFragmentsFor] = useState<string | null>(
+    null,
+  );
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -59,6 +69,39 @@ export default function DocumentsPage() {
       }
     };
   }, []);
+
+  const fetchFragments = useCallback(async (docId: string) => {
+    setLoadingFragmentsFor(docId);
+    try {
+      const response = await fetch(`/api/documents/${docId}/fragments`);
+      if (response.ok) {
+        const data = await response.json();
+        setDocumentFragments((prev) => ({
+          ...prev,
+          [docId]: data.fragments,
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch fragments:", error);
+    } finally {
+      setLoadingFragmentsFor(null);
+    }
+  }, []);
+
+  const handleToggleFragments = useCallback(
+    (docId: string) => {
+      if (expandedDocId === docId) {
+        setExpandedDocId(null);
+        return;
+      }
+      setExpandedDocId(docId);
+      // キャッシュがなければ取得
+      if (!documentFragments[docId]) {
+        fetchFragments(docId);
+      }
+    },
+    [expandedDocId, documentFragments, fetchFragments],
+  );
 
   const handleAnalyze = async (id: string) => {
     try {
@@ -87,10 +130,18 @@ export default function DocumentsPage() {
                   summary: data.summary,
                   analyzedAt: data.analyzedAt,
                   analysisError: null,
+                  fragmentCount: data.fragmentCount ?? doc.fragmentCount,
                 }
               : doc,
           ),
         );
+        // Fragment キャッシュを無効化（再解析で内容が変わる可能性）
+        setDocumentFragments((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        setExpandedDocId((prev) => (prev === id ? null : prev));
         es.close();
         eventSourcesRef.current.delete(id);
       });
@@ -135,6 +186,13 @@ export default function DocumentsPage() {
       if (response.ok) {
         setDocuments((prev) => prev.filter((doc) => doc.id !== id));
         setDeleteTarget(null);
+        // 展開状態・Fragment キャッシュのクリーンアップ
+        setExpandedDocId((prev) => (prev === id ? null : prev));
+        setDocumentFragments((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
       } else {
         const data = await response.json();
         setDeleteError(data.error || "削除に失敗しました");
@@ -234,6 +292,10 @@ export default function DocumentsPage() {
                 setDeleteTarget(doc);
                 setDeleteError(null);
               }}
+              isExpanded={expandedDocId === doc.id}
+              fragments={documentFragments[doc.id] ?? []}
+              isLoadingFragments={loadingFragmentsFor === doc.id}
+              onToggleFragments={handleToggleFragments}
             />
           ))}
         </div>

@@ -3,8 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVoiceRecording } from "./useVoiceRecording";
 
-export type VoiceMode = "push-to-talk" | "continuous";
-
 export type VoiceConversationState =
   | "inactive"
   | "recording"
@@ -24,15 +22,11 @@ interface UseVoiceConversationOptions {
 }
 
 interface UseVoiceConversationReturn {
-  mode: VoiceMode;
-  setMode: (mode: VoiceMode) => void;
   isActive: boolean;
   voiceState: VoiceConversationState;
   duration: number;
   error: string | null;
-  onPressStart: () => void;
-  onPressEnd: () => void;
-  toggleContinuous: () => void;
+  toggleVoice: () => void;
 }
 
 async function transcribe(blob: Blob): Promise<string> {
@@ -57,7 +51,6 @@ export function useVoiceConversation({
   messages,
   isLoading,
 }: UseVoiceConversationOptions): UseVoiceConversationReturn {
-  const [mode, setMode] = useState<VoiceMode>("push-to-talk");
   const [isActive, setIsActive] = useState(false);
   const [voiceState, setVoiceState] =
     useState<VoiceConversationState>("inactive");
@@ -68,12 +61,28 @@ export function useVoiceConversation({
   const recordingRef = useRef<{
     startRecording: () => Promise<void>;
     stopRecording: () => Promise<Blob | null>;
+    acquireStream: () => Promise<void>;
+    releaseStream: () => void;
   } | null>(null);
+
+  const restartOrDeactivate = useCallback(() => {
+    if (isActiveRef.current) {
+      setVoiceState("recording");
+      recordingRef.current?.startRecording().catch(() => {
+        setError("録音の開始に失敗しました");
+        isActiveRef.current = false;
+        setIsActive(false);
+        setVoiceState("inactive");
+      });
+    } else {
+      setVoiceState("inactive");
+    }
+  }, []);
 
   const handleRecordingComplete = useCallback(
     async (blob: Blob | null) => {
       if (!blob || blob.size === 0) {
-        setVoiceState(isActiveRef.current ? "recording" : "inactive");
+        restartOrDeactivate();
         return;
       }
 
@@ -84,36 +93,42 @@ export function useVoiceConversation({
           onSendMessage(text.trim());
           setVoiceState("waiting");
         } else {
-          setVoiceState(isActiveRef.current ? "recording" : "inactive");
+          restartOrDeactivate();
         }
       } catch {
         setError("文字起こしに失敗しました");
-        setVoiceState(isActiveRef.current ? "recording" : "inactive");
+        restartOrDeactivate();
       }
     },
-    [onSendMessage],
+    [onSendMessage, restartOrDeactivate],
   );
 
   const handleSilenceDetected = useCallback(() => {
-    if (isActiveRef.current && mode === "continuous") {
-      recordingRef.current?.stopRecording().then(handleRecordingComplete);
+    if (isActiveRef.current) {
+      recordingRef.current
+        ?.stopRecording()
+        .then(handleRecordingComplete)
+        .catch(() => {
+          restartOrDeactivate();
+        });
     }
-  }, [mode, handleRecordingComplete]);
-
-  const startRecordingWithErrorHandling = useCallback(() => {
-    recordingRef.current?.startRecording().catch(() => {
-      setError("録音の開始に失敗しました");
-      setVoiceState(isActiveRef.current ? "recording" : "inactive");
-    });
-  }, []);
+  }, [handleRecordingComplete, restartOrDeactivate]);
 
   const recording = useVoiceRecording({
-    onSilenceDetected:
-      mode === "continuous" ? handleSilenceDetected : undefined,
+    onSilenceDetected: handleSilenceDetected,
   });
 
   // recordingRef を常に最新のrecordingに同期
   recordingRef.current = recording;
+
+  // ストリームエラー復帰: recording.stateがidle + errorのとき inactiveに戻す
+  useEffect(() => {
+    if (recording.error && recording.state === "idle" && isActiveRef.current) {
+      isActiveRef.current = false;
+      setIsActive(false);
+      setVoiceState("inactive");
+    }
+  }, [recording.error, recording.state]);
 
   // AI応答完了時に次の状態へ遷移
   useEffect(() => {
@@ -123,70 +138,63 @@ export function useVoiceConversation({
     if (wasLoading && !isLoading && voiceState === "waiting") {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage?.role === "assistant" && lastMessage.content) {
-        setVoiceState(isActiveRef.current ? "recording" : "inactive");
-        if (isActiveRef.current && mode === "continuous") {
-          startRecordingWithErrorHandling();
-        }
+        restartOrDeactivate();
       }
     }
-  }, [isLoading, messages, voiceState, mode, startRecordingWithErrorHandling]);
-
-  // Push-to-talk: ボタン押下→録音開始
-  const onPressStart = useCallback(() => {
-    if (mode !== "push-to-talk") return;
-    setError(null);
-    setIsActive(true);
-    isActiveRef.current = true;
-    setVoiceState("recording");
-    recording.startRecording().catch(() => {
-      setError("録音の開始に失敗しました");
-      setIsActive(false);
-      isActiveRef.current = false;
-      setVoiceState("inactive");
-    });
-  }, [mode, recording.startRecording]);
-
-  // Push-to-talk: ボタン離す→録音停止→文字起こし→送信
-  const onPressEnd = useCallback(() => {
-    if (mode !== "push-to-talk") return;
-    isActiveRef.current = false;
-    setIsActive(false);
-    recording.stopRecording().then(handleRecordingComplete);
-  }, [mode, recording.stopRecording, handleRecordingComplete]);
+  }, [isLoading, messages, voiceState, restartOrDeactivate]);
 
   // 連続会話: トグル
-  const toggleContinuous = useCallback(() => {
-    if (mode !== "continuous") return;
-
+  const toggleVoice = useCallback(() => {
     if (isActive) {
       isActiveRef.current = false;
       setIsActive(false);
-      recording.stopRecording().then(() => {
+      const rec = recordingRef.current;
+      if (!rec) {
         setVoiceState("inactive");
-      });
+        return;
+      }
+      rec
+        .stopRecording()
+        .then(() => {
+          rec.releaseStream();
+          setVoiceState("inactive");
+        })
+        .catch(() => {
+          rec.releaseStream();
+          setVoiceState("inactive");
+        });
     } else {
       setError(null);
       isActiveRef.current = true;
       setIsActive(true);
       setVoiceState("recording");
-      recording.startRecording().catch(() => {
-        setError("録音の開始に失敗しました");
+      const rec = recordingRef.current;
+      if (!rec) {
         setIsActive(false);
         isActiveRef.current = false;
         setVoiceState("inactive");
-      });
+        return;
+      }
+      rec
+        .acquireStream()
+        .then(() => {
+          return rec.startRecording();
+        })
+        .catch(() => {
+          setError("録音の開始に失敗しました");
+          rec.releaseStream();
+          setIsActive(false);
+          isActiveRef.current = false;
+          setVoiceState("inactive");
+        });
     }
-  }, [mode, isActive, recording.startRecording, recording.stopRecording]);
+  }, [isActive]);
 
   return {
-    mode,
-    setMode,
     isActive,
     voiceState,
     duration: recording.duration,
     error: error || recording.error,
-    onPressStart,
-    onPressEnd,
-    toggleContinuous,
+    toggleVoice,
   };
 }

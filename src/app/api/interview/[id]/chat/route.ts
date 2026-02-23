@@ -3,19 +3,27 @@ import { z } from "zod";
 import { isCompanyAccessDenied } from "@/lib/access-control";
 import { withRecruiterAuth } from "@/lib/api-utils";
 import { calculateCoverage } from "@/lib/coverage";
-import {
-  ForbiddenError,
-  InsufficientPointsError,
-  NotFoundError,
-} from "@/lib/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { generateChatResponse, generateFollowUpQuestions } from "@/lib/openai";
-import { checkPointBalance, consumePoints } from "@/lib/points";
+import { consumePointsWithOperations } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
+
+/**
+ * 同時リクエストによりセッションが既に存在していた場合にスローし、
+ * トランザクションをロールバックしてポイント消費を防ぐ。
+ */
+class DuplicateSessionError extends Error {
+  constructor() {
+    super("Session already exists");
+    this.name = "DuplicateSessionError";
+  }
+}
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 const chatSchema = z.object({
-  message: z.string().min(1, "メッセージは必須です"),
+  message: z.string().min(1, "メッセージは必須です").max(5000),
   jobId: z.string().optional(),
   missingInfo: z.array(z.string()).optional(),
 });
@@ -27,7 +35,6 @@ export const POST = withRecruiterAuth<RouteContext>(
     const parsed = chatSchema.safeParse(rawBody);
 
     if (!parsed.success) {
-      const { ValidationError } = await import("@/lib/errors");
       throw new ValidationError("入力内容に問題があります", {
         fields: parsed.error.flatten().fieldErrors,
       });
@@ -89,35 +96,63 @@ export const POST = withRecruiterAuth<RouteContext>(
         throw new ForbiddenError("会社に所属していません");
       }
 
-      const pointCheck = await checkPointBalance(
-        session.user.companyId,
-        "CONVERSATION",
-      );
-      if (!pointCheck.canProceed) {
-        throw new InsufficientPointsError(
-          pointCheck.required,
-          pointCheck.available,
+      try {
+        // セッション作成とポイント消費をアトミックに実行
+        const { result: newSession } = await consumePointsWithOperations(
+          session.user.companyId,
+          "CONVERSATION",
+          async (tx) => {
+            // サブスクリプション行ロック取得後に再チェック
+            // 同時リクエストで既にセッションが作成済みならロールバック
+            const existing = await tx.session.findFirst({
+              where: {
+                recruiterId: session.user.recruiterId,
+                agentId: id,
+                sessionType: "RECRUITER_AGENT_CHAT",
+              },
+            });
+            if (existing) {
+              throw new DuplicateSessionError();
+            }
+
+            return tx.session.create({
+              data: {
+                sessionType: "RECRUITER_AGENT_CHAT",
+                recruiterId: session.user.recruiterId,
+                agentId: id,
+              },
+              include: {
+                messages: true,
+              },
+            });
+          },
+          undefined,
+          `エージェント会話: ${agent.user.name}`,
         );
+        chatSession = newSession;
+      } catch (error) {
+        if (error instanceof DuplicateSessionError) {
+          // 同時リクエストによりセッションが既に作成されていた — 再取得
+          logger.warn("Duplicate session creation prevented", {
+            recruiterId: session.user.recruiterId,
+            agentId: id,
+          });
+          chatSession = await prisma.session.findFirst({
+            where: {
+              recruiterId: session.user.recruiterId,
+              agentId: id,
+              sessionType: "RECRUITER_AGENT_CHAT",
+            },
+            include: {
+              messages: {
+                orderBy: { createdAt: "asc" },
+              },
+            },
+          });
+        } else {
+          throw error;
+        }
       }
-
-      chatSession = await prisma.session.create({
-        data: {
-          sessionType: "RECRUITER_AGENT_CHAT",
-          recruiterId: session.user.recruiterId,
-          agentId: id,
-        },
-        include: {
-          messages: true,
-        },
-      });
-
-      // ポイント消費
-      await consumePoints(
-        session.user.companyId,
-        "CONVERSATION",
-        chatSession.id,
-        `エージェント会話: ${agent.user.name}`,
-      );
     }
 
     // TypeScript型絞り込み（既存セッション取得または新規作成のどちらかで必ず存在）
@@ -143,6 +178,13 @@ export const POST = withRecruiterAuth<RouteContext>(
 
     const fragments = await prisma.fragment.findMany({
       where: { userId: agent.userId },
+      select: {
+        id: true,
+        type: true,
+        content: true,
+        skills: true,
+        keywords: true,
+      },
     });
 
     // 質問に関連するフラグメントをスコアリング

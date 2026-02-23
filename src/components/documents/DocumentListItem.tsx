@@ -1,5 +1,11 @@
-import { FileText, Trash2 } from "lucide-react";
+import { ChevronRight, FileText, Trash2 } from "lucide-react";
+import { FragmentList } from "@/components/agent";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
 type AnalysisStatus = "PENDING" | "ANALYZING" | "COMPLETED" | "FAILED";
@@ -12,6 +18,16 @@ export interface DocumentData {
   analysisError: string | null;
   analyzedAt: string | null;
   createdAt: string;
+  fragmentCount: number;
+}
+
+export interface FragmentData {
+  id: string;
+  type: string;
+  content: string;
+  skills: string[];
+  keywords: string[];
+  createdAt: string;
 }
 
 export interface DocumentListItemProps {
@@ -19,6 +35,10 @@ export interface DocumentListItemProps {
   isLast: boolean;
   onAnalyze: (id: string) => void;
   onDelete: (document: DocumentData) => void;
+  isExpanded: boolean;
+  fragments: FragmentData[];
+  isLoadingFragments: boolean;
+  onToggleFragments: (id: string) => void;
 }
 
 function StatusBadge({
@@ -76,7 +96,14 @@ export function DocumentListItem({
   isLast,
   onAnalyze,
   onDelete,
+  isExpanded,
+  fragments,
+  isLoadingFragments,
+  onToggleFragments,
 }: DocumentListItemProps) {
+  const hasFragments =
+    document.analysisStatus === "COMPLETED" && document.fragmentCount > 0;
+
   return (
     <div
       className={cn(
@@ -123,6 +150,33 @@ export function DocumentListItem({
           )}
         </div>
       </div>
+
+      {hasFragments && (
+        <Collapsible
+          open={isExpanded}
+          onOpenChange={() => onToggleFragments(document.id)}
+          className="mt-3"
+        >
+          <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronRight
+              className={cn(
+                "size-3.5 transition-transform",
+                isExpanded && "rotate-90",
+              )}
+            />
+            <span>記憶のかけら ({document.fragmentCount}件)</span>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 ml-1">
+            {isLoadingFragments ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="size-4 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : (
+              <FragmentList fragments={fragments} />
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   );
 }

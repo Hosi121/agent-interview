@@ -47,6 +47,7 @@ export const GET = withRecruiterAuth(async (req, session) => {
       },
     },
     orderBy: { createdAt: "desc" },
+    take: 100,
   });
 
   return NextResponse.json({ sessions, totalCount: sessions.length });

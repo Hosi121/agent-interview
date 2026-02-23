@@ -10,8 +10,13 @@ export const GET = withRecruiterAuth(async (req, session) => {
   }
 
   const searchParams = req.nextUrl.searchParams;
-  const limit = Number.parseInt(searchParams.get("limit") || "50", 10);
-  const offset = Number.parseInt(searchParams.get("offset") || "0", 10);
+  const rawLimit = Number.parseInt(searchParams.get("limit") || "50", 10);
+  const limit = Math.min(
+    Math.max(Number.isNaN(rawLimit) ? 50 : rawLimit, 1),
+    200,
+  );
+  const rawOffset = Number.parseInt(searchParams.get("offset") || "0", 10);
+  const offset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0);
 
   const history = await getPointHistory(session.user.companyId, limit, offset);
 

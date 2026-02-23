@@ -1,8 +1,29 @@
 import { FragmentType, SourceType } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { withErrorHandling } from "@/lib/api-utils";
+import { ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+
+const validFragmentTypes = Object.values(FragmentType) as [string, ...string[]];
+
+const fragmentSchema = z.object({
+  type: z.string().max(50),
+  content: z.string().min(1).max(10000),
+  skills: z.array(z.string().max(200)).max(50).default([]),
+  keywords: z.array(z.string().max(200)).max(50).default([]),
+});
+
+const callbackSchema = z
+  .object({
+    documentId: z.string().uuid(),
+    userId: z.string().uuid(),
+    fragments: z.array(fragmentSchema).max(500).optional(),
+    summary: z.string().max(5000).optional(),
+    error: z.string().max(5000).optional(),
+  })
+  .strict();
 
 export const POST = withErrorHandling(async (req) => {
   const apiKey = req.headers.get("x-api-key");
@@ -11,25 +32,22 @@ export const POST = withErrorHandling(async (req) => {
   }
 
   const body = await req.json();
-  const { documentId, userId, fragments, summary, error } = body as {
-    documentId: string;
-    userId: string;
-    fragments?: {
-      type: string;
-      content: string;
-      skills: string[];
-      keywords: string[];
-    }[];
-    summary?: string;
-    error?: string;
-  };
-
-  if (!documentId || !userId) {
-    return NextResponse.json(
-      { error: "documentId and userId are required" },
-      { status: 400 },
-    );
+  const parsed = callbackSchema.safeParse(body);
+  if (!parsed.success) {
+    logger.warn("Analysis callback validation failed", {
+      errors: parsed.error.issues.map((i) => ({
+        path: i.path.join("."),
+        message: i.message,
+      })),
+    });
+    throw new ValidationError("リクエストの形式が不正です", {
+      fields: Object.fromEntries(
+        parsed.error.issues.map((i) => [i.path.join("."), [i.message]]),
+      ),
+    });
   }
+
+  const { documentId, userId, fragments, summary, error } = parsed.data;
 
   if (error) {
     await prisma.document.update({
@@ -46,12 +64,8 @@ export const POST = withErrorHandling(async (req) => {
     return NextResponse.json({ success: true, status: "FAILED" });
   }
 
-  const validFragmentTypes = Object.values(FragmentType);
-
   const fragmentData = (fragments || []).map((fragment) => {
-    const fragmentType = validFragmentTypes.includes(
-      fragment.type as FragmentType,
-    )
+    const fragmentType = validFragmentTypes.includes(fragment.type)
       ? (fragment.type as FragmentType)
       : FragmentType.FACT;
 
@@ -59,8 +73,8 @@ export const POST = withErrorHandling(async (req) => {
       userId,
       type: fragmentType,
       content: fragment.content,
-      skills: fragment.skills || [],
-      keywords: fragment.keywords || [],
+      skills: fragment.skills,
+      keywords: fragment.keywords,
       sourceType: SourceType.DOCUMENT as SourceType,
       sourceId: documentId,
     };
